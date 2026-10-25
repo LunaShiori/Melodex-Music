@@ -363,7 +363,37 @@ npm run tauri android build -- --aab        # 上架用 AAB
 ```
 
 产物位于 `src-tauri/gen/android/app/build/outputs/apk/universal/release/`。
-签名：`src-tauri/gen/android/keystore.properties` 里配置 `keyAlias / password / storeFile`。
+
+**签名（必做，否则 APK 装不上）**：`tauri android init` 生成的 `app/build.gradle.kts` 里没有 `signingConfigs`，
+Gradle 只会输出 `app-universal-release-unsigned.apk`。用仓库脚本补上，二选一：
+
+```bash
+# 方式 A：用仓库内置的公开 CI 密钥（口令 melodex-ci，仅用于侧载分发）
+cp src-tauri/ci-signing/melodex-ci.p12 /tmp/melodex.p12
+cat > src-tauri/gen/android/keystore.properties <<EOF
+storeFile=/tmp/melodex.p12
+storeType=PKCS12
+keyAlias=melodex
+password=melodex-ci
+EOF
+
+# 方式 B：用自己的密钥（上架应用商店必须这样）
+keytool -genkeypair -v -keystore ~/upload.jks -storetype JKS \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+cat > src-tauri/gen/android/keystore.properties <<EOF
+storeFile=$HOME/upload.jks
+storeType=JKS
+keyAlias=upload
+password=你的口令
+EOF
+
+# 无论哪种，都要执行一次补丁脚本（幂等，可重复跑）
+python3 scripts/android-signing.py
+npm run tauri android build -- --apk
+
+# 校验产出确实已签名
+python3 scripts/check-apk.py src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+```
 
 > 说明：`src-tauri/gen/android/` 默认不纳入版本库（见 `.gitignore`），它由 `tauri android init` 按本机 SDK 生成，
 > 入库容易与 SDK/NDK 版本绑死。想固定构建环境，可去掉 `.gitignore` 里对应的那一行。
@@ -399,8 +429,17 @@ git push origin v0.1.0
 
 1. **安装包必须挂在 Release 资产里**（不是只放在 Actions 的 artifact 里）——应用内的「检查更新」读的是
    `releases/latest` 返回的 `assets[]`，artifact 没过期就会随 retention 消失。
-2. Android APK 走调试签名可以安装，但升级覆盖安装要求签名一致；正式分发请在
-   `src-tauri/gen/android/keystore.properties` 配好固定签名，并把 keystore 放进 CI Secrets。
+2. **Android 签名**：Android 要求「同一应用必须同一签名」才能覆盖安装，所以 CI 默认使用仓库里公开的
+   `src-tauri/ci-signing/melodex-ci.p12`（口令 `melodex-ci`）。它只保证历次 Release 能装、能升级，
+   不代表任何安全承诺。要换成自己的密钥，在仓库 Settings → Secrets 里加三个值即可，流水线会自动优先使用：
+
+   | Secret | 内容 |
+   | --- | --- |
+   | `ANDROID_KEY_BASE64` | `base64 -w0 your.jks` 的结果 |
+   | `ANDROID_KEY_PASSWORD` | keystore 口令（同时用作 key 口令） |
+   | `ANDROID_KEY_ALIAS` | 别名，默认 `melodex` |
+
+   出包后流水线会用 `scripts/check-apk.py` 校验签名块，未签名直接失败，不会把装不上的包挂上 Release。
 
 ## 开发与调试
 
@@ -445,6 +484,7 @@ melodex/
 │   └── examples/probe.rs         # 命令行探针
 ├── src-tauri/                    # Tauri 2 外壳
 │   ├── src/lib.rs                # commands + 事件转发
+│   ├── ci-signing/               # 公开的 CI 签名密钥（仅侧载分发用）
 │   ├── tauri.conf.json
 │   └── icons/
 ├── src/                          # Vue 3 + TypeScript 界面
@@ -453,7 +493,7 @@ melodex/
 │   ├── stores/                   # search · tasks · player · settings · update（Pinia）
 │   ├── lib/transport/            # Transport 抽象：tauri / demo 两套实现
 │   └── styles/main.css           # 设计令牌与双主题
-├── scripts/                      # 图标生成 · 第三方许可清单生成
+├── scripts/                      # 图标生成 · 第三方许可清单 · Android 签名补丁与 APK 校验
 ├── docs/screenshots/             # README 用截图
 ├── .github/workflows/            # ci.yml（检查）· release.yml（出安装包）
 ├── THIRD_PARTY_LICENSES.txt

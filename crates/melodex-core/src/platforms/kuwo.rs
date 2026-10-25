@@ -40,7 +40,10 @@ impl MusicPlatform for Kuwo {
         );
         let body = self
             .net
-            .text(&url, &[("Referer", REFERER), ("User-Agent", crate::net::UA)])
+            .text(
+                &url,
+                &[("Referer", REFERER), ("User-Agent", crate::net::UA)],
+            )
             .await?;
         let value = pseudo_json::parse(&body)
             .map_err(|err| Error::decode(format!("酷我响应解析失败：{err}")))?;
@@ -99,7 +102,10 @@ impl MusicPlatform for Kuwo {
         );
         let body = self
             .net
-            .text(&url, &[("Referer", REFERER), ("User-Agent", crate::net::UA)])
+            .text(
+                &url,
+                &[("Referer", REFERER), ("User-Agent", crate::net::UA)],
+            )
             .await?;
         let link = body.trim();
         if !link.starts_with("http") {

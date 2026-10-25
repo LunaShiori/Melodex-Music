@@ -22,10 +22,7 @@ impl TaskState {
     pub fn is_active(self) -> bool {
         matches!(
             self,
-            TaskState::Queued
-                | TaskState::Resolving
-                | TaskState::Downloading
-                | TaskState::Tagging
+            TaskState::Queued | TaskState::Resolving | TaskState::Downloading | TaskState::Tagging
         )
     }
 

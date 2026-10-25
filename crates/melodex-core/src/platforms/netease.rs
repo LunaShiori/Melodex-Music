@@ -338,7 +338,10 @@ mod tests {
         assert_eq!(variant.title, "晴天");
         assert_eq!(variant.duration_ms, 269_000);
         assert_eq!(variant.album, "叶惠美");
-        assert_eq!(variant.cover.as_deref(), Some("https://p1.music.126.net/y.jpg"));
+        assert_eq!(
+            variant.cover.as_deref(),
+            Some("https://p1.music.126.net/y.jpg")
+        );
     }
 
     #[test]

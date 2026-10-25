@@ -28,7 +28,11 @@ impl QqMusic {
     }
 
     /// 请求 vkey 并拼出完整可下载地址。`filenames` 为空表示让服务端给默认档。
-    async fn vkey(&self, mid: &str, filenames: Option<&[String]>) -> Result<Option<(String, String)>> {
+    async fn vkey(
+        &self,
+        mid: &str,
+        filenames: Option<&[String]>,
+    ) -> Result<Option<(String, String)>> {
         let guid = guid();
         let mut param = json!({
             "guid": guid,
@@ -54,8 +58,7 @@ impl QqMusic {
             },
             "comm": { "uin": 0, "format": "json", "ct": 6, "cv": 0 }
         });
-        let encoded =
-            utf8_percent_encode(&payload.to_string(), NON_ALPHANUMERIC).to_string();
+        let encoded = utf8_percent_encode(&payload.to_string(), NON_ALPHANUMERIC).to_string();
         let url = format!("{MUSICU}?format=json&data={encoded}");
 
         let cookie = self.creds.cookie(Source::Qq);
@@ -79,7 +82,11 @@ impl QqMusic {
         let full = if purl.starts_with("http") {
             purl.to_string()
         } else {
-            format!("{}{}", sip.trim_end_matches('/'), format!("/{purl}").as_str())
+            format!(
+                "{}{}",
+                sip.trim_end_matches('/'),
+                format!("/{purl}").as_str()
+            )
         };
         let format = purl
             .rsplit('.')
@@ -141,7 +148,11 @@ impl MusicPlatform for QqMusic {
 
         for filenames in attempts {
             if let Some((url, format)) = self.vkey(mid, filenames.as_deref()).await? {
-                let actual = if format == "flac" { 999 } else { bitrate.max(128) };
+                let actual = if format == "flac" {
+                    999
+                } else {
+                    bitrate.max(128)
+                };
                 return Ok(PlayUrl {
                     url,
                     bitrate: actual,

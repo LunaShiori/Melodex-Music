@@ -4,9 +4,7 @@ use std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 
 use crate::error::{Error, Result};
-use crate::model::{
-    Lyric, PlaylistDetail, PlayUrl, SearchPage, Source, Variant,
-};
+use crate::model::{Lyric, PlayUrl, PlaylistDetail, SearchPage, Source, Variant};
 use crate::net::Net;
 
 /// 一次搜索请求。音源的 offset 由适配器自行换算，避免各平台分页口径不同。
@@ -99,11 +97,17 @@ impl Registry {
         let mut map: HashMap<Source, Arc<dyn MusicPlatform>> = HashMap::new();
         map.insert(
             Source::Netease,
-            Arc::new(crate::platforms::netease::Netease::new(net.clone(), creds.clone())),
+            Arc::new(crate::platforms::netease::Netease::new(
+                net.clone(),
+                creds.clone(),
+            )),
         );
         map.insert(
             Source::Qq,
-            Arc::new(crate::platforms::qq::QqMusic::new(net.clone(), creds.clone())),
+            Arc::new(crate::platforms::qq::QqMusic::new(
+                net.clone(),
+                creds.clone(),
+            )),
         );
         map.insert(
             Source::Kuwo,
@@ -125,7 +129,10 @@ impl Registry {
     }
 
     pub fn all(&self) -> Vec<Arc<dyn MusicPlatform>> {
-        Source::ALL.iter().filter_map(|s| self.platforms.get(s).cloned()).collect()
+        Source::ALL
+            .iter()
+            .filter_map(|s| self.platforms.get(s).cloned())
+            .collect()
     }
 
     pub fn sources() -> &'static [Source] {

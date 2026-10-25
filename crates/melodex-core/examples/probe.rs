@@ -54,10 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("没有结果");
         return Ok(());
     };
-    let variant = best
-        .best_variant(None)
-        .ok_or("no variant")?
-        .clone();
+    let variant = best.best_variant(None).ok_or("no variant")?.clone();
     println!(
         "\n优先尝试：{} / {} / {}",
         variant.source.label(),
@@ -79,14 +76,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Ok(Some(text)) = platform.lyric(&variant.id).await {
         let lines = lyric::parse_lrc(&text.lrc);
-        println!("歌词 {} 行，首行：{}", lines.len(), lines.first().map(|l| l.text.as_str()).unwrap_or(""));
+        println!(
+            "歌词 {} 行，首行：{}",
+            lines.len(),
+            lines.first().map(|l| l.text.as_str()).unwrap_or("")
+        );
     }
 
     if download {
-        let registry = melodex_core::Registry::new(
-            melodex_core::net::Net::new()?,
-            creds,
-        );
+        let registry = melodex_core::Registry::new(melodex_core::net::Net::new()?, creds);
         let dir = PathBuf::from("melodex-probe-output");
         let settings = melodex_core::Settings {
             download_dir: dir.to_string_lossy().to_string(),

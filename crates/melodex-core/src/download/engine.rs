@@ -21,7 +21,8 @@ use crate::task::{DownloadTask, TaskState};
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type", content = "payload")]
 pub enum EngineEvent {
-    TaskUpsert(DownloadTask),
+    /// 任务快照。装箱是为了压小枚举体积（其余变体只有几十字节）。
+    TaskUpsert(Box<DownloadTask>),
     TaskRemoved(String),
     Notice(Notice),
 }
@@ -88,7 +89,11 @@ struct Inner {
 }
 
 impl DownloadEngine {
-    pub fn new(registry: Registry, settings: Settings, store_path: Option<PathBuf>) -> Result<Self> {
+    pub fn new(
+        registry: Registry,
+        settings: Settings,
+        store_path: Option<PathBuf>,
+    ) -> Result<Self> {
         let client = reqwest::Client::builder()
             .user_agent(crate::net::UA)
             .connect_timeout(Duration::from_secs(10))
@@ -123,11 +128,7 @@ impl DownloadEngine {
     }
 
     pub fn tasks(&self) -> Vec<DownloadTask> {
-        self.inner
-            .tasks
-            .lock()
-            .expect("tasks poisoned")
-            .clone()
+        self.inner.tasks.lock().expect("tasks poisoned").clone()
     }
 
     pub fn active_count(&self) -> usize {
@@ -176,7 +177,13 @@ impl DownloadEngine {
                 }
             }
         }
-        if let Some(control) = self.inner.controls.lock().expect("controls poisoned").get(id) {
+        if let Some(control) = self
+            .inner
+            .controls
+            .lock()
+            .expect("controls poisoned")
+            .get(id)
+        {
             control.pause.store(true, Ordering::Relaxed);
         }
         self.inner.emit_upsert(id);
@@ -192,7 +199,13 @@ impl DownloadEngine {
                 }
             }
         }
-        if let Some(control) = self.inner.controls.lock().expect("controls poisoned").get(id) {
+        if let Some(control) = self
+            .inner
+            .controls
+            .lock()
+            .expect("controls poisoned")
+            .get(id)
+        {
             control.pause.store(false, Ordering::Relaxed);
         }
         self.inner.emit_upsert(id);
@@ -201,7 +214,13 @@ impl DownloadEngine {
     }
 
     pub fn cancel(&self, id: &str) {
-        if let Some(control) = self.inner.controls.lock().expect("controls poisoned").get(id) {
+        if let Some(control) = self
+            .inner
+            .controls
+            .lock()
+            .expect("controls poisoned")
+            .get(id)
+        {
             control.cancel.store(true, Ordering::Relaxed);
         }
         self.inner.mutate(id, |task| {
@@ -212,7 +231,13 @@ impl DownloadEngine {
     }
 
     pub fn remove(&self, id: &str) {
-        if let Some(control) = self.inner.controls.lock().expect("controls poisoned").get(id) {
+        if let Some(control) = self
+            .inner
+            .controls
+            .lock()
+            .expect("controls poisoned")
+            .get(id)
+        {
             control.cancel.store(true, Ordering::Relaxed);
         }
         let removed = {
@@ -238,7 +263,7 @@ impl DownloadEngine {
         if removed > 0 {
             self.inner.persist();
             for task in self.tasks() {
-                let _ = self.inner.tx.send(EngineEvent::TaskUpsert(task));
+                let _ = self.inner.tx.send(EngineEvent::TaskUpsert(Box::new(task)));
             }
         }
         removed
@@ -269,23 +294,20 @@ impl Inner {
     {
         let updated = {
             let mut tasks = self.tasks.lock().expect("tasks poisoned");
-            tasks
-                .iter_mut()
-                .find(|task| task.id == id)
-                .map(|task| {
-                    change(task);
-                    task.clone()
-                })
+            tasks.iter_mut().find(|task| task.id == id).map(|task| {
+                change(task);
+                task.clone()
+            })
         };
         if let Some(task) = updated.clone() {
-            let _ = self.tx.send(EngineEvent::TaskUpsert(task));
+            let _ = self.tx.send(EngineEvent::TaskUpsert(Box::new(task)));
         }
         updated
     }
 
     fn emit_upsert(&self, id: &str) {
         if let Some(task) = self.find(id) {
-            let _ = self.tx.send(EngineEvent::TaskUpsert(task));
+            let _ = self.tx.send(EngineEvent::TaskUpsert(Box::new(task)));
         }
     }
 
@@ -361,14 +383,13 @@ fn pump(inner: Arc<Inner>) {
 
         let pause = Arc::new(AtomicBool::new(false));
         let cancel = Arc::new(AtomicBool::new(false));
-        inner
-            .controls
-            .lock()
-            .expect("controls poisoned")
-            .insert(id.clone(), Control {
+        inner.controls.lock().expect("controls poisoned").insert(
+            id.clone(),
+            Control {
                 pause: pause.clone(),
                 cancel: cancel.clone(),
-            });
+            },
+        );
         inner.emit_upsert(&id);
 
         let task_inner = inner.clone();
@@ -387,7 +408,11 @@ enum Step {
 
 async fn run_task(inner: Arc<Inner>, id: String, pause: Arc<AtomicBool>, cancel: Arc<AtomicBool>) {
     let result = execute(inner.clone(), &id, &pause, &cancel).await;
-    inner.controls.lock().expect("controls poisoned").remove(&id);
+    inner
+        .controls
+        .lock()
+        .expect("controls poisoned")
+        .remove(&id);
 
     let title = inner
         .find(&id)
@@ -435,7 +460,9 @@ async fn execute(
     pause: &AtomicBool,
     cancel: &AtomicBool,
 ) -> Result<Step> {
-    let task = inner.find(id).ok_or_else(|| Error::TaskNotFound(id.into()))?;
+    let task = inner
+        .find(id)
+        .ok_or_else(|| Error::TaskNotFound(id.into()))?;
     let settings = inner.settings();
     let platform = inner.registry.get(task.source)?;
 
@@ -651,5 +678,27 @@ mod tests {
         assert_eq!(input.source, Source::Qq);
         assert_eq!(input.source_id, "0039MnYb0qxYhV");
         assert_eq!(input.bitrate, Some(320));
+    }
+
+    /// 前端靠 `type`/`payload` 分派事件，装箱不能改变 JSON 形状。
+    #[test]
+    fn engine_event_keeps_json_shape() {
+        let task = DownloadTask::new(
+            Source::Netease,
+            "186016",
+            "晴天",
+            vec!["周杰伦".into()],
+            320,
+        );
+        let value = serde_json::to_value(EngineEvent::TaskUpsert(Box::new(task))).unwrap();
+
+        assert_eq!(value["type"], "taskUpsert");
+        assert_eq!(value["payload"]["title"], "晴天");
+        assert_eq!(value["payload"]["source"], "netease");
+        assert_eq!(value["payload"]["state"], "queued");
+
+        let removed = serde_json::to_value(EngineEvent::TaskRemoved("abc".into())).unwrap();
+        assert_eq!(removed["type"], "taskRemoved");
+        assert_eq!(removed["payload"], "abc");
     }
 }

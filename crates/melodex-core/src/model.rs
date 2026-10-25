@@ -309,9 +309,34 @@ pub fn normalize_title(raw: &str) -> String {
                 }
                 if matches!(
                     lower,
-                    '-' | '_' | '.' | '\'' | '"' | ',' | '，' | '、' | '·' | '!' | '！' | '?'
-                        | '？' | ':' | '：' | ';' | '；' | '/' | '\\' | '+' | '&' | '《' | '》'
-                        | '〈' | '〉' | '「' | '」' | '『' | '』'
+                    '-' | '_'
+                        | '.'
+                        | '\''
+                        | '"'
+                        | ','
+                        | '，'
+                        | '、'
+                        | '·'
+                        | '!'
+                        | '！'
+                        | '?'
+                        | '？'
+                        | ':'
+                        | '：'
+                        | ';'
+                        | '；'
+                        | '/'
+                        | '\\'
+                        | '+'
+                        | '&'
+                        | '《'
+                        | '》'
+                        | '〈'
+                        | '〉'
+                        | '「'
+                        | '」'
+                        | '『'
+                        | '』'
                 ) {
                     continue;
                 }
@@ -388,6 +413,9 @@ mod tests {
             track.best_variant(Some(Source::Qq)).map(|v| v.source),
             Some(Source::Qq)
         );
-        assert_eq!(track.best_variant(None).map(|v| v.source), Some(Source::Netease));
+        assert_eq!(
+            track.best_variant(None).map(|v| v.source),
+            Some(Source::Netease)
+        );
     }
 }

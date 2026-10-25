@@ -101,7 +101,12 @@ pub fn current_index(lines: &[LyricLine], position_ms: u64) -> Option<usize> {
 pub fn to_lrc(lines: &[LyricLine], with_translation: bool) -> String {
     let mut out = String::new();
     for line in lines {
-        let stamp = format!("[{:02}:{:02}.{:02}]", line.time_ms / 60_000, (line.time_ms / 1_000) % 60, (line.time_ms % 1_000) / 10);
+        let stamp = format!(
+            "[{:02}:{:02}.{:02}]",
+            line.time_ms / 60_000,
+            (line.time_ms / 1_000) % 60,
+            (line.time_ms % 1_000) / 10
+        );
         out.push_str(&stamp);
         out.push_str(&line.text);
         out.push('\n');

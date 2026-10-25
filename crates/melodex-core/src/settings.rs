@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::model::Source;
 
 /// 重复文件的处理策略。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DuplicatePolicy {
     /// 跳过，不下载
@@ -11,27 +11,17 @@ pub enum DuplicatePolicy {
     /// 覆盖已有文件
     Overwrite,
     /// 保留两份，文件名加序号
+    #[default]
     KeepBoth,
 }
 
-impl Default for DuplicatePolicy {
-    fn default() -> Self {
-        DuplicatePolicy::KeepBoth
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ThemeMode {
     Light,
     Dark,
+    #[default]
     System,
-}
-
-impl Default for ThemeMode {
-    fn default() -> Self {
-        ThemeMode::System
-    }
 }
 
 /// 全部可配置项。前端设置页与该结构一一对应，改动即持久化。
@@ -127,7 +117,9 @@ pub fn default_download_dir() -> std::path::PathBuf {
     #[cfg(target_os = "windows")]
     {
         if let Ok(profile) = std::env::var("USERPROFILE") {
-            return std::path::PathBuf::from(profile).join("Music").join("Melodex");
+            return std::path::PathBuf::from(profile)
+                .join("Music")
+                .join("Melodex");
         }
     }
     #[cfg(target_os = "android")]
@@ -158,11 +150,17 @@ mod tests {
 
     #[test]
     fn sanitize_clamps_concurrency() {
-        let mut settings = Settings::default();
-        settings.concurrency = 999;
-        assert_eq!(settings.clone().sanitized().concurrency, 8);
-        settings.concurrency = 0;
-        assert_eq!(settings.sanitized().concurrency, 1);
+        let too_many = Settings {
+            concurrency: 999,
+            ..Default::default()
+        };
+        assert_eq!(too_many.sanitized().concurrency, 8);
+
+        let too_few = Settings {
+            concurrency: 0,
+            ..Default::default()
+        };
+        assert_eq!(too_few.sanitized().concurrency, 1);
     }
 
     #[test]

@@ -274,7 +274,8 @@ mod tests {
 
     #[test]
     fn relevance_prefers_exact_title() {
-        let mut exact = Track::from_variant(variant(Source::Netease, "1", "晴天", "周杰伦", 269_000));
+        let mut exact =
+            Track::from_variant(variant(Source::Netease, "1", "晴天", "周杰伦", 269_000));
         exact.fee = Fee::Free;
         let other = Track::from_variant(variant(Source::Qq, "2", "晴天的雨", "周杰伦", 269_000));
         assert!(relevance(&exact, "晴天") > relevance(&other, "晴天"));

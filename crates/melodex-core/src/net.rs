@@ -45,11 +45,14 @@ impl Net {
         Ok(resp.text().await?)
     }
 
-    pub async fn json<T: DeserializeOwned>(&self, url: &str, headers: &[(&str, &str)]) -> Result<T> {
+    pub async fn json<T: DeserializeOwned>(
+        &self,
+        url: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<T> {
         let body = self.text(url, headers).await?;
-        serde_json::from_str(&body).map_err(|err| {
-            Error::decode(format!("{} <- {}", err, snippet(&body)))
-        })
+        serde_json::from_str(&body)
+            .map_err(|err| Error::decode(format!("{} <- {}", err, snippet(&body))))
     }
 }
 

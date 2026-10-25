@@ -61,11 +61,18 @@ pub async fn download(
 
     let resumed = status == reqwest::StatusCode::PARTIAL_CONTENT;
     let body_len = response.content_length().unwrap_or(0);
-    let total = if resumed { existing + body_len } else { body_len };
+    let total = if resumed {
+        existing + body_len
+    } else {
+        body_len
+    };
     let mut downloaded = if resumed { existing } else { 0 };
 
     let mut file = if resumed {
-        tokio::fs::OpenOptions::new().append(true).open(part).await?
+        tokio::fs::OpenOptions::new()
+            .append(true)
+            .open(part)
+            .await?
     } else {
         tokio::fs::File::create(part).await?
     };

@@ -251,7 +251,13 @@ mod tests {
     fn parses_nested_objects() {
         let body = "{'a':{'b':'c'},'n':1}";
         let value = parse(body).unwrap();
-        assert_eq!(value.get("a").and_then(|v| v.get("b")).and_then(|v| v.as_str()), Some("c"));
+        assert_eq!(
+            value
+                .get("a")
+                .and_then(|v| v.get("b"))
+                .and_then(|v| v.as_str()),
+            Some("c")
+        );
         assert_eq!(value.num_of("n"), 1.0);
     }
 

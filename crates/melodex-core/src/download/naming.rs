@@ -80,7 +80,9 @@ pub fn sanitize(raw: &str) -> String {
         }
     }
     let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
-    let trimmed = collapsed.trim_matches(|c: char| c == '.' || c == ' ').to_string();
+    let trimmed = collapsed
+        .trim_matches(|c: char| c == '.' || c == ' ')
+        .to_string();
     let mut limited: String = trimmed.chars().take(120).collect();
     if limited.is_empty() {
         limited = "未命名".to_string();
@@ -106,12 +108,7 @@ pub enum Resolution {
 }
 
 /// 依据重复策略决定目标路径。
-pub fn resolve_target(
-    dir: &Path,
-    stem: &str,
-    ext: &str,
-    policy: DuplicatePolicy,
-) -> Resolution {
+pub fn resolve_target(dir: &Path, stem: &str, ext: &str, policy: DuplicatePolicy) -> Resolution {
     let first = dir.join(format!("{stem}.{ext}"));
     if !first.exists() {
         return Resolution::Write(first);
@@ -153,7 +150,10 @@ mod tests {
         let c = ctx(&artists);
         assert_eq!(render("{artist} - {title}", &c), "周杰伦 - 晴天");
         assert_eq!(render("{index:02}. {title}", &c), "07. 晴天");
-        assert_eq!(render("{album}/{source}/{bitrate}", &c), "叶惠美 netease 320");
+        assert_eq!(
+            render("{album}/{source}/{bitrate}", &c),
+            "叶惠美 netease 320"
+        );
     }
 
     #[test]

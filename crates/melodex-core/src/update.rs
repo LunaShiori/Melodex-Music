@@ -48,7 +48,7 @@ pub struct UpdateInfo {
 /// 把 "v0.2.0" / "0.2.0-beta.1" 拆成 (数字段, 预发布标签)
 fn split_version(raw: &str) -> (Vec<u64>, Option<String>) {
     let trimmed = raw.trim();
-    let trimmed = trimmed.trim_start_matches(|c: char| c == 'v' || c == 'V');
+    let trimmed = trimmed.trim_start_matches(['v', 'V']);
     let (core, pre) = match trimmed.split_once('-') {
         Some((core, pre)) => (core, Some(pre.to_ascii_lowercase())),
         None => (trimmed, None),
@@ -205,7 +205,10 @@ mod tests {
         assert_eq!(compare_versions("0.1.10", "0.1.9"), Ordering::Greater);
         assert_eq!(compare_versions("1.0", "1.0.0"), Ordering::Equal);
         assert_eq!(compare_versions("0.1.0-beta.2", "0.1.0"), Ordering::Less);
-        assert_eq!(compare_versions("0.1.0-beta.2", "0.1.0-beta.1"), Ordering::Greater);
+        assert_eq!(
+            compare_versions("0.1.0-beta.2", "0.1.0-beta.1"),
+            Ordering::Greater
+        );
     }
 
     #[test]
@@ -231,7 +234,8 @@ mod tests {
 
     #[test]
     fn parses_flat_manifest_and_detects_same_version() {
-        let body = r#"{"version":"0.1.0","notes":"当前已是最新","url":"https://example.com/releases"}"#;
+        let body =
+            r#"{"version":"0.1.0","notes":"当前已是最新","url":"https://example.com/releases"}"#;
         let info = parse_release(body, "0.1.0").unwrap();
         assert!(!info.available);
         assert!(info.assets.is_empty());
