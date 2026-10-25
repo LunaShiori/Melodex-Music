@@ -245,6 +245,9 @@ export function createDemoTransport(): Transport {
         speedBps: 0,
         path: `${demoDir}/${seed.artists.join(', ')} - ${seed.title}.mp3`,
         error: null,
+        failReason: null,
+        fallbacks: [],
+        resolvedSource: null,
         createdAt: now - index * 3600,
         finishedAt: now - index * 3600 + 60,
         ...extra,
@@ -254,10 +257,12 @@ export function createDemoTransport(): Transport {
       make(0, 'completed'),
       make(2, 'completed'),
       make(3, 'failed', {
-        downloaded: 1_240_000,
-        total: 4_600_000,
+        downloaded: 0,
+        total: 0,
         path: null,
-        error: '该歌曲没有可用的音频链接',
+        source: 'qq',
+        error: 'QQ 音乐：该音源必须登录后才提供下载链接，登录后重试即可',
+        failReason: 'needLogin',
         finishedAt: now - 600,
       }),
       make(4, 'downloading', {
@@ -341,6 +346,9 @@ export function createDemoTransport(): Transport {
           speedBps: 0,
           path: null,
           error: null,
+          failReason: null,
+          fallbacks: input.fallbacks ?? [],
+          resolvedSource: null,
           createdAt: Math.round(Date.now() / 1000),
           finishedAt: null,
         }
@@ -434,7 +442,7 @@ export function createDemoTransport(): Transport {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))
       return {
-        current: '0.2.1',
+        current: '0.3.0',
         latest: 'v0.2.0',
         available: true,
         notes:
@@ -502,6 +510,7 @@ export function createDemoTransport(): Transport {
         qrUrl: `https://music.163.com/login?codekey=${key}`,
         expiresIn: 180,
         qrSvg: fakeQrSvg(),
+        qrImage: null,
       } satisfies QrTicket
     },
 

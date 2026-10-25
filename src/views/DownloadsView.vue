@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
 import Icon from '@/components/Icon.vue'
 import { coverOf } from '@/lib/artwork'
 import { formatBytes, formatRelative, formatSpeed } from '@/lib/format'
+import { reasonMeta } from '@/lib/reason'
 import { SOURCE_META } from '@/lib/types'
 import type { DownloadTask, TaskState } from '@/lib/types'
 import { useTasksStore } from '@/stores/tasks'
 
 const tasks = useTasksStore()
+const router = useRouter()
 
 const STATE_TEXT: Record<TaskState, string> = {
   queued: '排队中',
@@ -34,6 +37,20 @@ function ratio(task: DownloadTask) {
 
 function isActive(task: DownloadTask) {
   return ['queued', 'resolving', 'downloading', 'tagging', 'paused'].includes(task.state)
+}
+
+/** 失败条目优先展示结构化原因，取不到时回落到引擎给的原文。 */
+function failText(task: DownloadTask) {
+  return reasonMeta(task.failReason)?.hint ?? task.error
+}
+
+/** 只有「登录能解决」的原因才给登录入口，避免误导。 */
+function needsLogin(task: DownloadTask) {
+  return task.state === 'failed' && !!reasonMeta(task.failReason)?.login
+}
+
+function goLogin() {
+  void router.push({ name: 'settings' })
 }
 </script>
 
@@ -90,8 +107,24 @@ function isActive(task: DownloadTask) {
           <div class="line">
             <p class="title">{{ task.title }}</p>
             <span class="badge" :class="task.state">{{ STATE_TEXT[task.state] }}</span>
-            <span class="src" :style="{ color: SOURCE_META[task.source].color }">
-              {{ SOURCE_META[task.source].short }}
+            <span
+              v-if="task.state === 'failed' && reasonMeta(task.failReason)"
+              class="badge reason"
+            >
+              {{ reasonMeta(task.failReason)?.label }}
+            </span>
+            <span
+              class="src"
+              :style="{ color: SOURCE_META[task.resolvedSource ?? task.source].color }"
+            >
+              {{ SOURCE_META[task.resolvedSource ?? task.source].short }}
+            </span>
+            <span
+              v-if="task.resolvedSource && task.resolvedSource !== task.source"
+              class="badge swapped"
+              title="原音源拿不到链接，已自动改用其它音源"
+            >
+              自动换源
             </span>
           </div>
           <p class="sub">
@@ -114,13 +147,23 @@ function isActive(task: DownloadTask) {
               <span v-else-if="task.state === 'completed'">
                 {{ formatBytes(task.total || task.downloaded) }} · 已保存
               </span>
-              <span v-else-if="task.state === 'failed'" class="err">{{ task.error }}</span>
+              <span v-else-if="task.state === 'failed'" class="err">{{ failText(task) }}</span>
               <span v-else>{{ STATE_TEXT[task.state] }}</span>
             </div>
           </div>
         </div>
 
         <div class="actions">
+          <button
+            v-if="needsLogin(task)"
+            class="btn btn-sm login-cta"
+            type="button"
+            title="前往设置登录该音源"
+            @click="goLogin()"
+          >
+            <Icon name="user" :size="14" />
+            去登录
+          </button>
           <button
             v-if="!isActive(task) && task.state !== 'completed'"
             class="icon-btn"
@@ -325,6 +368,21 @@ function isActive(task: DownloadTask) {
 .badge.failed {
   background: color-mix(in srgb, var(--danger) 14%, transparent);
   color: var(--danger);
+}
+/* 失败原因：和「失败」状态区分开，让用户一眼看出是哪种不可用 */
+.badge.reason {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+}
+.badge.swapped {
+  background: color-mix(in srgb, var(--accent-2) 14%, transparent);
+  color: var(--accent-2);
+}
+.login-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 .src {
   font-size: 10.5px;

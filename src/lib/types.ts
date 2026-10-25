@@ -1,6 +1,18 @@
 export type SourceId = 'netease' | 'qq' | 'kuwo'
 export type Fee = 'free' | 'vip' | 'paid' | 'unknown'
 
+/**
+ * 下载失败的结构化原因。界面据此决定显示「去登录」还是「重试」，
+ * 而不是笼统地说一句「该歌曲没有可用的音频链接」。
+ */
+export type FailReason =
+  | 'needLogin'
+  | 'vipOnly'
+  | 'qualityMissing'
+  | 'copyright'
+  | 'network'
+  | 'unknown'
+
 export interface Variant {
   source: SourceId
   id: string
@@ -82,8 +94,20 @@ export interface DownloadTask {
   speedBps: number
   path: string | null
   error: string | null
+  /** 失败原因，失败时才有值 */
+  failReason: FailReason | null
+  /** 其它音源上的候选，首选源失败时引擎会自动换源 */
+  fallbacks: Fallback[]
+  /** 最终真正取到链接的音源，可能和 source 不同 */
+  resolvedSource: SourceId | null
   createdAt: number
   finishedAt: number | null
+}
+
+export interface Fallback {
+  source: SourceId
+  sourceId: string
+  bitrate: number
 }
 
 export interface Notice {
@@ -106,6 +130,7 @@ export interface EnqueueInput {
   durationMs: number
   bitrate?: number
   format?: string
+  fallbacks?: Fallback[]
 }
 
 export interface Settings {
@@ -179,10 +204,13 @@ export interface VaultStatus {
 export interface QrTicket {
   source: SourceId
   key: string
+  /** 编码进二维码的内容；QQ 的二维码是位图，这里为空串 */
   qrUrl: string
   expiresIn: number
-  /** 已渲染好的 SVG，直接内联 */
-  qrSvg: string
+  /** 本地渲染好的 SVG（网易云），直接用 v-html 内联 */
+  qrSvg: string | null
+  /** 音源直接下发的位图（QQ），形如 data:image/png;base64,... */
+  qrImage: string | null
 }
 
 export type QrStatus = 'waiting' | 'scanned' | 'confirmed' | 'expired'

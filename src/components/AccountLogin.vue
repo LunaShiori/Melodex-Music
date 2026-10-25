@@ -14,6 +14,7 @@ const accounts = useAccountsStore()
 /** 扫码 / 粘贴 Cookie 两种方式 */
 const mode = ref<'qr' | 'cookie'>('qr')
 const qrSvg = ref('')
+const qrImage = ref('')
 const qrKey = ref('')
 const qrState = ref<QrStatus | 'loading' | 'error'>('loading')
 const qrMessage = ref('')
@@ -53,7 +54,9 @@ async function startQr() {
   failure.value = ''
   try {
     const ticket = await accounts.startQr(props.source)
-    qrSvg.value = ticket.qrSvg
+    // 网易云给的是 URL，本地渲染成 SVG；QQ 互联只给 PNG 位图，直接当 data URI 用
+    qrSvg.value = ticket.qrSvg ?? ''
+    qrImage.value = ticket.qrImage ?? ''
     qrKey.value = ticket.key
     qrState.value = 'waiting'
     remain.value = ticket.expiresIn
@@ -185,6 +188,7 @@ onBeforeUnmount(stopTimers)
           <section v-if="mode === 'qr'" class="qr-wrap">
             <div class="qr-box" :class="qrState">
               <div v-if="qrSvg" class="qr-svg" v-html="qrSvg" />
+              <img v-else-if="qrImage" class="qr-img" :src="qrImage" alt="扫码登录二维码" />
               <div v-if="qrState === 'expired' || qrState === 'error'" class="qr-mask">
                 <button class="btn btn-ghost btn-sm" type="button" @click="startQr">
                   <Icon name="refresh" :size="14" /> 重新获取
@@ -200,7 +204,7 @@ onBeforeUnmount(stopTimers)
                 {{ qrMessage }}
               </p>
               <p v-if="qrState === 'waiting' || qrState === 'scanned'" class="muted small">
-                打开网易云音乐 App → 右上角「扫一扫」
+                {{ props.source === 'qq' ? '用手机 QQ「扫一扫」（需已登录 QQ）' : '打开网易云音乐 App → 右上角「扫一扫」' }}
               </p>
               <p v-if="remain > 0 && qrState !== 'confirmed'" class="countdown mono">
                 {{ Math.floor(remain / 60) }}:{{ String(remain % 60).padStart(2, '0') }} 后过期
@@ -354,8 +358,17 @@ onBeforeUnmount(stopTimers)
   height: 100%;
   display: block;
 }
+.qr-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
 .qr-box.expired .qr-svg,
-.qr-box.error .qr-svg {
+.qr-box.error .qr-svg,
+.qr-box.expired .qr-img,
+.qr-box.error .qr-img {
   opacity: 0.15;
   filter: grayscale(1);
 }

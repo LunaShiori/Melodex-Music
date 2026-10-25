@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 
 import { transport } from '@/lib/transport'
 import type { DownloadTask, EngineEvent, EnqueueInput, Track } from '@/lib/types'
-import { bestVariant } from '@/lib/track'
+import { bestVariant, fallbacksOf } from '@/lib/track'
 
 export type TaskFilter = 'all' | 'active' | 'done'
 
@@ -90,6 +90,7 @@ export const useTasksStore = defineStore('tasks', () => {
           durationMs: track.durationMs,
           bitrate: variant.bitrate || undefined,
           format: variant.format,
+          fallbacks: fallbacksOf(track, variant.source),
         })
       } catch {
         /* 无可用音源的条目直接跳过 */

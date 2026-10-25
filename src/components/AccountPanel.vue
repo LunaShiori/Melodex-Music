@@ -148,8 +148,9 @@ async function logout(source: SourceId) {
           </template>
           <template v-else>
             <button class="btn btn-sm" type="button" @click="loginSource = source">
-              <Icon :name="source === 'netease' ? 'qr' : 'music'" :size="13" />
-              {{ source === 'netease' ? '扫码登录' : '导入 Cookie' }}
+              <!-- 网易云与 QQ 音乐都能扫码；酷我在上一个分支里已标注「无需登录」 -->
+              <Icon name="qr" :size="13" />
+              扫码登录
             </button>
           </template>
         </div>
