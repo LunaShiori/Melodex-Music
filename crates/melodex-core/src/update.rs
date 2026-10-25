@@ -194,6 +194,99 @@ pub async fn check(net: &crate::net::Net, feed: &str, current: &str) -> Result<U
     parse_release(&body, current)
 }
 
+/// 按当前运行平台挑出最合适的安装包。
+///
+/// Windows 优先 NSIS（`.exe`）：它能覆盖安装并自动结束旧进程，是唯一能被
+/// 应用自己拉起来、装完就完成升级的格式；`.msi` 留给企业批量分发。
+/// Android 只有 `.apk`；其余平台按各自习惯排序。
+pub fn pick_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
+    let order: &[&str] = if cfg!(target_os = "windows") {
+        &["nsis", "msi", "zip"]
+    } else if cfg!(target_os = "android") {
+        &["apk", "aab"]
+    } else if cfg!(target_os = "macos") {
+        &["dmg", "zip"]
+    } else {
+        &["appimage", "deb", "zip"]
+    };
+    order
+        .iter()
+        .find_map(|kind| assets.iter().find(|asset| asset.kind == *kind))
+        .or_else(|| assets.first())
+}
+
+/// 去掉文件名里的路径部分，防止服务端返回 `../../x.exe` 这类名字。
+fn safe_file_name(name: &str) -> String {
+    let base = name
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(name)
+        .trim()
+        .trim_matches('.');
+    if base.is_empty() {
+        "melodex-update".to_string()
+    } else {
+        base.to_string()
+    }
+}
+
+/// 把安装包下载到 `dir`，边下边回报进度，落地前做完整性校验。
+///
+/// 先写 `.part` 再改名，避免下载中断留下一个「看起来能用」的半截文件。
+/// `expected_size` 来自发布清单；服务端给了 `Content-Length` 时以它为准。
+#[cfg(feature = "net")]
+pub async fn download_asset(
+    net: &crate::net::Net,
+    url: &str,
+    dir: &std::path::Path,
+    file_name: &str,
+    expected_size: u64,
+    mut on_progress: impl FnMut(u64, u64),
+) -> Result<std::path::PathBuf> {
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
+    tokio::fs::create_dir_all(dir).await?;
+    let target = dir.join(safe_file_name(file_name));
+    let part = target.with_extension("part");
+
+    let response = net.get(url, &[]).await?;
+    let total = response.content_length().unwrap_or(expected_size);
+    let mut file = tokio::fs::File::create(&part).await?;
+    let mut stream = response.bytes_stream();
+    let mut done = 0u64;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        file.write_all(&chunk).await?;
+        done += chunk.len() as u64;
+        on_progress(done, total);
+    }
+    file.flush().await?;
+    file.sync_all().await.ok();
+    drop(file);
+
+    let fail = |reason: String| Error::Source {
+        platform: "update".into(),
+        reason,
+    };
+    if done == 0 {
+        let _ = tokio::fs::remove_file(&part).await;
+        return Err(fail("下载到的安装包是空的，请检查网络后重试".into()));
+    }
+    if total > 0 && done != total {
+        let _ = tokio::fs::remove_file(&part).await;
+        return Err(fail(format!("安装包下载不完整（{done}/{total} 字节）")));
+    }
+
+    // Windows 上目标文件可能正被占用（上一次没退出干净），先删再改名
+    if tokio::fs::try_exists(&target).await.unwrap_or(false) {
+        let _ = tokio::fs::remove_file(&target).await;
+    }
+    tokio::fs::rename(&part, &target).await?;
+    Ok(target)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -245,5 +338,55 @@ mod tests {
     fn rejects_garbage() {
         assert!(parse_release("<html>404</html>", "0.1.0").is_err());
         assert!(parse_release("{}", "0.1.0").is_err());
+    }
+
+    #[test]
+    fn picks_platform_asset_in_priority_order() {
+        let assets = vec![
+            ReleaseAsset {
+                name: "Melodex_1.0.0_x64_en-US.msi".into(),
+                size: 1,
+                url: "u1".into(),
+                kind: "msi".into(),
+            },
+            ReleaseAsset {
+                name: "Melodex_1.0.0_x64-setup.exe".into(),
+                size: 2,
+                url: "u2".into(),
+                kind: "nsis".into(),
+            },
+            ReleaseAsset {
+                name: "Melodex_1.0.0_universal.apk".into(),
+                size: 3,
+                url: "u3".into(),
+                kind: "apk".into(),
+            },
+        ];
+        let picked = pick_asset(&assets).unwrap();
+        if cfg!(target_os = "windows") {
+            assert_eq!(picked.kind, "nsis");
+        } else if cfg!(target_os = "android") {
+            assert_eq!(picked.kind, "apk");
+        }
+        // 没有偏好类型时退回第一个，不能返回 None 让界面无法下载
+        let only = vec![ReleaseAsset {
+            name: "x.zip".into(),
+            size: 0,
+            url: "u".into(),
+            kind: "zip".into(),
+        }];
+        assert!(pick_asset(&only).is_some());
+        assert!(pick_asset(&[]).is_none());
+    }
+
+    #[test]
+    fn file_name_cannot_escape_directory() {
+        assert_eq!(safe_file_name("../../evil.exe"), "evil.exe");
+        assert_eq!(safe_file_name("C:////Windows////a.exe"), "a.exe");
+        assert_eq!(
+            safe_file_name("Melodex_0.4.0_x64-setup.exe"),
+            "Melodex_0.4.0_x64-setup.exe"
+        );
+        assert_eq!(safe_file_name(".."), "melodex-update");
     }
 }

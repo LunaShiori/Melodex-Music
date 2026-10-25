@@ -30,26 +30,35 @@ impl QqMusic {
 
     /// 请求 vkey 并拼出完整可下载地址。`filenames` 为空表示让服务端给默认档。
     ///
-    /// 返回 `Ok(None)` 表示「服务端正常响应但没有这个档位」，调用方可以继续降级；
+    /// 登录态通过 `comm.uin` + `comm.authst` 传递，**不需要拼 Cookie**：
+    /// `authst` 就是扫码登录换来的 `musickey`。匿名时两者都是空串，
+    /// 服务端对每个档位返回 `result = 104003`（实测）。
+    ///
+    /// 返回 `Ok(None)` 表示「服务端没有这个档位」，调用方可以继续降级；
     /// 返回 `Err` 表示这首在当前账号下明确下不了，原因已经分类好。
     async fn vkey(
         &self,
         mid: &str,
         filenames: Option<&[String]>,
     ) -> Result<Option<(String, String)>> {
-        let guid = guid();
-        // 未登录时 uin 固定 0（匿名）；登录后必须带真实 uin，否则服务端不会下发 vkey
         let cookie = self.creds.cookie(Source::Qq);
         let uin = cookie
             .as_deref()
             .and_then(|value| cookie_value(value, "uin").or_else(|| cookie_value(value, "p_uin")))
             .map(|value| value.trim_start_matches(['o', 'u', '_']).to_string())
             .filter(|value| !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()))
-            .unwrap_or_else(|| "0".to_string());
-        // comm.uin 在协议里是数字，param.uin 是字符串，两者不能混用
-        let uin_num: u64 = uin.parse().unwrap_or(0);
+            .unwrap_or_default();
+        let authst = cookie
+            .as_deref()
+            .and_then(|value| {
+                cookie_value(value, "authst")
+                    .or_else(|| cookie_value(value, "qm_keyst"))
+                    .or_else(|| cookie_value(value, "qqmusic_key"))
+            })
+            .unwrap_or_default();
+
         let mut param = json!({
-            "guid": guid,
+            "guid": guid(),
             "songmid": [mid],
             "songtype": [0],
             "uin": uin,
@@ -59,84 +68,97 @@ impl QqMusic {
         if let Some(files) = filenames {
             param["filename"] = json!(files);
         }
-        let payload = json!({
-            "req": {
-                "module": "CDN.SrfCdnDispatchServer",
-                "method": "GetCdnDispatch",
-                "param": { "guid": guid, "calltype": 0, "userip": "" }
-            },
-            "req_0": {
+
+        const REQUEST_KEY: &str = "vkey.GetVkeyServer.CgiGetVkey";
+        let mut body = serde_json::Map::new();
+        body.insert("loginUin".into(), json!(uin));
+        body.insert(
+            "comm".into(),
+            json!({
+                "format": "json",
+                "ct": 24,
+                "cv": 0,
+                "tmeAppID": "qqmusic",
+                "uin": uin,
+                "qq": uin,
+                "authst": authst,
+            }),
+        );
+        body.insert(
+            REQUEST_KEY.into(),
+            json!({
                 "module": "vkey.GetVkeyServer",
                 "method": "CgiGetVkey",
-                "param": param
-            },
-            "comm": { "uin": uin_num, "format": "json", "ct": 6, "cv": 0 }
-        });
-        let encoded = utf8_percent_encode(&payload.to_string(), NON_ALPHANUMERIC).to_string();
-        let url = format!("{MUSICU}?format=json&data={encoded}");
+                "param": param,
+            }),
+        );
 
-        let mut headers = self.headers();
-        if let Some(ref c) = cookie {
-            headers.push(("Cookie", c.as_str()));
-        }
+        let response = self
+            .net
+            .client()
+            .post(MUSICU)
+            .header("Referer", REFERER)
+            .header("Origin", "https://y.qq.com")
+            .json(&serde_json::Value::Object(body))
+            .send()
+            .await?;
+        let text = response.text().await?;
+        let decoded: serde_json::Value = serde_json::from_str(&text).map_err(|err| {
+            let head: String = text.chars().take(120).collect();
+            Error::decode(format!("{err} <- {head}"))
+        })?;
+        let resp = decoded.get(REQUEST_KEY).cloned().unwrap_or_default();
 
-        let body: serde_json::Value = self.net.json(&url, &headers).await?;
-
-        // 整个请求被拒：匿名请求固定 104009（msg 形如 "1.2.3.4;invalidq;"），
-        // 这是「必须登录」最明确的信号，比继续降级音质有意义得多。
-        let req_code = body
-            .pointer("/req_0/code")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        // 整个请求被拒（例如匿名请求格式不对）：code 非 0
+        let req_code = resp.get("code").and_then(|v| v.as_i64()).unwrap_or(0);
         if req_code != 0 {
-            let msg = body
-                .pointer("/req_0/data/msg")
+            let msg = resp
+                .pointer("/data/msg")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
             let reason = match req_code {
-                // 匿名请求的固定返回值，登录后即可解除
                 104009 => Reason::NeedLogin,
-                // 版权限制 / 不支持该歌曲
-                104003 => Reason::Copyright,
+                104003 => Reason::NeedLogin,
+                104004 => Reason::Copyright,
                 _ => Reason::Unknown,
             };
             return Err(Error::unavailable_with(
                 Source::Qq,
                 reason,
                 if msg.is_empty() {
-                    format!("req_0.code={req_code}")
+                    format!("code={req_code}")
                 } else {
-                    format!("req_0.code={req_code} {msg}")
+                    format!("code={req_code} {msg}")
                 },
             ));
         }
 
-        let purl = body
-            .pointer("/req_0/data/midurlinfo/0/purl")
+        let item = resp
+            .pointer("/data/midurlinfo/0")
+            .cloned()
+            .unwrap_or_default();
+        let purl = item
+            .get("purl")
             .and_then(|v| v.as_str())
             .unwrap_or_default();
         if purl.is_empty() {
-            // 没有链接时，`result` 才是真正的说明：
-            // 0       —— 有权限但这次没给（继续降级无意义，也算取不到）
-            // 101404  —— 该音源没有这个档位的文件
-            let result = body
-                .pointer("/req_0/data/midurlinfo/0/result")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
-            let need_buy = body
-                .pointer("/req_0/data/midurlinfo/0/pneedbuy")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
-            let tips = body
-                .pointer("/req_0/data/midurlinfo/0/tips")
+            let result = item.get("result").and_then(|v| v.as_i64()).unwrap_or(0);
+            let need_buy = item.get("pneedbuy").and_then(|v| v.as_i64()).unwrap_or(0);
+            let tips = item
+                .get("tips")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
-            let reason = match result {
-                // 档位不存在：继续往下试更低音质是合理的，交给调用方处理
-                101404 => return Ok(None),
-                _ if need_buy != 0 => Reason::VipOnly,
-                _ if !tips.is_empty() => Reason::VipOnly,
-                _ => Reason::Unknown,
+            // 档位不存在 → 交给调用方继续降级
+            if result == 101404 {
+                return Ok(None);
+            }
+            let reason = if need_buy != 0 || !tips.is_empty() {
+                Reason::VipOnly
+            } else if authst.is_empty() {
+                // 没有登录令牌时，104003 的含义就是「登录后才给」
+                Reason::NeedLogin
+            } else {
+                Reason::Copyright
             };
             return Err(Error::unavailable_with(
                 Source::Qq,
@@ -148,18 +170,15 @@ impl QqMusic {
                 },
             ));
         }
-        let sip = body
-            .pointer("/req_0/data/sip/0")
+
+        let sip = resp
+            .pointer("/data/sip/0")
             .and_then(|v| v.as_str())
             .unwrap_or("http://ws.stream.qqmusic.qq.com/");
         let full = if purl.starts_with("http") {
             purl.to_string()
         } else {
-            format!(
-                "{}{}",
-                sip.trim_end_matches('/'),
-                format!("/{purl}").as_str()
-            )
+            format!("{}/{}", sip.trim_end_matches('/'), purl)
         };
         let format = purl
             .rsplit('.')

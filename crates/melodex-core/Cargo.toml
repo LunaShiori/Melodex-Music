@@ -19,9 +19,11 @@ net = [
   "dep:async-trait",
   "dep:futures-util",
   "dep:percent-encoding",
+  "dep:tokio-tungstenite",
 ]
 # TLS 后端。默认开启 rustls；裁剪时（例如自建 http 中继）可关闭以减小体积。
-tls = ["reqwest/rustls-tls"]
+# WebSocket 的 TLS 也挂在这里：关掉 tls 时 MQTT 仍能编译，只是连不上 wss。
+tls = ["reqwest/rustls-tls", "tokio-tungstenite/rustls-tls-webpki-roots"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -38,6 +40,11 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 async-trait = { version = "0.1", optional = true }
 futures-util = { version = "0.3", optional = true }
 percent-encoding = { version = "2", optional = true }
+# QQ 音乐扫码登录的 MQTT over WebSocket 通道（只用到 CONNECT/SUBSCRIBE/PUBLISH）
+tokio-tungstenite = { version = "0.24", default-features = false, features = [
+  "connect",
+  "handshake",
+], optional = true }
 
 [[example]]
 name = "probe"

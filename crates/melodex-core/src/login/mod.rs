@@ -6,6 +6,7 @@
 //! - 不做共享账号池、不绕过付费与版权限制；
 //! - 凭据仅保存在本地加密保险库（见 [`crate::vault`]）。
 
+pub mod mqtt;
 pub mod netease;
 pub mod qq;
 
@@ -44,6 +45,8 @@ pub enum QrStatus {
     Confirmed,
     /// 二维码过期，需要重新生成
     Expired,
+    /// 登录链路本身出错（网络、协议、换凭据失败），`message` 里有具体原因
+    Error,
 }
 
 /// 一次轮询的结果。
