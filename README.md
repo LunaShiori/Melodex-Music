@@ -331,8 +331,8 @@ npm run tauri build
 
 | 文件 | 路径 |
 | --- | --- |
-| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/Melodex_0.1.0_x64-setup.exe` |
-| MSI 安装包 | `src-tauri/target/release/bundle/msi/Melodex_0.1.0_x64_en-US.msi` |
+| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/Melodex_<version>_x64-setup.exe` |
+| MSI 安装包 | `src-tauri/target/release/bundle/msi/Melodex_<version>_x64_en-US.msi` |
 | 免安装可执行 | `src-tauri/target/release/melodex.exe` |
 
 ## 构建 Android APK
@@ -416,16 +416,16 @@ python3 scripts/check-apk.py src-tauri/gen/android/app/build/outputs/apk/univers
 # 1) 三处版本号改成同一个值
 #    package.json / src-tauri/tauri.conf.json / Cargo.toml(workspace)
 # 2) 打 tag 并推送
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 几分钟后 Release 里会出现这些**可直接安装**的文件：
 
 | 平台 | 文件 | 说明 |
 | --- | --- | --- |
-| Windows 10/11 x64 | `Melodex_0.1.0_x64-setup.exe` | NSIS 安装包，双击即装（含开始菜单与卸载项） |
-| Windows 10/11 x64 | `Melodex_0.1.0_x64_en-US.msi` | MSI，适合企业分发 / 静默安装 |
+| Windows 10/11 x64 | `Melodex_<version>_x64-setup.exe` | NSIS 安装包，双击即装（含开始菜单与卸载项） |
+| Windows 10/11 x64 | `Melodex_<version>_x64_en-US.msi` | MSI，适合企业分发 / 静默安装 |
 | Android 8.0+ | `app-universal-release.apk` | 通用 APK，覆盖 arm64 / armv7 / x86_64 |
 
 两点注意：
@@ -559,6 +559,21 @@ Windows 默认在「下载/Melodex」，可在设置里改；Android 落在应�
 **能打包成 macOS / Linux 版吗？**
 
 代码本身跨平台，Tauri 也支持；目前只维护 Windows 与 Android 两条构建流水线。
+
+**点「下载」程序就闪退了怎么办？**
+
+v0.1.0 存在这个缺陷：入队命令是同步 command，跑在主线程上，而派发下载任务用的
+`tokio::spawn` 需要运行时上下文，于是 panic → 进程 abort。v0.1.1 已修复
+（命令改为异步 + 派发逻辑三级兜底）。请升级到最新版本。
+
+如果新版仍有异常，程序会在应用数据目录写崩溃日志：
+
+| 平台 | 路径 |
+| --- | --- |
+| Windows | `%APPDATA%\app.melodex\crash.log` |
+| Android | 应用专属目录下的 `crash.log` |
+
+同目录的 `tasks.json` 记录任务状态。附上 `crash.log` 提 Issue 即可定位。
 
 ## 免责声明
 

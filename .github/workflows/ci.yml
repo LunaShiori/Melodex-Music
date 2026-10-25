@@ -37,6 +37,29 @@ jobs:
       - name: Clippy
         run: cargo clippy -p melodex-core --features net -- -D warnings
 
+  shell:
+    name: 外壳（Tauri 编译检查）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # tauri::generate_context! 要求 frontendDist 目录真实存在，
+      # 这里放个占位即可，检查外壳的 Rust 代码不需要真的构建前端。
+      - name: 准备占位前端产物
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Set-Content -Path dist/index.html -Value '<!doctype html>'
+        shell: pwsh
+
+      - name: 编译检查
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
   frontend:
     name: 前端（类型检查 + 构建）
     runs-on: ubuntu-latest

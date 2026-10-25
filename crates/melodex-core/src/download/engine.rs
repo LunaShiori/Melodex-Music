@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
@@ -86,6 +87,9 @@ struct Inner {
     controls: Mutex<HashMap<String, Control>>,
     tx: broadcast::Sender<EngineEvent>,
     store_path: Option<PathBuf>,
+    /// 首次在运行时上下文中派发任务时缓存下来的 handle。
+    /// 之后即使从没有运行时的线程（Tauri 的同步 command）调用，也能把任务送进同一个运行时。
+    rt: OnceLock<tokio::runtime::Handle>,
 }
 
 impl DownloadEngine {
@@ -108,6 +112,7 @@ impl DownloadEngine {
             controls: Mutex::new(HashMap::new()),
             tx,
             store_path,
+            rt: OnceLock::new(),
         });
         inner.load();
         Ok(Self { inner })
@@ -393,10 +398,45 @@ fn pump(inner: Arc<Inner>) {
         inner.emit_upsert(&id);
 
         let task_inner = inner.clone();
-        tokio::spawn(async move {
+        spawn_background(&inner.rt, async move {
             run_task(task_inner, id, pause, cancel).await;
         });
     }
+}
+
+/// 把下载任务派发到 Tokio 运行时上执行。
+///
+/// 这里必须兜底，不能直接写 `tokio::spawn`：Tauri 的**同步** command 运行在
+/// 主线程上，那里没有 Tokio 运行时上下文，`tokio::spawn` 会 panic
+/// （`there is no reactor running, must be called from the context of a Tokio 1.x runtime`），
+/// 而 panic 会穿过 WebView 的 IPC 回调，直接把整个进程 abort —— 表现为"点下载就闪退"。
+///
+/// 三级策略：
+/// 1. 当前线程已在运行时上下文内（异步 command、或已 spawn 的任务里）→ 直接用它，并缓存 handle；
+/// 2. 用之前缓存的 handle（覆盖同步 command 等无上下文的调用点）；
+/// 3. 极端情况下都没有，就开一个独立线程建单线程运行时执行，保证任务不被静默丢弃。
+fn spawn_background(
+    cached: &OnceLock<tokio::runtime::Handle>,
+    future: impl Future<Output = ()> + Send + 'static,
+) {
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        let _ = cached.set(handle.clone());
+        handle.spawn(future);
+        return;
+    }
+    if let Some(handle) = cached.get() {
+        handle.spawn(future);
+        return;
+    }
+    std::thread::spawn(move || {
+        match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => rt.block_on(future),
+            Err(err) => eprintln!("Melodex: 无法创建运行时，下载任务已放弃：{err}"),
+        }
+    });
 }
 
 enum Step {
@@ -700,5 +740,27 @@ mod tests {
         let removed = serde_json::to_value(EngineEvent::TaskRemoved("abc".into())).unwrap();
         assert_eq!(removed["type"], "taskRemoved");
         assert_eq!(removed["payload"], "abc");
+    }
+
+    /// 回归测试：在**没有** Tokio 运行时上下文的线程上派发任务不能 panic。
+    ///
+    /// 这正是 0.1.0 崩溃的成因——Tauri 同步 command 在主线程调用 `pump()`，
+    /// 裸 `tokio::spawn` 直接 panic 并 abort 进程。测试线程同样没有运行时，
+    /// 因此能稳定复现该场景。
+    #[test]
+    fn spawning_outside_runtime_does_not_panic() {
+        let cached: OnceLock<tokio::runtime::Handle> = OnceLock::new();
+        let ran = Arc::new(AtomicBool::new(false));
+
+        let flag = ran.clone();
+        spawn_background(&cached, async move {
+            flag.store(true, Ordering::SeqCst);
+        });
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !ran.load(Ordering::SeqCst) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(ran.load(Ordering::SeqCst), "兜底线程没有把任务跑起来");
     }
 }

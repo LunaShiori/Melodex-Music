@@ -386,7 +386,7 @@ export function createDemoTransport(): Transport {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))
       return {
-        current: '0.1.0',
+        current: '0.1.1',
         latest: 'v0.2.0',
         available: true,
         notes:

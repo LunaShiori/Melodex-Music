@@ -109,9 +109,20 @@ async fn playlist(
     platform.playlist(&id).await.map_err(|err| err.to_string())
 }
 
+/// 入队。
+///
+/// 必须是 `async`：Tauri 的同步 command 运行在主线程上，那里没有 Tokio 运行时
+/// 上下文，而 `DownloadEngine::enqueue` 会派发下载任务。异步 command 由
+/// `tauri::async_runtime` 在运行时内执行，`tokio::spawn` 才有落脚点。
+///
+/// 返回值用 `Result` 包裹，是因为 async command 借用 `State<'_, _>` 时
+/// Tauri 依赖 `Result` 分支来正确处理生命周期。
 #[tauri::command]
-fn enqueue(state: State<'_, AppState>, inputs: Vec<EnqueueInput>) -> Vec<String> {
-    state.engine.enqueue(inputs)
+async fn enqueue(
+    state: State<'_, AppState>,
+    inputs: Vec<EnqueueInput>,
+) -> Result<Vec<String>, String> {
+    Ok(state.engine.enqueue(inputs))
 }
 
 #[tauri::command]
@@ -120,23 +131,26 @@ fn list_tasks(state: State<'_, AppState>) -> Vec<melodex_core::task::DownloadTas
 }
 
 #[tauri::command]
-fn pause_task(state: State<'_, AppState>, id: String) {
+async fn pause_task(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.engine.pause(&id);
+    Ok(())
 }
 
 #[tauri::command]
-fn resume_task(state: State<'_, AppState>, id: String) {
+async fn resume_task(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.engine.resume(&id);
+    Ok(())
 }
 
 #[tauri::command]
-fn remove_task(state: State<'_, AppState>, id: String) {
+async fn remove_task(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.engine.remove(&id);
+    Ok(())
 }
 
 #[tauri::command]
-fn clear_finished(state: State<'_, AppState>) -> usize {
-    state.engine.clear_finished()
+async fn clear_finished(state: State<'_, AppState>) -> Result<usize, String> {
+    Ok(state.engine.clear_finished())
 }
 
 #[tauri::command]
@@ -145,7 +159,7 @@ fn get_settings(state: State<'_, AppState>) -> Settings {
 }
 
 #[tauri::command]
-fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<(), String> {
+async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<(), String> {
     state.engine.update_settings(settings.clone());
     let json = serde_json::to_string_pretty(&settings).map_err(|err| err.to_string())?;
     std::fs::write(&state.settings_path, json).map_err(|err| err.to_string())?;
@@ -262,10 +276,40 @@ fn reveal_path(path: String) -> Result<(), String> {
     }
 }
 
+/// 安装崩溃日志钩子。
+///
+/// Windows 释放版没有控制台，panic 穿过 WebView 回调时进程直接 abort，
+/// 用户只看到窗口消失、毫无线索。这里把所有 panic（含线程名、位置、消息）
+/// 追加写入应用数据目录的 `crash.log`，便于回顾定位。
+fn install_panic_hook(dir: PathBuf) {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let stamp = melodex_core::task::now_secs();
+        let thread = std::thread::current();
+        let name = thread.name().unwrap_or("unnamed");
+        let text = format!("[{stamp}] thread={name} {info}\n");
+        eprintln!("{text}");
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join("crash.log"))
+        {
+            use std::io::Write;
+            let _ = file.write_all(text.as_bytes());
+        }
+        previous(info);
+    }));
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            // 先装钩子，后面任何初始化失败也能留下记录
+            if let Ok(dir) = app.path().app_data_dir() {
+                install_panic_hook(dir);
+            }
             let state = AppState::new(app.handle())
                 .map_err(|err| -> Box<dyn std::error::Error> { Box::from(err) })?;
             let mut events = state.engine.subscribe();
