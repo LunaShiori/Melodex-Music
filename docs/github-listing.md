@@ -1,0 +1,94 @@
+# GitHub 仓库展示配置（简介 / Topics / 社交预览）
+
+> 这份文件是**可直接照抄**的仓库门面配置。GitHub 的搜索排序主要看：仓库名 → 简介（description）→
+> Topics → README 正文关键词 → star / 活跃度。下面每段都用改好。
+
+## 1. 简介（About → Description，上限 350 字符）
+
+**推荐版（中文优先，尾部带英文检索词）**
+
+```
+Melodex｜多源音乐聚合搜索与下载器（Windows + Android）。一个关键词同时搜网易云音乐、QQ音乐、酷我音乐，按「标题+歌手+时长」指纹合并同一首歌并标注每个音源是否可播；支持断点续传、音质自动降级、ID3v2.3 标签与歌词内嵌、启动检查更新。Rust + Tauri 2 + Vue 3 开源，Apache-2.0。music downloader / music aggregator
+```
+
+**英文优先版（想让海外用户先搜到就用这版）**
+
+```
+Melodex — cross-source music search & downloader for Windows and Android. Search NetEase Cloud Music, QQ Music and Kuwo in one query, merge duplicates by title/artist/duration fingerprint, and see per-source availability. Resumable downloads, automatic bitrate fallback, ID3v2.3 tags with embedded cover & lyrics, and in-app update check. Built with Rust, Tauri 2 and Vue 3. Apache-2.0. 中文：多源音乐聚合搜索与下载
+```
+
+**为什么这么写**
+
+- 前 60 个字符是搜索结果里唯一稳定可见的部分，所以把「产品名 + 是什么 + 支持什么平台」放在最前；
+- 同时出现「音乐」「搜索」「下载」「网易云」「QQ音乐」「酷我音乐」这些用户真实会输入的词，
+  而不是只写「强大的工具」这类无人检索的形容词；
+- 中文用户搜「音乐下载器」「音乐聚合」，英文用户搜 `music downloader`、`music aggregator`，
+  两种词都覆盖到，避免只有一边能被命中；
+- 结尾带技术栈（Rust / Tauri / Vue）能吃到「Tauri 应用」这类开发者检索流量。
+
+## 2. Topics（仓库右上角齿轮 → Topics，最多 20 个，全部小写、用连字符）
+
+```
+music
+music-downloader
+music-search
+music-aggregator
+netease-cloud-music
+qqmusic
+kuwo
+tauri
+tauri-app
+rust
+vue3
+typescript
+android
+windows
+cross-platform
+desktop-app
+id3v2
+lrc-lyrics
+resumable-download
+open-source
+```
+
+粘贴方式：在 Topics 输入框里逐个回车即可。前 5 个权重最高，所以把最核心的
+`music` / `music-downloader` / `music-search` 放在最前。
+
+## 3. README 首屏（已优化，勿删这几个词）
+
+仓库根目录 `README.md` 的前 30 行刻意包含了搜索会命中的关键词组合：
+
+- 标题行：`多源音乐聚合搜索与下载 · Windows 桌面端 + Android 手机端`
+- 一句话简介里出现：网易云、QQ音乐、酷我音乐、聚合搜索、批量下载、断点续传、音质降级、ID3、歌词
+- 「常见问题」小节里回答了「能下载哪些平台的歌」「和同类工具的区别」——这类长尾问题正是
+  用户搜索时的自然语言，GitHub 会索引 README 正文。
+
+## 4. 社交预览图（Settings → Social preview）
+
+上传一张 1280×640 的图，内容建议：
+
+- 左侧：`docs/screenshots/desktop-search.png` 的搜索结果区截图（能一眼看出是多源结果）
+- 右侧：产品名 Melodex + 一句 `多源音乐聚合搜索与下载 · Windows / Android`
+- 底色用品牌紫 `#6b5bf0` 的深色渐变
+
+这张图会出现在 Twitter / 微信 / Telegram 分享卡片里，是「别人愿意点进来」的关键。
+
+## 5. Release 的标题与摘要（让搜「Melodex 下载」的人落到这里）
+
+标题：`Melodex 0.1.0 · Windows 安装包 + Android APK`
+
+摘要首段固定写清「是什么 + 装哪个文件 + 怎么升级」，例如：
+
+```
+多源音乐聚合搜索与下载器，本次为首个可安装版本。
+Windows 用户下载 Melodex_0.1.0_x64-setup.exe 双击安装；
+Android 用户下载 app-universal-release.apk（允许「安装未知来源应用」）。
+装好后再发新版，应用内「设置 → 关于 → 检查更新」会自动提示。
+```
+
+## 6. 如果想让搜索命中率再高一档（可选）
+
+GitHub 的仓库名权重高于简介。当前仓库名 `melodex` 是纯品牌词，搜「音乐下载器」时不会命中。
+若愿意承担改名的代价（`update.rs` 里的 `DEFAULT_FEED`、`Cargo.toml` 的 `repository`、README 链接都要跟着改，
+旧链接会 301 到新地址），可以改成 `melodex-music-downloader`。品牌词 + 品类词的组合通常能带来
+数倍的自然搜索流量——这是有意的取舍，不是必须。

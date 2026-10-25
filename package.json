@@ -4,6 +4,25 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Melodex · 多源音乐聚合搜索与下载",
+  "keywords": [
+    "music",
+    "music-downloader",
+    "music-search",
+    "netease",
+    "qqmusic",
+    "kuwo",
+    "tauri",
+    "rust",
+    "vue3",
+    "android",
+    "windows"
+  ],
+  "homepage": "https://github.com/LunaShiori/melodex",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LunaShiori/melodex.git"
+  },
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
