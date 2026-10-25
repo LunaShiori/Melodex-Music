@@ -3,6 +3,42 @@
 本项目的版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)，
 安装包命名与 `Cargo.toml` / `tauri.conf.json` 的 `version` 保持一致。
 
+## v0.4.0
+
+### 改进 · QQ 音乐扫码换成官方接口
+
+v0.3.0 的扫码走的是 QQ 互联（`ptlogin2`），要经过 `skey` → `qm_keyst` 两次兑换，
+中途任何一跳失败都拿不到能用的登录态，实际成功率很低。这一版整条换掉：
+
+- 二维码由 QQ 音乐自己的 `music.login.LoginServer/CreateQRCode` 下发，
+  返回 `qrcodeID` 与一张 `data:image/png;base64,...`，有效期 15 分钟；
+- 扫码状态不再轮询，而是连 `wss://mu.y.qq.com/ws/handshake`，用 MQTT 5 订阅
+  `management.qrcode_login/{qrcodeID}`，由服务端主动推送 `scanned` / `cookies` /
+  `timeout` / `canceled` 事件（协议实现在 `login/mqtt.rs`，手写编解码并有单测）；
+- 收到 `cookies` 事件后用其中的 `qqmusic_key` 调 `Login` 换正式的 `musickey`
+  与数字 `musicid`，这才是可用于下载的登录态。
+
+顺带说明为什么**不**用 HTTP 轮询状态：`GetQRCodeStatus` 实测在任何时刻都返回
+`status: "scaned"`、`scanUser.userID` 恒为 0，是占位值，无法反映真实扫码进度。
+
+### 修复 · QQ 音乐登录后仍取不到链接
+
+取链接改用 `uin` + `authst` 字段传登录态（`comm` 与 `param` 各一份），不再拼 Cookie。
+匿名请求的每个档位会返回 `result = 104003`，现在被明确归为「需要登录」。
+
+### 新增 · 应用内在线更新
+
+以前点「检查更新」只能打开浏览器跳到发布页自己下载。现在默认路径是应用内完成：
+
+1. 点「立即更新」→ 内核按当前平台挑安装包（Windows 优先 NSIS `.exe`，
+   Android 取 `.apk`），流式下载到缓存目录并实时回报进度；
+2. 先写 `.part` 再改名，下载中断不会留下半截文件；落地前校验字节数；
+3. 下载完成点「立即安装并重启」→ Windows 直接执行安装包并退出自身，
+   安卓交给系统 Intent 打开安装界面。
+
+「手动下载与其他格式」折叠区保留了逐个下载和打开发布页的入口，
+自动更新失败或想自己挑格式时仍然可用。
+
 ## v0.3.0
 
 ### 新增 · QQ 音乐扫码登录

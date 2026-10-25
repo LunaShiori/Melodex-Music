@@ -84,7 +84,8 @@ async function pollQr() {
       stopTimers()
       // 给用户看一眼"登录成功"再关闭
       window.setTimeout(() => emit('close'), 900)
-    } else if (poll.status === 'expired') {
+    } else if (poll.status === 'expired' || poll.status === 'error') {
+      // 过期与链路出错都要停轮询，否则会一直打后端
       stopTimers()
     }
   } catch (err) {
@@ -204,7 +205,11 @@ onBeforeUnmount(stopTimers)
                 {{ qrMessage }}
               </p>
               <p v-if="qrState === 'waiting' || qrState === 'scanned'" class="muted small">
-                {{ props.source === 'qq' ? '用手机 QQ「扫一扫」（需已登录 QQ）' : '打开网易云音乐 App → 右上角「扫一扫」' }}
+                {{
+                  props.source === 'qq'
+                    ? '用 QQ、微信或 QQ 音乐 App 扫描，并在手机上确认'
+                    : '打开网易云音乐 App → 右上角「扫一扫」'
+                }}
               </p>
               <p v-if="remain > 0 && qrState !== 'confirmed'" class="countdown mono">
                 {{ Math.floor(remain / 60) }}:{{ String(remain % 60).padStart(2, '0') }} 后过期

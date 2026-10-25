@@ -10,6 +10,7 @@ import type {
   QrTicket,
   Settings,
   SourceId,
+  UpdateProgress,
   VaultStatus,
   Variant,
 } from '../types'
@@ -20,6 +21,9 @@ import type { SearchParams, Transport } from './types'
  * 演示传输层：浏览器里没有 Rust 核心，这里用内置曲库 + 模拟进度
  * 把整套交互跑通，方便 UI 走查与截图。正式功能全部由 Tauri 端提供。
  */
+
+/// 更新下载进度的订阅者（演示模式用它模拟内核推送）
+const updateListeners = new Set<(progress: UpdateProgress) => void>()
 
 const demoAccounts_ = new Map<SourceId, AccountInfo>([
   [
@@ -442,8 +446,8 @@ export function createDemoTransport(): Transport {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))
       return {
-        current: '0.3.0',
-        latest: 'v0.2.0',
+        current: '0.4.0',
+        latest: 'v0.5.0',
         available: true,
         notes:
           '新增\n· 酷狗音源适配\n· 下载队列并发数热调整\n\n修复\n· 移动端深色主题下封面边框对比度\n· 断点续传在代理环境下的 416 处理',
@@ -451,24 +455,57 @@ export function createDemoTransport(): Transport {
         publishedAt: '2026-10-01T08:00:00Z',
         assets: [
           {
-            name: 'Melodex_0.2.0_x64-setup.exe',
+            name: 'Melodex_0.5.0_x64-setup.exe',
             size: 4_612_345,
             url: 'https://github.com/LunaShiori/melodex/releases/latest',
             kind: 'nsis',
           },
           {
-            name: 'Melodex_0.2.0_x64_en-US.msi',
+            name: 'Melodex_0.5.0_x64_en-US.msi',
             size: 5_180_224,
             url: 'https://github.com/LunaShiori/melodex/releases/latest',
             kind: 'msi',
           },
           {
-            name: 'Melodex_0.2.0_universal.apk',
+            name: 'Melodex_0.5.0_universal.apk',
             size: 9_812_006,
             url: 'https://github.com/LunaShiori/melodex/releases/latest',
             kind: 'apk',
           },
         ],
+      }
+    },
+
+    updateDownload(info, assetName) {
+      const asset = assetName
+        ? info.assets.find((item) => item.name === assetName)
+        : info.assets[0]
+      const total = asset?.size ?? 4_000_000
+      // 模拟分片下载：每 60ms 推进一格，让进度条与真实网络观感接近
+      return new Promise<string>((resolve) => {
+        let done = 0
+        const step = Math.max(1, Math.round(total / 36))
+        const timer = setInterval(() => {
+          done = Math.min(total, done + step)
+          for (const listener of updateListeners) {
+            listener({ downloaded: done, total })
+          }
+          if (done >= total) {
+            clearInterval(timer)
+            resolve(`/demo/updates/${asset?.name ?? 'Melodex-setup.exe'}`)
+          }
+        }, 60)
+      })
+    },
+
+    async updateInstall() {
+      throw new Error('演示模式没有可执行的安装器，请真机运行后再试')
+    },
+
+    onUpdateProgress(handler) {
+      updateListeners.add(handler)
+      return () => {
+        updateListeners.delete(handler)
       }
     },
 

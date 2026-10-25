@@ -109,8 +109,10 @@
 **在线更新**
 
 - 启动时静默检查一次 GitHub Releases，有新版本才在左下角浮出提示，失败不打扰
-- 「设置 → 关于 → 检查更新」可手动检查，展示版本号、更新说明与安装包列表
-- 更新弹窗按平台把合适的安装包排在最前（Windows `.exe` / Android `.apk`），点击交给系统浏览器下载
+- **应用内一键更新**：点「立即更新」→ 按平台自动挑安装包 → 边下边显示进度 →
+  「立即安装并重启」→ Windows 直接跑安装器并退出自身，安卓调系统安装界面
+- 下载先写 `.part` 再改名、落地前校验字节数，中断不会留下半截文件
+- 「手动下载与其他格式」里仍可逐个下载安装包、或跳转发布页自己挑
 - 也支持自建清单（`{"version","notes","url","assets"}`），用 `MELODEX_UPDATE_FEED` 环境变量即可换源
 
 ## 界面
@@ -151,14 +153,19 @@
 | 音源 | 方式 | 说明 |
 | --- | --- | --- |
 | 网易云音乐 | 二维码扫码 | 官方 `login/qrcode` 接口，返回 URL，本地渲染成 SVG |
-| QQ 音乐 | 二维码扫码 | QQ 互联 `ptqrshow` 返回 PNG 位图，直接以 `data:` URI 展示；也可粘贴 Cookie |
+| QQ 音乐 | 二维码扫码 | QQ 音乐官方 `CreateQRCode` 下发 base64 位图，扫码事件走 MQTT 推送；也可粘贴 Cookie |
 | 酷我音乐 | 无需登录 | 界面直接标注「免登录可用」 |
 
 扫码状态机：`等待扫码 → 已扫描待确认 → 登录成功`，二维码 2~3 分钟过期，过期可一键重取。
 
-QQ 音乐的扫码比网易云多两跳：`ptuiCB` 返回成功后，要先跟随 `check_sig`
-拿到 `uin` / `skey`，再用 `skey` 换 `qm_keyst` 才算真正登录 QQ 音乐。
-中间那一跳必须**禁止自动重定向**，否则 `Set-Cookie` 会丢在跳转过程中。
+QQ 音乐的扫码和网易云是两套完全不同的机制：二维码由 QQ 音乐自己的
+`music.login.LoginServer/CreateQRCode` 下发（返回 base64 位图，有效期 15 分钟），
+扫码状态不是轮询、而是连 `wss://mu.y.qq.com/ws/handshake` 用 MQTT 5 订阅
+`management.qrcode_login/{qrcodeID}`，由服务端主动推事件。收到 `cookies` 事件后
+再用其中的 `qqmusic_key` 调 `Login` 换 `musickey`，这才是能用于下载的登录态。
+
+为什么不轮询：`GetQRCodeStatus` 实测在任何时刻都返回 `status: "scaned"`、
+`scanUser.userID` 恒为 0，是占位值，读不出真实进度。
 
 ### 为什么某首歌下不了
 
@@ -220,8 +227,28 @@ Windows DPAPI / Android Keystore。
 
 ## 在线更新
 
-更新检查是**只读**的：拉清单 → 比版本号 → 提示，不自动下载、不静默覆盖文件。用户点了安装包才开始下载，
-行为完全可预期，也不需要在仓库里塞签名私钥。
+分两层：**检查**只读（拉清单 → 比版本号 → 提示），**安装**要在用户点下按钮后才开始，
+既不偷偷改磁盘，也不需要在仓库里塞签名私钥。
+
+```
+检查：GET https://api.github.com/repos/<owner>/<repo>/releases/latest
+        │
+        ▼
+      UpdateNotice.vue「发现新版本」→ 点「立即更新」
+        │
+        ▼
+      内核 pick_asset()       Windows 优先 nsis(.exe)，Android 取 .apk
+        │
+        ▼
+      download_asset()        流式写 .part，边下边 emit「update-progress」
+        │
+        ▼
+      落地校验字节数 → 改名 → 点「立即安装并重启」
+        │
+        ▼
+      Windows: 执行 NSIS 安装包 + 自身退出
+      Android: 系统 Intent 打开 .apk
+```
 
 ```
 GET https://api.github.com/repos/<owner>/<repo>/releases/latest
@@ -580,13 +607,13 @@ melodex/
 │   │   ├── platforms/            # netease.rs · qq.rs · kuwo.rs
 │   │   ├── download/             # engine · transfer · naming · tags
 │   │   ├── cookie.rs             # Cookie 串解析/合并（可单测）
-│   │   ├── login/                # 扫码登录（网易云 URL→SVG / QQ 位图 + 两跳换取登录态）
+│   │   ├── login/                # 扫码登录（网易云 URL→SVG；QQ 官方二维码 + MQTT 事件）
 │   │   ├── qr.rs                 # 二维码渲染成 SVG（无前端依赖）
 │   │   ├── vault.rs              # 凭据保险库（AES-256-GCM + 可选 PIN）
 │   │   ├── lyric.rs              # LRC 解析与定位
 │   │   ├── settings.rs           # 配置模型与归一化
 │   │   ├── task.rs               # 任务与状态机
-│   │   ├── update.rs             # 更新清单解析与版本比较
+│   │   ├── update.rs             # 更新清单解析、版本比较与安装包下载
 │   │   ├── net.rs                # HTTP 客户端
 │   │   └── pseudo_json.rs        # 宽松 JSON 解析（酷我单引号）
 │   └── examples/probe.rs         # 命令行探针
@@ -659,7 +686,9 @@ Windows 默认在「下载/Melodex」，可在设置里改；Android 落在应�
 
 **会不会自动更新？**
 
-启动时静默检查 GitHub Releases，有新版本才在左下角提示；安装包由你确认后下载，不会静默替换文件。
+启动时静默检查 GitHub Releases，有新版本才在左下角提示。点「立即更新」后会在应用内下载安装包、
+显示进度，再点「立即安装并重启」才真正安装 —— 不会在你不知情时替换文件。
+想自己挑安装包或跳发布页，展开「手动下载与其他格式」即可。
 
 **能打包成 macOS / Linux 版吗？**
 

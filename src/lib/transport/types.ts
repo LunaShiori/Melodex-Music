@@ -11,6 +11,7 @@ import type {
   Settings,
   SourceId,
   UpdateInfo,
+  UpdateProgress,
   VaultStatus,
   Variant,
 } from '../types'
@@ -45,6 +46,15 @@ export interface Transport {
   reveal(path: string): Promise<void>
   /** 检查线上是否有新版本（feed 留空用内置发布源） */
   checkUpdate(feed?: string): Promise<UpdateInfo>
+  /**
+   * 下载安装包到本地缓存，返回绝对路径。
+   * 不传 `assetName` 时由内核按当前平台挑最合适的那个。
+   */
+  updateDownload(info: UpdateInfo, assetName?: string): Promise<string>
+  /** 拉起已下载的安装包：Windows 运行安装器并退出应用，Android 调系统安装器 */
+  updateInstall(path: string): Promise<void>
+  /** 订阅下载进度，返回取消订阅函数 */
+  onUpdateProgress(handler: (progress: UpdateProgress) => void): () => void
   /** 用系统默认浏览器/应用打开外部链接 */
   openUrl(url: string): Promise<void>
   /** 把本地文件路径转成播放器可用的地址 */

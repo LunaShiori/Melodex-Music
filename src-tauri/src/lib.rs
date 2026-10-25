@@ -418,6 +418,93 @@ async fn check_update(
     .map_err(|err| err.to_string())
 }
 
+/// 在线更新的进度事件载荷。
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateProgress {
+    downloaded: u64,
+    total: u64,
+}
+
+/// 把安装包下载到本地缓存目录，边下边往前端推进度。
+///
+/// 不传 `asset_name` 时按当前平台挑最合适的安装包；传了则按名字精确匹配
+/// （例如用户手动选择了 `.msi`）。返回本地绝对路径，交给 `update_install` 拉起。
+#[tauri::command]
+async fn update_download(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    info: melodex_core::UpdateInfo,
+    asset_name: Option<String>,
+) -> Result<String, String> {
+    let asset = match asset_name.as_deref() {
+        Some(name) => info
+            .assets
+            .iter()
+            .find(|asset| asset.name == name)
+            .ok_or_else(|| format!("这次发布里没有名为 {name} 的安装包"))?,
+        None => melodex_core::update::pick_asset(&info.assets)
+            .ok_or_else(|| "这次发布没有适用于当前平台的安装包".to_string())?,
+    };
+
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|err| format!("无法定位缓存目录：{err}"))?
+        .join("updates");
+
+    let emitter = app.clone();
+    let path = melodex_core::update::download_asset(
+        &state.net,
+        &asset.url,
+        &dir,
+        &asset.name,
+        asset.size,
+        |downloaded, total| {
+            let _ = emitter.emit("update-progress", UpdateProgress { downloaded, total });
+        },
+    )
+    .await
+    .map_err(|err| err.to_string())?;
+
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// 拉起刚下载的安装包。
+///
+/// Windows 上直接执行 NSIS 安装包，装完即完成升级；应用自身要先退出，
+/// 否则安装器无法覆盖正在运行的 exe。安卓交给系统 Intent 打开，会弹安装界面。
+#[tauri::command]
+async fn update_install(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let file = std::path::Path::new(&path);
+    if !file.exists() {
+        return Err("安装包不存在，请重新下载".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new(file)
+            .spawn()
+            .map_err(|err| format!("无法启动安装程序：{err}"))?;
+        // 给前端留出渲染「正在退出」的时间，再结束进程
+        let handle = app.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+            handle.exit(0);
+        });
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .open_path(&path, None::<&str>)
+            .map_err(|err| format!("无法打开安装包：{err}"))?;
+        Ok(())
+    }
+}
+
 /// 用系统默认浏览器打开外部链接（更新页、安装包下载）。
 /// 不走 WebView 内部导航，避免把 App 变成浏览器。
 #[tauri::command]
@@ -542,6 +629,7 @@ fn install_panic_hook(dir: PathBuf) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // 先装钩子，后面任何初始化失败也能留下记录
             if let Ok(dir) = app.path().app_data_dir() {
@@ -582,6 +670,8 @@ pub fn run() {
             default_download_dir,
             reveal_path,
             check_update,
+            update_download,
+            update_install,
             open_url
         ])
         .run(tauri::generate_context!())

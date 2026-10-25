@@ -14,6 +14,7 @@ import type {
   Settings,
   SourceId,
   UpdateInfo,
+  UpdateProgress,
   VaultStatus,
   Variant,
 } from '../types'
@@ -103,6 +104,32 @@ export function createTauriTransport(): Transport {
 
     checkUpdate(feed?: string) {
       return invoke<UpdateInfo>('check_update', { feed: feed ?? null })
+    },
+
+    updateDownload(info: UpdateInfo, assetName?: string) {
+      return invoke<string>('update_download', { info, assetName: assetName ?? null })
+    },
+
+    async updateInstall(path: string) {
+      await invoke('update_install', { path })
+    },
+
+    onUpdateProgress(handler) {
+      let disposed = false
+      let unlisten: (() => void) | null = null
+      void listen<UpdateProgress>('update-progress', (event) => handler(event.payload)).then(
+        (off) => {
+          if (disposed) {
+            off()
+          } else {
+            unlisten = off
+          }
+        },
+      )
+      return () => {
+        disposed = true
+        unlisten?.()
+      }
     },
 
     async openUrl(url: string) {

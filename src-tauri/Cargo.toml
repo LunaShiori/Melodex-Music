@@ -1,6 +1,6 @@
 [package]
 name = "melodex"
-version = "0.3.0"
+version = "0.4.0"
 description = "Melodex · 多源音乐聚合搜索与下载"
 authors = ["Melodex Contributors"]
 license = "Apache-2.0"
@@ -20,6 +20,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset"] }
+# 安卓侧打开已下载的安装包需要系统 Intent，桌面侧走系统默认程序
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }

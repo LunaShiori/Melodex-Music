@@ -180,6 +180,12 @@ export interface UpdateInfo {
   assets: ReleaseAsset[]
 }
 
+/** 安装包下载进度，由内核推送 */
+export interface UpdateProgress {
+  downloaded: number
+  total: number
+}
+
 /* ---------- 账号与本地加密凭据 ---------- */
 
 /** 已保存的账号摘要（不含 Cookie 明文） */
@@ -213,7 +219,13 @@ export interface QrTicket {
   qrImage: string | null
 }
 
-export type QrStatus = 'waiting' | 'scanned' | 'confirmed' | 'expired'
+export type QrStatus =
+  | 'waiting'
+  | 'scanned'
+  | 'confirmed'
+  | 'expired'
+  /** 登录链路本身出错，`message` 里是具体原因 */
+  | 'error'
 
 /** 一次轮询结果 */
 export interface QrPoll {

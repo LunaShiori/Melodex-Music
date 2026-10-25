@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import Icon from './Icon.vue'
 import { formatBytes } from '@/lib/format'
@@ -8,6 +8,8 @@ import { useUpdateStore } from '@/stores/update'
 
 const update = useUpdateStore()
 const open = ref(false)
+/** 手动挑选安装包 / 打开发布页，默认收起 */
+const more = ref(false)
 const failed = ref('')
 
 const version = __APP_VERSION__
@@ -31,6 +33,51 @@ const assets = computed(() => {
   return [...list].sort((a, b) => Number(b.kind === prefer) - Number(a.kind === prefer))
 })
 
+/** 主按钮文案与可用性 */
+const primaryLabel = computed(() => {
+  switch (update.stage) {
+    case 'downloading':
+      return update.totalBytes
+        ? `下载中 ${update.percent}%`
+        : `下载中 ${formatBytes(update.downloaded)}`
+    case 'ready':
+      return '立即安装并重启'
+    case 'installing':
+      return '正在退出…'
+    default:
+      return '立即更新'
+  }
+})
+
+const progressHint = computed(() => {
+  if (update.stage !== 'downloading') return ''
+  if (!update.totalBytes) return `已下载 ${formatBytes(update.downloaded)}`
+  return `${formatBytes(update.downloaded)} / ${formatBytes(update.totalBytes)}`
+})
+
+watch(open, (value) => {
+  if (!value) {
+    failed.value = ''
+    more.value = false
+  }
+})
+
+async function primary() {
+  failed.value = ''
+  if (update.stage === 'ready') {
+    await update.install()
+    return
+  }
+  if (update.stage === 'idle') {
+    await update.download()
+  }
+}
+
+async function downloadSpecific(name: string) {
+  failed.value = ''
+  await update.download(name)
+}
+
 async function openUrl(url: string) {
   if (!url) return
   failed.value = ''
@@ -49,9 +96,9 @@ async function openUrl(url: string) {
       <span class="ico"><Icon name="cloud" :size="15" /></span>
       <div class="txt">
         <p class="title">发现新版本 <span class="mono">{{ info?.latest }}</span></p>
-        <p class="sub muted">当前 v{{ version }}，可查看更新内容与安装包</p>
+        <p class="sub muted">当前 v{{ version }}，可直接在应用内更新</p>
       </div>
-      <button class="btn btn-primary btn-sm" type="button" @click="open = true">查看</button>
+      <button class="btn btn-primary btn-sm" type="button" @click="open = true">更新</button>
       <button class="icon-btn" type="button" title="稍后提醒" @click="update.dismiss()">
         <Icon name="close" :size="14" />
       </button>
@@ -60,7 +107,7 @@ async function openUrl(url: string) {
 
   <Teleport to="body">
     <Transition name="fade">
-      <div v-if="open && info" class="mask" @click.self="open = false">
+      <div v-if="open && info" class="mask" @click.self="!update.busy && (open = false)">
         <div class="dialog" role="dialog" aria-modal="true">
           <header class="d-head">
             <div>
@@ -70,36 +117,73 @@ async function openUrl(url: string) {
                 <span v-if="info.publishedAt"> · 发布于 {{ info.publishedAt.slice(0, 10) }}</span>
               </p>
             </div>
-            <button class="icon-btn" type="button" @click="open = false">
+            <button
+              class="icon-btn"
+              type="button"
+              :disabled="update.busy"
+              @click="open = false"
+            >
               <Icon name="close" :size="16" />
             </button>
           </header>
 
           <pre class="notes">{{ info.notes || '本次更新没有附带说明。' }}</pre>
 
-          <div v-if="assets.length" class="assets">
-            <button
-              v-for="asset in assets"
-              :key="asset.name"
-              class="asset"
-              type="button"
-              @click="openUrl(asset.url)"
-            >
-              <span class="kind">{{ KIND_LABEL[asset.kind] ?? KIND_LABEL.other }}</span>
-              <span class="name mono">{{ asset.name }}</span>
-              <span class="size mono">{{ formatBytes(asset.size) }}</span>
-              <Icon name="download" :size="15" />
+          <!-- 下载进度 -->
+          <div v-if="update.stage === 'downloading'" class="progress">
+            <div class="bar">
+              <span class="fill" :style="{ width: `${update.percent}%` }" />
+            </div>
+            <p class="hint muted small">{{ progressHint }}</p>
+          </div>
+
+          <!-- 下载完成 -->
+          <p v-else-if="update.stage === 'ready'" class="ready small">
+            安装包已下载完成，点「立即安装并重启」即可完成升级。
+          </p>
+          <p v-else-if="update.stage === 'installing'" class="ready small">
+            正在启动安装程序，Melodex 即将退出，安装完成后会自动重新打开。
+          </p>
+
+          <p v-if="update.installError || failed" class="err">
+            {{ update.installError || failed }}
+          </p>
+
+          <!-- 备用入口：手动挑安装包 / 去发布页 -->
+          <button class="more-toggle" type="button" @click="more = !more">
+            <Icon name="chevron" :size="13" :class="more ? 'flip' : ''" />
+            手动下载与其他格式
+          </button>
+
+          <div v-if="more" class="more">
+            <div v-if="assets.length" class="assets">
+              <button
+                v-for="asset in assets"
+                :key="asset.name"
+                class="asset"
+                type="button"
+                :disabled="update.busy"
+                @click="downloadSpecific(asset.name)"
+              >
+                <span class="kind">{{ KIND_LABEL[asset.kind] ?? KIND_LABEL.other }}</span>
+                <span class="name mono">{{ asset.name }}</span>
+                <span class="size mono">{{ formatBytes(asset.size) }}</span>
+                <Icon name="download" :size="15" />
+              </button>
+            </div>
+            <p v-else class="muted small">这次发布没有附带安装包。</p>
+            <button class="link-btn" type="button" @click="openUrl(info.pageUrl)">
+              在浏览器中打开发布页
             </button>
           </div>
-          <p v-else class="muted small">该作者没有附上安装包，请到发布页查看。</p>
-
-          <p v-if="failed" class="err">{{ failed }}</p>
 
           <footer class="d-foot">
-            <button class="btn btn-ghost" type="button" @click="openUrl(info.pageUrl)">
-              打开发布页
+            <button class="btn btn-ghost" type="button" :disabled="update.busy" @click="open = false">
+              稍后提醒
             </button>
-            <button class="btn btn-primary" type="button" @click="open = false">稍后提醒</button>
+            <button class="btn btn-primary" type="button" :disabled="update.busy" @click="primary">
+              {{ primaryLabel }}
+            </button>
           </footer>
         </div>
       </div>
@@ -162,7 +246,7 @@ async function openUrl(url: string) {
 }
 .dialog {
   width: min(520px, 100%);
-  max-height: min(78vh, 640px);
+  max-height: min(80vh, 660px);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -190,7 +274,7 @@ async function openUrl(url: string) {
 .notes {
   margin: 0;
   padding: 12px;
-  max-height: 210px;
+  max-height: 200px;
   overflow: auto;
   border-radius: var(--r-sm);
   background: var(--surface-2);
@@ -199,6 +283,58 @@ async function openUrl(url: string) {
   color: var(--text-2);
   white-space: pre-wrap;
   font-family: inherit;
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 160ms linear;
+}
+.hint {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.ready {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.more-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.more-toggle:hover {
+  color: var(--text);
+}
+/* 展开时箭头朝上：同一个图标旋转 180°，省掉一个图标定义 */
+.flip {
+  transform: rotate(180deg);
+}
+.more {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .assets {
   display: flex;
@@ -218,9 +354,13 @@ async function openUrl(url: string) {
   font-size: 11.5px;
   transition: all var(--dur) var(--ease);
 }
-.asset:hover {
+.asset:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   background: var(--hover);
+}
+.asset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .kind {
   color: var(--text-2);
@@ -234,6 +374,18 @@ async function openUrl(url: string) {
 .size {
   color: var(--text-3);
   font-size: 10.5px;
+}
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.link-btn:hover {
+  text-decoration: underline;
 }
 .err {
   margin: 0;
@@ -261,6 +413,15 @@ async function openUrl(url: string) {
   }
   .kind {
     display: none;
+  }
+  .dialog {
+    padding: 16px 14px 14px;
+  }
+  .d-foot {
+    flex-direction: column-reverse;
+  }
+  .d-foot .btn {
+    width: 100%;
   }
 }
 </style>
