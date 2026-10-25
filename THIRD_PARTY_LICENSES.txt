@@ -1,0 +1,72 @@
+THIRD-PARTY SOFTWARE NOTICES
+Melodex · 多源音乐聚合搜索与下载
+
+This file lists the direct third-party components Melodex depends on, the
+license each one is distributed under, and where to obtain its full text.
+
+Regenerate with:  python3 scripts/gen_third_party.py -o THIRD_PARTY_LICENSES.txt
+
+Transitive dependencies are resolved by Cargo.lock and package-lock.json.
+To audit the whole tree run, from the repository root:
+
+    cargo install cargo-deny           # MIT OR Apache-2.0
+    cargo deny check licenses
+    npx license-checker --summary      # for the npm tree
+
+==============================================================================
+RUST CRATES
+==============================================================================
+
+-- melodex-core (crates/melodex-core/Cargo.toml)
+
+component               version     license                 homepage
+------------------------------------------------------------------------------
+serde                   1           MIT OR Apache-2.0       https://serde.rs
+serde_json              1           MIT OR Apache-2.0       https://serde.rs
+thiserror               1           MIT OR Apache-2.0       https://github.com/dtolnay/thiserror
+tokio                   1           MIT                     https://tokio.rs
+reqwest                 0.12        MIT OR Apache-2.0       https://github.com/seanmonstar/reqwest
+async-trait             0.1         MIT OR Apache-2.0       https://github.com/dtolnay/async-trait
+futures-util            0.3         MIT OR Apache-2.0       https://github.com/rust-lang/futures-rs
+percent-encoding        2           MIT OR Apache-2.0       https://github.com/servo/rust-url
+
+-- melodex (Tauri shell) (src-tauri/Cargo.toml)
+
+component               version     license                 homepage
+------------------------------------------------------------------------------
+tauri-build             2           MIT OR Apache-2.0       https://tauri.app
+tauri                   2           MIT OR Apache-2.0       https://tauri.app
+serde                   1           MIT OR Apache-2.0       https://serde.rs
+serde_json              1           MIT OR Apache-2.0       https://serde.rs
+tokio                   1           MIT                     https://tokio.rs
+melodex-core            ../crates/melodex-coresee crates.io           
+
+==============================================================================
+NPM PACKAGES
+==============================================================================
+
+component                 version         scope     license             homepage
+------------------------------------------------------------------------------
+pinia                     ^2.2.6          runtime   MIT                 https://pinia.vuejs.org
+vue                       ^3.5.13         runtime   MIT                 https://vuejs.org
+vue-router                ^4.4.5          runtime   MIT                 https://router.vuejs.org
+@tauri-apps/api           ^2.1.1          build     MIT OR Apache-2.0   https://tauri.app
+@tauri-apps/cli           ^2.1.0          build     MIT OR Apache-2.0   https://tauri.app
+@types/node               ^26.6.5         build     MIT                 https://github.com/DefinitelyTyped/DefinitelyTyped
+@vitejs/plugin-vue        ^5.2.1          build     MIT                 https://github.com/vitejs/vite-plugin-vue
+typescript                ^5.7.2          build     Apache-2.0          https://www.typescriptlang.org
+vite                      ^6.0.3          build     MIT                 https://vite.dev
+vue-tsc                   ^2.1.10         build     MIT                 https://github.com/vuejs/language-tools
+
+==============================================================================
+FULL LICENSE TEXTS
+==============================================================================
+
+Apache License 2.0   https://www.apache.org/licenses/LICENSE-2.0
+MIT License         https://opensource.org/license/mit
+
+Components marked "MIT OR Apache-2.0" are dual-licensed; Melodex consumes
+them under the Apache-2.0 terms, which keeps a single inbound license for
+the whole product.
+
+Melodex itself is licensed under Apache-2.0; see LICENSE and NOTICE.

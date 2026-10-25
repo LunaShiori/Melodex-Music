@@ -1,0 +1,39 @@
+# ---- Rust ----
+/target/
+**/target/
+/dists/
+
+# ---- Node / 前端 ----
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# ---- Tauri ----
+src-tauri/gen/schemas/
+# Android 工程由 `npm run tauri android init` 生成，体积大且与 SDK 版本绑定，
+# 默认不入库；需要固定构建环境时可去掉下一行。
+src-tauri/gen/android/
+
+# ---- 构建产物 ----
+bundle/
+*.msi
+*.exe
+*.apk
+*.aab
+*.dmg
+*.AppImage
+
+# ---- 本地环境 ----
+.env
+.env.*
+!.env.example
+
+# ---- 编辑器 / 系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp

@@ -1,0 +1,29 @@
+[package]
+name = "melodex"
+version = "0.1.0"
+description = "Melodex · 多源音乐聚合搜索与下载"
+authors = ["Melodex Contributors"]
+license = "Apache-2.0"
+edition = "2021"
+rust-version = "1.77"
+
+# 与根 workspace 解耦：桌面端需要 Tauri 的系统依赖，单独构建，
+# 这样纯核心仍然可以在任意平台独立编译与测试。
+[workspace]
+
+[lib]
+name = "melodex_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+melodex-core = { path = "../crates/melodex-core" }
+
+[features]
+default = []

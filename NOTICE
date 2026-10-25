@@ -1,0 +1,43 @@
+Melodex
+Copyright 2025 Melodex Contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------------
+Upstream inspiration
+--------------------------------------------------------------------------------
+
+Melodex's engineering structure — a shared Rust core with thin platform shells,
+a platform-adapter trait, and a resumable download engine — is modeled on the
+architecture of the HotDownloader project:
+
+    HotDownloader
+    https://github.com/lerdb/HotDownloader
+    Copyright the HotDownloader contributors
+    Licensed under the Apache License, Version 2.0
+
+No HotDownloader source code is copied verbatim into this repository. The
+architecture and the compliance conventions (LICENSE + NOTICE +
+THIRD_PARTY_LICENSES) are followed, as required by Section 4 of the License.
+
+--------------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------------
+
+Bundled and linked third-party components carry their own licenses. The
+authoritative list, with versions and license identifiers, is generated into
+THIRD_PARTY_LICENSES.txt by scripts/gen_third_party.py.
+
+--------------------------------------------------------------------------------
+Trademarks and service marks
+
+"网易云音乐" / NetEase Cloud Music, "QQ 音乐" / QQ Music and "酷我音乐" / Kuwo
+are trademarks of their respective owners. Melodex is an unofficial client. It
+is not affiliated with, endorsed by, or sponsored by any of these services.
+
+--------------------------------------------------------------------------------
+Content
+
+Melodex ships no music, lyrics, or artwork. Every byte it downloads comes from
+the public endpoints of the services you point it at, under your own account
+and your own responsibility. See the disclaimer in README.md.

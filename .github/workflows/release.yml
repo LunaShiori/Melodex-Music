@@ -1,0 +1,153 @@
+name: release
+
+# 打 tag 即出安装包：
+#   git tag v0.1.0 && git push origin v0.1.0
+# 产物：Windows 的 NSIS(.exe) / MSI(.msi) 与 Android 的通用 APK，自动挂到 Release 上。
+# 应用内「检查更新」读的就是这个 Release 的 latest，所以文件必须挂在 Release 资产里。
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的 tag（例如 v0.1.0）'
+        required: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '20'
+  RUST_BACKTRACE: 1
+
+jobs:
+  windows:
+    name: Windows 安装包
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: 安装前端依赖
+        run: npm ci
+
+      - name: 构建桌面端（NSIS + MSI）
+        run: npm run tauri build
+
+      - name: 整理产物
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Get-ChildItem -Recurse -Path src-tauri/target/release/bundle -Include *.exe,*.msi |
+            Copy-Item -Destination out
+          Get-ChildItem out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: out/*
+          if-no-files-found: error
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: 安装 NDK
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r26b
+          add-to-path: true
+
+      - name: 配置 NDK 环境变量
+        run: echo "NDK_HOME=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: 安装前端依赖
+        run: npm ci
+
+      - name: 生成 Android 工程
+        run: npm run tauri android init
+
+      - name: 构建通用 APK
+        run: npm run tauri android build -- --apk
+
+      - name: 整理产物
+        run: |
+          mkdir -p out
+          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec cp {} out/ \;
+          ls -lh out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+  publish:
+    name: 发布 Release
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+          merge-multiple: true
+
+      - name: 列出待发布文件
+        run: ls -lh dist-artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Melodex ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## 安装方式
+
+            | 平台 | 文件 | 说明 |
+            | --- | --- | --- |
+            | Windows 10/11 x64 | `Melodex_*_x64-setup.exe` | 推荐，双击安装 |
+            | Windows 10/11 x64 | `Melodex_*_x64_en-US.msi` | 企业/静默部署用 |
+            | Android 8.0+ | `app-universal-release.apk` | 通用包，允许「安装未知来源应用」后安装 |
+
+            应用内「设置 → 关于 → 检查更新」会自动比对本页版本。
+          files: dist-artifacts/*
+          fail_on_unmatched_files: true
