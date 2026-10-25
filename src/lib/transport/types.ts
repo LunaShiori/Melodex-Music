@@ -1,13 +1,17 @@
 import type {
+  AccountInfo,
   AggregatedPage,
   DownloadTask,
   EngineEvent,
   EnqueueInput,
   Lyric,
   PlayUrl,
+  QrPoll,
+  QrTicket,
   Settings,
   SourceId,
   UpdateInfo,
+  VaultStatus,
   Variant,
 } from '../types'
 
@@ -45,4 +49,19 @@ export interface Transport {
   openUrl(url: string): Promise<void>
   /** 把本地文件路径转成播放器可用的地址 */
   localUrl(path: string): string
+
+  /* ---- 账号与本地加密凭据 ---- */
+  vaultStatus(): Promise<VaultStatus>
+  /** 用 PIN 解锁凭据库 */
+  vaultUnlock(pin: string): Promise<VaultStatus>
+  /** 设置 / 取消 PIN（传 null 取消） */
+  vaultSetPin(pin: string | null): Promise<VaultStatus>
+  /** 申请扫码登录二维码（网易云） */
+  loginQrStart(source: SourceId): Promise<QrTicket>
+  /** 轮询扫码状态；确认成功后后端会直接把凭据写入加密库 */
+  loginQrPoll(source: SourceId, key: string): Promise<QrPoll>
+  /** 手动保存 Cookie（QQ 音乐等） */
+  saveAccount(source: SourceId, cookie: string, nickname?: string | null): Promise<AccountInfo>
+  /** 退出登录 */
+  clearAccount(source: SourceId): Promise<VaultStatus>
 }

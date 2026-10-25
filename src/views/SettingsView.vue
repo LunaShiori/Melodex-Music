@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
+import AccountPanel from '@/components/AccountPanel.vue'
 import Icon from '@/components/Icon.vue'
 import { renderNaming } from '@/lib/naming'
 import { transport } from '@/lib/transport'
@@ -88,6 +89,8 @@ onMounted(async () => {
     </header>
 
     <template v-if="settings">
+      <AccountPanel />
+
       <section class="card">
         <h2>下载</h2>
 

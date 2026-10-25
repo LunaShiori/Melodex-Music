@@ -30,6 +30,11 @@ impl Net {
     }
 
     pub async fn text(&self, url: &str, headers: &[(&str, &str)]) -> Result<String> {
+        Ok(self.get(url, headers).await?.text().await?)
+    }
+
+    /// 返回完整响应，用于需要读响应头的场景（如扫码登录的 `Set-Cookie`）。
+    pub async fn get(&self, url: &str, headers: &[(&str, &str)]) -> Result<reqwest::Response> {
         let mut req = self.client.get(url);
         for (name, value) in headers {
             req = req.header(*name, *value);
@@ -42,7 +47,7 @@ impl Net {
                 reason: format!("HTTP {status} <- {}", trim_url(url)),
             });
         }
-        Ok(resp.text().await?)
+        Ok(resp)
     }
 
     pub async fn json<T: DeserializeOwned>(

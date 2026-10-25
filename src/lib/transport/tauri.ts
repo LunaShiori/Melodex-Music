@@ -2,15 +2,19 @@ import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
 import type {
+  AccountInfo,
   AggregatedPage,
   DownloadTask,
   EngineEvent,
   EnqueueInput,
   Lyric,
   PlayUrl,
+  QrPoll,
+  QrTicket,
   Settings,
   SourceId,
   UpdateInfo,
+  VaultStatus,
   Variant,
 } from '../types'
 import type { SearchParams, Transport } from './types'
@@ -107,6 +111,38 @@ export function createTauriTransport(): Transport {
 
     localUrl(path: string) {
       return convertFileSrc(path)
+    },
+
+    vaultStatus() {
+      return invoke<VaultStatus>('vault_status')
+    },
+
+    vaultUnlock(pin: string) {
+      return invoke<VaultStatus>('vault_unlock', { pin })
+    },
+
+    vaultSetPin(pin: string | null) {
+      return invoke<VaultStatus>('vault_set_pin', { pin })
+    },
+
+    loginQrStart(source: SourceId) {
+      return invoke<QrTicket>('login_qr_start', { source })
+    },
+
+    loginQrPoll(source: SourceId, key: string) {
+      return invoke<QrPoll>('login_qr_poll', { source, key })
+    },
+
+    saveAccount(source: SourceId, cookie: string, nickname?: string | null) {
+      return invoke<AccountInfo>('account_save', {
+        source,
+        cookie,
+        nickname: nickname ?? null,
+      })
+    },
+
+    clearAccount(source: SourceId) {
+      return invoke<VaultStatus>('account_clear', { source })
     },
   }
 }

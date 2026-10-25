@@ -154,3 +154,43 @@ export interface UpdateInfo {
   publishedAt: string
   assets: ReleaseAsset[]
 }
+
+/* ---------- 账号与本地加密凭据 ---------- */
+
+/** 已保存的账号摘要（不含 Cookie 明文） */
+export interface AccountInfo {
+  source: SourceId
+  nickname: string | null
+  savedAt: number
+  /** Cookie 里包含哪些键，例如 MUSIC_U / __csrf */
+  keys: string[]
+}
+
+/** 凭据库状态 */
+export interface VaultStatus {
+  exists: boolean
+  pinProtected: boolean
+  unlocked: boolean
+  accounts: AccountInfo[]
+  minPinLen: number
+}
+
+/** 扫码登录票据 */
+export interface QrTicket {
+  source: SourceId
+  key: string
+  qrUrl: string
+  expiresIn: number
+  /** 已渲染好的 SVG，直接内联 */
+  qrSvg: string
+}
+
+export type QrStatus = 'waiting' | 'scanned' | 'confirmed' | 'expired'
+
+/** 一次轮询结果 */
+export interface QrPoll {
+  status: QrStatus
+  cookie: string | null
+  nickname: string | null
+  message: string | null
+}

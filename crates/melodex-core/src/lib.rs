@@ -9,8 +9,11 @@
 
 #[cfg(feature = "net")]
 pub mod aggregator;
+pub mod cookie;
 pub mod download;
 pub mod error;
+#[cfg(feature = "net")]
+pub mod login;
 pub mod lyric;
 pub mod model;
 #[cfg(feature = "net")]
@@ -20,9 +23,11 @@ pub mod platform;
 #[cfg(feature = "net")]
 pub mod platforms;
 pub mod pseudo_json;
+pub mod qr;
 pub mod settings;
 pub mod task;
 pub mod update;
+pub mod vault;
 
 #[cfg(feature = "net")]
 pub use aggregator::Aggregator;

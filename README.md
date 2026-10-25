@@ -22,6 +22,7 @@
 - [它解决什么问题](#它解决什么问题)
 - [功能](#功能)
 - [界面](#界面)
+- [账号与本地加密](#账号与本地加密)
 - [在线更新](#在线更新)
 - [架构](#架构)
 - [关键实现](#关键实现)
@@ -95,6 +96,16 @@
 - 桌面端侧栏导航，≤860px 自动切为底部标签栏；触屏设备显示常驻播放徽标
 - 程序化生成封面（无图时按曲目指纹生成渐变唱片），不请求第三方图床
 
+**账号与登录**
+
+- 实测（未登录，周杰伦 10~12 首样本）：网易云 **3/12** 可播、QQ 音乐 **0/10**、酷我 **10/10**
+  —— 不登录时大部分歌拿不到直链，所以登录不是可选项
+- 网易云：官方二维码扫码（手机 App「扫一扫」→ 确认），全程不接触账号密码
+- QQ 音乐：Cookie 导入（官方未开放扫码接口），从浏览器 F12 复制 `Cookie` 整行即可
+- 酷我：免登录可用，界面直接标注
+- **凭据本地加密**：AES-256-GCM 落盘，主密钥随机生成；可再设 PIN（Argon2id 派生 KEK 包裹主密钥），
+  没 PIN 就解不开。界面只拿到「登录了哪个账号 / Cookie 含哪些键」，永远读不到明文
+
 **在线更新**
 
 - 启动时静默检查一次 GitHub Releases，有新版本才在左下角浮出提示，失败不打扰
@@ -110,12 +121,59 @@
 | 聚合搜索：一行一首，右侧是可用音源 | 下载中心：进度、速度、失败原因 |
 | ![曲库](docs/screenshots/desktop-library.png) | ![设置](docs/screenshots/desktop-settings.png) |
 | 本地曲库：已下载文件按封面网格陈列 | 设置：目录、并发、音质、命名实时预览 |
-| ![更新](docs/screenshots/desktop-update.png) | |
-| 更新弹窗：版本说明 + 按平台排序的安装包 | |
+| ![账号](docs/screenshots/desktop-accounts.png) | ![扫码登录](docs/screenshots/desktop-login-qr.png) |
+| 设置 → 账号：三源登录状态与保存的 Cookie 键 | 网易云扫码登录：二维码 + 实时状态 |
+| ![Cookie 导入](docs/screenshots/desktop-login-cookie.png) | ![更新](docs/screenshots/desktop-update.png) |
+| QQ 音乐：粘贴 Cookie 导入（附取法说明） | 更新弹窗：版本说明 + 按平台排序的安装包 |
 
 | Android | | | |
 | --- | --- | --- | --- |
 | ![移动搜索](docs/screenshots/mobile-search.png) | ![移动下载](docs/screenshots/mobile-downloads.png) | ![移动曲库](docs/screenshots/mobile-library.png) | ![移动设置](docs/screenshots/mobile-settings.png) |
+| ![移动账号](docs/screenshots/mobile-accounts.png) | | | |
+| 移动端账号：同一套登录与加密逻辑 | | | |
+
+## 账号与本地加密
+
+### 为什么需要登录
+
+未登录能搜到歌，但拿不到直链 —— 各音源对「匿名请求」的限制不同，实测差距很大：
+
+| 音源 | 未登录可播（周杰伦样本） | 限制表现 |
+| --- | --- | --- |
+| 网易云音乐 | 3/12 | 会员曲返回 `url: null, code: 404`，不是降音质，是整首不可用 |
+| QQ 音乐 | 0/10 | `CgiGetVkey` 返回的 `purl` 为空，几乎完全不可用 |
+| 酷我音乐 | 10/10 | 免登录直出 320kbps |
+
+登录后用的是**你自己账号本来就有的权限**：不共享账号、不绕过付费墙、不破解签名。
+
+### 三种接入方式
+
+| 音源 | 方式 | 说明 |
+| --- | --- | --- |
+| 网易云音乐 | 二维码扫码 | 官方 `login/qrcode` 接口；手机 App 扫码确认后自动写入本地 |
+| QQ 音乐 | 粘贴 Cookie | 官方未开放扫码接口，从浏览器 F12 复制 `Cookie` 头 |
+| 酷我音乐 | 无需登录 | 界面直接标注「免登录可用」 |
+
+扫码状态机：`等待扫码 → 已扫描待确认 → 登录成功`，二维码 3 分钟过期，过期可一键重取。
+
+### 凭据怎么存
+
+```
+<应用数据目录>/vault/
+├── master.key   # 32 字节随机主密钥；或 "MPIN" + salt + AES-GCM(主密钥)
+└── vault.bin    # "MELODEX-VAULT1" + nonce + AES-256-GCM(JSON)
+```
+
+- **默认**：随机主密钥加密，主密钥单独一个文件，Unix 上权限 `0600`；
+- **可选 PIN**：主密钥用 `Argon2id(PIN, salt)` 派生的 KEK 包裹，没 PIN 解不开；
+- 每条凭据只存 `cookie / nickname / saved_at`，不落任何明文到磁盘（有单测断言文件字节里搜不到 Cookie 值）；
+- 密文被改动一个字节就会解密失败（GCM 认证标签），不会返回半截数据；
+- 前端拿到的是 `AccountInfo`（昵称 + Cookie **键名**），接口层从不回传 Cookie 值；
+- 退出登录会同时删掉内存与保险库里的那条记录。
+
+威胁模型写在 `crates/melodex-core/src/vault.rs` 顶部：防的是「应用数据目录被同步盘/备份拷走后
+被直接读出」，不防「已取得本机管理员权限的攻击者」—— 需要更强隔离时，应把主密钥托管到
+Windows DPAPI / Android Keystore。
 
 ## 在线更新
 
@@ -478,6 +536,10 @@ melodex/
 │   │   ├── platform.rs           # MusicPlatform trait · Registry · CredStore
 │   │   ├── platforms/            # netease.rs · qq.rs · kuwo.rs
 │   │   ├── download/             # engine · transfer · naming · tags
+│   │   ├── cookie.rs             # Cookie 串解析/合并（可单测）
+│   │   ├── login/                # 扫码登录（网易云二维码状态机）
+│   │   ├── qr.rs                 # 二维码渲染成 SVG（无前端依赖）
+│   │   ├── vault.rs              # 凭据保险库（AES-256-GCM + 可选 PIN）
 │   │   ├── lyric.rs              # LRC 解析与定位
 │   │   ├── settings.rs           # 配置模型与归一化
 │   │   ├── task.rs               # 任务与状态机
@@ -559,6 +621,16 @@ Windows 默认在「下载/Melodex」，可在设置里改；Android 落在应�
 **能打包成 macOS / Linux 版吗？**
 
 代码本身跨平台，Tauri 也支持；目前只维护 Windows 与 Android 两条构建流水线。
+
+**为什么要登录？不登录会怎样？**
+
+不登录能搜到歌，但大部分歌拿不到直链：实测网易云 12 首里只有 3 首可播，QQ 音乐 10 首全军覆没。
+登录用的是你自己账号本就有的权限，不会破解或绕过付费。
+
+**保存的账号安全吗？**
+
+Cookie 用 AES-256-GCM 加密后存在本机 `vault/` 目录，主密钥单独存放；还可以再设 PIN
+（Argon2id 派生密钥包裹主密钥），没有 PIN 就打不开。界面任何位置都读不到 Cookie 明文。
 
 **点「下载」程序就闪退了怎么办？**
 

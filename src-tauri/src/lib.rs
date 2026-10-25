@@ -4,7 +4,9 @@
 //! 所有逻辑都在 `melodex-core` 里，便于单独测试。
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 
+use melodex_core::vault::{Account, AccountInfo, Opened, Vault, VaultData, MIN_PIN_LEN};
 use melodex_core::{
     AggregatedPage, Aggregator, CredStore, DownloadEngine, EnqueueInput, Lyric, PlayUrl,
     PlaylistDetail, Registry, Settings, Source, Variant,
@@ -18,6 +20,11 @@ pub struct AppState {
     /// 更新检查复用同一个 HTTP 客户端（连接池共享，避免额外 TLS 握手）
     net: melodex_core::net::Net,
     settings_path: PathBuf,
+    creds: CredStore,
+    /// 加密保险库所在目录
+    vault_dir: PathBuf,
+    /// `None` 表示未解锁（启用了 PIN 但还没输入）
+    vault: Mutex<Option<Vault>>,
 }
 
 impl AppState {
@@ -36,7 +43,21 @@ impl AppState {
 
         let net = melodex_core::net::Net::new().map_err(|err| err.to_string())?;
         let creds = CredStore::new();
-        let registry = Registry::new(net.clone(), creds);
+        let vault_dir = dir.join("vault");
+
+        // 未被 PIN 保护时自动解锁并装载凭据；启用了 PIN 则等用户输入
+        let pin_protected = Vault::is_pin_protected(&vault_dir);
+        let mut unlocked = None;
+        if !pin_protected {
+            if let Ok(Opened::Ready(vault)) = Vault::open(&vault_dir) {
+                if let Ok(data) = vault.load() {
+                    load_into(&creds, &data);
+                }
+                unlocked = Some(vault);
+            }
+        }
+
+        let registry = Registry::new(net.clone(), creds.clone());
         let engine = DownloadEngine::new(
             registry.clone(),
             settings,
@@ -51,8 +72,89 @@ impl AppState {
             engine,
             net,
             settings_path,
+            creds,
+            vault_dir,
+            vault: Mutex::new(unlocked),
         })
     }
+
+    /// 把保险库里的 Cookie 注入各音源适配器。
+    fn reload_creds(&self) {
+        let Ok(data) = self.load_vault() else { return };
+        load_into(&self.creds, &data);
+    }
+
+    fn load_vault(&self) -> Result<VaultData, String> {
+        let guard = self.vault.lock().map_err(|_| "凭据库状态异常".to_string())?;
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| "凭据库未解锁，请先输入 PIN".to_string())?;
+        vault.load().map_err(|err| err.to_string())
+    }
+
+    /// 写入一条账号：同时进内存 CredStore 与加密保险库。
+    fn store_account(
+        &self,
+        source: Source,
+        cookie: &str,
+        nickname: Option<String>,
+    ) -> Result<AccountInfo, String> {
+        let cookie = cookie.trim();
+        if cookie.is_empty() {
+            return Err("Cookie 不能为空".into());
+        }
+        let mut data = self.load_vault()?;
+        let account = Account::new(cookie, nickname);
+        data.set(source.id(), account.clone());
+        {
+            let guard = self.vault.lock().map_err(|_| "凭据库状态异常".to_string())?;
+            let vault = guard
+                .as_ref()
+                .ok_or_else(|| "凭据库未解锁，请先输入 PIN".to_string())?;
+            vault.save(&data).map_err(|err| err.to_string())?;
+        }
+        self.creds.set(source, Some(account.cookie.clone()));
+        Ok(AccountInfo::of(source.id(), &account))
+    }
+
+    fn status(&self) -> VaultStatus {
+        let unlocked = self
+            .vault
+            .lock()
+            .map(|guard| guard.is_some())
+            .unwrap_or(false);
+        let accounts = if unlocked {
+            self.load_vault().map(|data| data.infos()).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        VaultStatus {
+            exists: Vault::exists(&self.vault_dir),
+            pin_protected: Vault::is_pin_protected(&self.vault_dir),
+            unlocked,
+            accounts,
+            min_pin_len: MIN_PIN_LEN,
+        }
+    }
+}
+
+fn load_into(creds: &CredStore, data: &VaultData) {
+    for (id, account) in data.accounts.iter() {
+        if let Some(source) = Source::from_id(id) {
+            creds.set(source, Some(account.cookie.clone()));
+        }
+    }
+}
+
+/// 凭据库状态，供设置页展示。不含任何 Cookie 明文。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultStatus {
+    exists: bool,
+    pin_protected: bool,
+    unlocked: bool,
+    accounts: Vec<AccountInfo>,
+    min_pin_len: usize,
 }
 
 fn parse_source(raw: &str) -> Result<Source, String> {
@@ -164,6 +266,136 @@ async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result
     let json = serde_json::to_string_pretty(&settings).map_err(|err| err.to_string())?;
     std::fs::write(&state.settings_path, json).map_err(|err| err.to_string())?;
     Ok(())
+}
+
+/// 凭据库状态（是否存在、是否启用 PIN、是否已解锁、已保存哪些账号）。
+#[tauri::command]
+fn vault_status(state: State<'_, AppState>) -> VaultStatus {
+    state.status()
+}
+
+/// 用 PIN 解锁凭据库，解锁后立即把 Cookie 注入各音源。
+#[tauri::command]
+fn vault_unlock(state: State<'_, AppState>, pin: String) -> Result<VaultStatus, String> {
+    let vault = Vault::open_with_pin(&state.vault_dir, &pin).map_err(|err| err.to_string())?;
+    {
+        let mut guard = state
+            .vault
+            .lock()
+            .map_err(|_| "凭据库状态异常".to_string())?;
+        *guard = Some(vault);
+    }
+    state.reload_creds();
+    Ok(state.status())
+}
+
+/// 设置 / 取消 PIN。传 `null` 表示取消保护。
+#[tauri::command]
+fn vault_set_pin(state: State<'_, AppState>, pin: Option<String>) -> Result<VaultStatus, String> {
+    {
+        let guard = state
+            .vault
+            .lock()
+            .map_err(|_| "凭据库状态异常".to_string())?;
+        let vault = guard
+            .as_ref()
+            .ok_or_else(|| "凭据库未解锁，请先输入 PIN".to_string())?;
+        vault
+            .set_pin(pin.as_deref())
+            .map_err(|err| err.to_string())?;
+    }
+    Ok(state.status())
+}
+
+/// 申请扫码登录的二维码。目前仅网易云支持（官方二维码接口）。
+#[tauri::command]
+async fn login_qr_start(
+    state: State<'_, AppState>,
+    source: String,
+) -> Result<melodex_core::login::QrTicket, String> {
+    let source = parse_source(&source)?;
+    match source {
+        Source::Netease => melodex_core::login::netease::start(&state.net)
+            .await
+            .map_err(|err| err.to_string()),
+        _ => Err("该音源没有开放扫码登录，请用「粘贴 Cookie」导入".into()),
+    }
+}
+
+/// 轮询扫码结果；确认成功后立刻写入加密保险库并注入音源。
+#[tauri::command]
+async fn login_qr_poll(
+    state: State<'_, AppState>,
+    source: String,
+    key: String,
+) -> Result<melodex_core::login::QrPoll, String> {
+    let source = parse_source(&source)?;
+    if source != Source::Netease {
+        return Err("该音源没有开放扫码登录，请用「粘贴 Cookie」导入".into());
+    }
+    let poll = melodex_core::login::netease::poll(&state.net, &key)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    if poll.status == melodex_core::login::QrStatus::Confirmed {
+        if let Some(cookie) = poll.cookie.clone() {
+            // 保存失败要让用户知道，否则会出现"看起来登录了但下载仍然受限"
+            state
+                .store_account(source, &cookie, poll.nickname.clone())
+                .map_err(|err| format!("登录成功，但凭据保存失败：{err}"))?;
+        }
+    }
+    Ok(poll)
+}
+
+/// 手动保存 Cookie（QQ 音乐等没有开放扫码接口的音源走这条路）。
+#[tauri::command]
+fn account_save(
+    state: State<'_, AppState>,
+    source: String,
+    cookie: String,
+    nickname: Option<String>,
+) -> Result<AccountInfo, String> {
+    let source = parse_source(&source)?;
+    let nickname = nickname.or_else(|| guess_nickname(source, &cookie));
+    state.store_account(source, &cookie, nickname)
+}
+
+/// 退出登录：清除内存与保险库中的该音源凭据。
+#[tauri::command]
+fn account_clear(state: State<'_, AppState>, source: String) -> Result<VaultStatus, String> {
+    let source = parse_source(&source)?;
+    let cleared = {
+        let mut data = state.load_vault()?;
+        if data.remove(source.id()) {
+            let guard = state
+                .vault
+                .lock()
+                .map_err(|_| "凭据库状态异常".to_string())?;
+            let vault = guard
+                .as_ref()
+                .ok_or_else(|| "凭据库未解锁".to_string())?;
+            vault.save(&data).map_err(|err| err.to_string())?;
+            true
+        } else {
+            false
+        }
+    };
+    if cleared {
+        state.creds.set(source, None);
+    }
+    Ok(state.status())
+}
+
+/// QQ 的 Cookie 里带 `uin`，可以据此显示一个可读的账号名。
+fn guess_nickname(source: Source, cookie: &str) -> Option<String> {
+    if source != Source::Qq {
+        return None;
+    }
+    let uin = melodex_core::cookie::value_of(cookie, "uin")
+        .or_else(|| melodex_core::cookie::value_of(cookie, "p_uin"))?;
+    let digits = uin.trim_start_matches(['o', 'u', '_']);
+    Some(format!("QQ {digits}"))
 }
 
 /// 检查线上是否有新版本。`feed` 留空时使用内置的 GitHub Releases 地址。
@@ -335,6 +567,13 @@ pub fn run() {
             clear_finished,
             get_settings,
             save_settings,
+            vault_status,
+            vault_unlock,
+            vault_set_pin,
+            login_qr_start,
+            login_qr_poll,
+            account_save,
+            account_clear,
             default_download_dir,
             reveal_path,
             check_update,

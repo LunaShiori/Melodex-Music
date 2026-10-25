@@ -1,12 +1,16 @@
 import type {
+  AccountInfo,
   AggregatedPage,
   DownloadTask,
   EngineEvent,
   EnqueueInput,
   Lyric,
   PlayUrl,
+  QrPoll,
+  QrTicket,
   Settings,
   SourceId,
+  VaultStatus,
   Variant,
 } from '../types'
 import { ALL_SOURCES } from '../types'
@@ -16,6 +20,50 @@ import type { SearchParams, Transport } from './types'
  * 演示传输层：浏览器里没有 Rust 核心，这里用内置曲库 + 模拟进度
  * 把整套交互跑通，方便 UI 走查与截图。正式功能全部由 Tauri 端提供。
  */
+
+const demoAccounts_ = new Map<SourceId, AccountInfo>([
+  [
+    'netease',
+    {
+      source: 'netease',
+      nickname: '演示账号',
+      savedAt: Math.floor(Date.now() / 1000) - 3600,
+      keys: ['MUSIC_U', '__csrf'],
+    },
+  ],
+])
+
+function demoAccounts(): AccountInfo[] {
+  return [...demoAccounts_.values()]
+}
+
+let demoQrTicks = 0
+
+/** 演示用的伪二维码：只求视觉相似，真实二维码由 Rust 侧渲染 */
+function fakeQrSvg(size = 33): string {
+  let seed = 0x9e3779b9
+  const cells: string[] = []
+  const finder = (x: number, y: number) => {
+    cells.push(`<rect x="${x}" y="${y}" width="7" height="7"/>`)
+    cells.push(`<rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="#fff"/>`)
+    cells.push(`<rect x="${x + 2}" y="${y + 2}" width="3" height="3"/>`)
+  }
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const inFinder =
+        (x < 8 && y < 8) || (x > size - 9 && y < 8) || (x < 8 && y > size - 9)
+      if (inFinder) continue
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      if ((seed >> 16) % 100 < 44) {
+        cells.push(`<rect x="${x}" y="${y}" width="1" height="1"/>`)
+      }
+    }
+  }
+  finder(1, 1)
+  finder(size - 8, 1)
+  finder(1, size - 8)
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 ${size + 2} ${size + 2}" shape-rendering="crispEdges"><rect x="-1" y="-1" width="${size + 2}" height="${size + 2}" fill="#fff"/><g fill="#12121a">${cells.join('')}</g></svg>`
+}
 
 interface Seed {
   title: string
@@ -386,7 +434,7 @@ export function createDemoTransport(): Transport {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))
       return {
-        current: '0.1.1',
+        current: '0.2.0',
         latest: 'v0.2.0',
         available: true,
         notes:
@@ -422,6 +470,83 @@ export function createDemoTransport(): Transport {
 
     localUrl() {
       return ''
+    },
+
+    /* ---- 账号：浏览器里用内存模拟，方便走查扫码流程 ---- */
+
+    async vaultStatus() {
+      return {
+        exists: true,
+        pinProtected: false,
+        unlocked: true,
+        accounts: demoAccounts(),
+        minPinLen: 6,
+      } satisfies VaultStatus
+    },
+
+    async vaultUnlock() {
+      return this.vaultStatus()
+    },
+
+    async vaultSetPin(pin: string | null) {
+      const status = await this.vaultStatus()
+      return { ...status, pinProtected: Boolean(pin) }
+    },
+
+    async loginQrStart(source: SourceId) {
+      demoQrTicks = 0
+      const key = `demo-${Date.now()}`
+      return {
+        source,
+        key,
+        qrUrl: `https://music.163.com/login?codekey=${key}`,
+        expiresIn: 180,
+        qrSvg: fakeQrSvg(),
+      } satisfies QrTicket
+    },
+
+    async loginQrPoll(source: SourceId) {
+      demoQrTicks += 1
+      if (demoQrTicks <= 2) {
+        return { status: 'waiting', cookie: null, nickname: null, message: '等待扫码' } satisfies QrPoll
+      }
+      if (demoQrTicks === 3) {
+        return {
+          status: 'scanned',
+          cookie: null,
+          nickname: null,
+          message: '扫描成功，请在手机上确认',
+        } satisfies QrPoll
+      }
+      const account: AccountInfo = {
+        source,
+        nickname: '演示账号',
+        savedAt: Math.floor(Date.now() / 1000),
+        keys: ['MUSIC_U', '__csrf'],
+      }
+      demoAccounts_.set(source, account)
+      return {
+        status: 'confirmed',
+        cookie: 'MUSIC_U=demo',
+        nickname: account.nickname,
+        message: '登录成功',
+      } satisfies QrPoll
+    },
+
+    async saveAccount(source: SourceId, _cookie: string, nickname?: string | null) {
+      const account: AccountInfo = {
+        source,
+        nickname: nickname || (source === 'qq' ? 'QQ 演示账号' : '演示账号'),
+        savedAt: Math.floor(Date.now() / 1000),
+        keys: source === 'qq' ? ['uin', 'qm_keystore'] : ['MUSIC_U'],
+      }
+      demoAccounts_.set(source, account)
+      return account
+    },
+
+    async clearAccount(source: SourceId) {
+      demoAccounts_.delete(source)
+      return this.vaultStatus()
     },
   }
 }
