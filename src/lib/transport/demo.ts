@@ -391,25 +391,25 @@ export function createDemoTransport(): Transport {
         available: true,
         notes:
           '新增\n· 酷狗音源适配\n· 下载队列并发数热调整\n\n修复\n· 移动端深色主题下封面边框对比度\n· 断点续传在代理环境下的 416 处理',
-        pageUrl: 'https://github.com/melodex-app/melodex/releases/latest',
+        pageUrl: 'https://github.com/LunaShiori/melodex/releases/latest',
         publishedAt: '2026-10-01T08:00:00Z',
         assets: [
           {
             name: 'Melodex_0.2.0_x64-setup.exe',
             size: 4_612_345,
-            url: 'https://github.com/melodex-app/melodex/releases/latest',
+            url: 'https://github.com/LunaShiori/melodex/releases/latest',
             kind: 'nsis',
           },
           {
             name: 'Melodex_0.2.0_x64_en-US.msi',
             size: 5_180_224,
-            url: 'https://github.com/melodex-app/melodex/releases/latest',
+            url: 'https://github.com/LunaShiori/melodex/releases/latest',
             kind: 'msi',
           },
           {
             name: 'Melodex_0.2.0_universal.apk',
             size: 9_812_006,
-            url: 'https://github.com/melodex-app/melodex/releases/latest',
+            url: 'https://github.com/LunaShiori/melodex/releases/latest',
             kind: 'apk',
           },
         ],

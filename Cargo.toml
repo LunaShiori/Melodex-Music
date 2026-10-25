@@ -9,8 +9,8 @@ edition = "2021"
 rust-version = "1.77"
 license = "Apache-2.0"
 authors = ["Melodex Contributors"]
-repository = "https://github.com/melodex-app/melodex"
-homepage = "https://github.com/melodex-app/melodex"
+repository = "https://github.com/LunaShiori/melodex"
+homepage = "https://github.com/LunaShiori/melodex"
 
 [profile.release]
 lto = "thin"

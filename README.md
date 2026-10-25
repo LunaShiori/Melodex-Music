@@ -141,8 +141,8 @@ stores/update.ts ──► UpdateNotice.vue（左下角提示条 + 更新弹窗�
 | 版本号 | `package.json`、`src-tauri/tauri.conf.json`、`Cargo.toml` 三处保持一致 |
 | 换成静默自动更新 | 接 `tauri-plugin-updater` + 在 CI 里注入签名密钥；现有 `check_update` 可继续复用 |
 
-> 仓库占位符：把 `melodex-app/melodex` 换成你自己的 GitHub 仓库（`Cargo.toml` 的 `repository` 与 `update.rs` 的 `DEFAULT_FEED`），
-> 否则「检查更新」会去查一个不存在的仓库。
+> Fork 到自己的账号后，记得把 `LunaShiori/melodex` 换成你的仓库地址（`Cargo.toml` 的 `repository`、`update.rs` 的 `DEFAULT_FEED`、`demo.ts` 里的演示链接），
+> 否则「检查更新」会去查原作者的发布页。
 
 <p align="center">
   <img src="docs/screenshots/mobile-update.png" width="300" alt="移动端更新弹窗">
@@ -297,7 +297,7 @@ pub trait MusicPlatform: Send + Sync {
 
 ```bash
 # 0) 依赖：Node 18+、Rust 1.77+（Windows 还需 VS Build Tools 的 C++ 组件）
-git clone https://github.com/<your-name>/melodex.git
+git clone https://github.com/LunaShiori/melodex.git
 cd melodex
 
 # 1) 装前端依赖
