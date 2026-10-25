@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, Reason, Result};
 use crate::model::{Fee, Lyric, PlayUrl, PlaylistDetail, SearchPage, Source, Variant};
 use crate::net::Net;
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
@@ -48,6 +48,85 @@ impl Netease {
             map.insert(song.id, (album.pic_url, album.name));
         }
         Ok(map)
+    }
+
+    /// 取指定档位的播放链接；服务端没给链接时返回 `Ok(None)`，交由调用方降级。
+    async fn fetch_url(
+        &self,
+        id: &str,
+        level: &str,
+        cookie: Option<&str>,
+    ) -> Result<Option<PlayUrl>> {
+        let url = format!(
+            "{ORIGIN}/api/song/enhance/player/url/v1?ids=%5B{id}%5D&level={level}&encodeType=mp3"
+        );
+        let mut headers = self.headers();
+        if let Some(cookie) = cookie {
+            headers.push(("Cookie", cookie));
+        }
+        let raw: RawSongUrl = self.net.json(&url, &headers).await?;
+        let Some(item) = raw.data.into_iter().next() else {
+            return Ok(None);
+        };
+        let Some(link) = item.url.filter(|value| !value.is_empty()) else {
+            return Ok(None);
+        };
+        let br = item.br.unwrap_or(0);
+        Ok(Some(PlayUrl {
+            url: link,
+            bitrate: if br > 0 {
+                (br / 1000).min(999) as u32
+            } else {
+                crate::platforms::guess_bitrate(level)
+            },
+            format: item.kind.unwrap_or_else(|| "mp3".into()),
+            size: item.size.unwrap_or(0.0) as u64,
+        }))
+    }
+
+    /// 拿不到链接时，回头问一次这首歌的「权限档案」，判断到底是没登录、
+    /// 缺会员、还是这首歌本身没有版权。
+    ///
+    /// `privileges[0]` 里几个字段的含义：
+    /// - `st = -200`：无版权 / 已下架
+    /// - `dlLevel = "none"`：当前账号没有下载权限（未登录时恒为 none）
+    /// - `fee`：0 免费、1 会员、4 需付费、8 免费试听
+    async fn diagnose(&self, id: &str) -> Option<Reason> {
+        let url = format!("{ORIGIN}/api/v3/song/detail?c=%5B%7B%22id%22%3A{id}%7D%5D");
+        let cookie = self.cookie_header();
+        let mut headers = self.headers();
+        if let Some(ref c) = cookie {
+            headers.push(("Cookie", c.as_str()));
+        }
+        let raw: RawPrivilegeDetail = self.net.json(&url, &headers).await.ok()?;
+        let fee = raw
+            .songs
+            .as_ref()
+            .and_then(|list| list.first())
+            .map(|song| song.fee)
+            .unwrap_or(0);
+        let privilege = raw.privileges.and_then(|list| list.into_iter().next());
+        let st = privilege.as_ref().map(|p| p.st).unwrap_or(0);
+        let dl_level = privilege
+            .as_ref()
+            .and_then(|p| p.dl_level.clone().or(p.download_max_level.clone()))
+            .unwrap_or_default();
+        // 未登录时 dlLevel 恒为 none、st 常为 -200，两个信号都不可信，
+        // 只能给出「需要登录」这个结论——这也正是登录后才有意义去区分版权/会员。
+        let logged_in = cookie
+            .as_deref()
+            .map(|value| crate::cookie::value_of(value, "MUSIC_U").is_some())
+            .unwrap_or(false);
+
+        Some(if !logged_in {
+            Reason::NeedLogin
+        } else if st == -200 {
+            Reason::Copyright
+        } else if fee == 1 || fee == 4 || dl_level == "none" {
+            Reason::VipOnly
+        } else {
+            Reason::QualityMissing
+        })
     }
 }
 
@@ -109,28 +188,30 @@ impl MusicPlatform for Netease {
     }
 
     async fn resolve(&self, variant: &Variant, bitrate: u32) -> Result<PlayUrl> {
-        let br = (bitrate.clamp(64, 999) as u64) * 1000;
-        let url = format!(
-            "{ORIGIN}/api/song/enhance/player/url?ids=%5B{}%5D&br={br}",
-            variant.id
-        );
+        // v1 接口按「档位」取链接，比旧的 br 参数更贴近服务端实际能力
+        let level = match bitrate {
+            b if b >= 700 => "lossless",
+            b if b >= 300 => "exhigh",
+            b if b >= 192 => "higher",
+            _ => "standard",
+        };
         let cookie = self.cookie_header();
-        let mut headers = self.headers();
-        if let Some(ref c) = cookie {
-            headers.push(("Cookie", c.as_str()));
+        let mut asked = Vec::new();
+        for candidate in [level, "exhigh", "higher", "standard"] {
+            if asked.contains(&candidate) {
+                continue;
+            }
+            asked.push(candidate);
+            if let Some(play) = self
+                .fetch_url(&variant.id, candidate, cookie.as_deref())
+                .await?
+            {
+                return Ok(play);
+            }
         }
-        let raw: RawSongUrl = self.net.json(&url, &headers).await?;
-        let item = raw.data.into_iter().next().ok_or(Error::NoPlayableUrl)?;
-        let link = item
-            .url
-            .filter(|value| !value.is_empty())
-            .ok_or(Error::NoPlayableUrl)?;
-        Ok(PlayUrl {
-            url: link,
-            bitrate: item.br.unwrap_or(br).max(1) as u32 / 1000,
-            format: item.kind.unwrap_or_else(|| "mp3".into()),
-            size: item.size.unwrap_or(0.0) as u64,
-        })
+
+        let reason = self.diagnose(&variant.id).await.unwrap_or(Reason::Unknown);
+        Err(Error::unavailable(Source::Netease, reason))
     }
 
     async fn lyric(&self, id: &str) -> Result<Option<Lyric>> {
@@ -259,6 +340,33 @@ struct RawSongUrlItem {
     size: Option<f64>,
     #[serde(default, rename = "type")]
     kind: Option<String>,
+}
+
+/// `/api/v3/song/detail` 的响应：`songs` 给版权状态，`privileges` 给当前账号的权限档位。
+#[derive(Debug, Deserialize)]
+struct RawPrivilegeDetail {
+    #[serde(default)]
+    songs: Option<Vec<RawPrivilegeSong>>,
+    #[serde(default)]
+    privileges: Option<Vec<RawPrivilege>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawPrivilegeSong {
+    #[serde(default)]
+    fee: i32,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawPrivilege {
+    /// 歌曲状态，-200 表示无版权
+    #[serde(default)]
+    st: i32,
+    /// 当前账号可下载的最高档位（none / standard / higher / exhigh / lossless）
+    #[serde(default, rename = "dlLevel")]
+    dl_level: Option<String>,
+    #[serde(default, rename = "downloadMaxBrLevel")]
+    download_max_level: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

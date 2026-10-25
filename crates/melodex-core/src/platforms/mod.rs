@@ -6,3 +6,14 @@
 pub mod kuwo;
 pub mod netease;
 pub mod qq;
+
+/// 把网易云的档位名翻回标称码率，仅在服务端没回 `br` 时兜底。
+pub fn guess_bitrate(level: &str) -> u32 {
+    match level {
+        "hires" => 999,
+        "lossless" => 999,
+        "exhigh" => 320,
+        "higher" => 192,
+        _ => 128,
+    }
+}

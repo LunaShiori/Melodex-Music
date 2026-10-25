@@ -7,22 +7,29 @@
 //! - 凭据仅保存在本地加密保险库（见 [`crate::vault`]）。
 
 pub mod netease;
+pub mod qq;
 
 use crate::cookie;
 
-/// 扫码登录的一次会话。`qr_url` 交给前端渲染成二维码。
+/// 扫码登录的一次会话。
+///
+/// 两种音源给的物料不一样：网易云给的是一个 URL，我们本地渲染成 SVG；
+/// QQ 互联只给一张 PNG 位图，没有可编码的内容，因此这里同时保留两种形态，
+/// 前端按哪个有值决定用 `<svg>` 还是 `<img>`。
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QrTicket {
     pub source: String,
     /// 轮询时回传的票据
     pub key: String,
-    /// 编码进二维码的内容，手机扫码后跳转官方确认页
+    /// 编码进二维码的内容；QQ 的二维码是位图，这里为空串
     pub qr_url: String,
     /// 票据有效期（秒），前端据此显示倒计时
     pub expires_in: u64,
-    /// 已经渲染好的二维码（SVG），前端直接内联即可
-    pub qr_svg: String,
+    /// 本地渲染好的二维码（SVG），前端直接内联
+    pub qr_svg: Option<String>,
+    /// 音源直接下发的二维码位图，形如 `data:image/png;base64,...`
+    pub qr_image: Option<String>,
 }
 
 /// 轮询状态。

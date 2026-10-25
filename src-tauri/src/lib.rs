@@ -318,7 +318,10 @@ async fn login_qr_start(
         Source::Netease => melodex_core::login::netease::start(&state.net)
             .await
             .map_err(|err| err.to_string()),
-        _ => Err("该音源没有开放扫码登录，请用「粘贴 Cookie」导入".into()),
+        Source::Qq => melodex_core::login::qq::start(&state.net)
+            .await
+            .map_err(|err| err.to_string()),
+        Source::Kuwo => Err("酷我音乐可以免登录下载，无需登录".into()),
     }
 }
 
@@ -330,12 +333,14 @@ async fn login_qr_poll(
     key: String,
 ) -> Result<melodex_core::login::QrPoll, String> {
     let source = parse_source(&source)?;
-    if source != Source::Netease {
-        return Err("该音源没有开放扫码登录，请用「粘贴 Cookie」导入".into());
+    let poll = match source {
+        Source::Netease => melodex_core::login::netease::poll(&state.net, &key).await,
+        Source::Qq => melodex_core::login::qq::poll(&state.net, &key).await,
+        Source::Kuwo => Err(melodex_core::error::Error::Invalid(
+            "酷我音乐可以免登录下载，无需登录".into(),
+        )),
     }
-    let poll = melodex_core::login::netease::poll(&state.net, &key)
-        .await
-        .map_err(|err| err.to_string())?;
+    .map_err(|err| err.to_string())?;
 
     if poll.status == melodex_core::login::QrStatus::Confirmed {
         if let Some(cookie) = poll.cookie.clone() {
@@ -348,7 +353,7 @@ async fn login_qr_poll(
     Ok(poll)
 }
 
-/// 手动保存 Cookie（QQ 音乐等没有开放扫码接口的音源走这条路）。
+/// 手动保存 Cookie。扫码失败，或用户直接从浏览器复制时走这条路。
 #[tauri::command]
 fn account_save(
     state: State<'_, AppState>,

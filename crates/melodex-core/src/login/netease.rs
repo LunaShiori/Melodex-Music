@@ -51,7 +51,8 @@ pub async fn start(net: &Net) -> Result<QrTicket> {
         key: key.to_string(),
         qr_url,
         expires_in: QR_TTL_SECS,
-        qr_svg,
+        qr_svg: Some(qr_svg),
+        qr_image: None,
     })
 }
 
@@ -149,10 +150,13 @@ mod tests {
             key: "abc".into(),
             qr_url: "https://music.163.com/login?codekey=abc".into(),
             expires_in: 180,
-            qr_svg: crate::qr::render_svg("https://music.163.com/login?codekey=abc").unwrap(),
+            qr_svg: crate::qr::render_svg("https://music.163.com/login?codekey=abc"),
+            qr_image: None,
         };
         let value = serde_json::to_value(ticket).unwrap();
         assert_eq!(value["qrUrl"], "https://music.163.com/login?codekey=abc");
         assert_eq!(value["expiresIn"], 180);
+        assert!(value["qrSvg"].as_str().is_some());
+        assert!(value["qrImage"].is_null());
     }
 }

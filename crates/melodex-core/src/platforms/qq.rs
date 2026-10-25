@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::cookie::value_of as cookie_value;
-use crate::error::{Error, Result};
+use crate::error::{keep_most_actionable, Error, Reason, Result};
 use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
 use crate::net::Net;
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
@@ -29,6 +29,9 @@ impl QqMusic {
     }
 
     /// 请求 vkey 并拼出完整可下载地址。`filenames` 为空表示让服务端给默认档。
+    ///
+    /// 返回 `Ok(None)` 表示「服务端正常响应但没有这个档位」，调用方可以继续降级；
+    /// 返回 `Err` 表示这首在当前账号下明确下不了，原因已经分类好。
     async fn vkey(
         &self,
         mid: &str,
@@ -78,12 +81,72 @@ impl QqMusic {
         }
 
         let body: serde_json::Value = self.net.json(&url, &headers).await?;
+
+        // 整个请求被拒：匿名请求固定 104009（msg 形如 "1.2.3.4;invalidq;"），
+        // 这是「必须登录」最明确的信号，比继续降级音质有意义得多。
+        let req_code = body
+            .pointer("/req_0/code")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        if req_code != 0 {
+            let msg = body
+                .pointer("/req_0/data/msg")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            let reason = match req_code {
+                // 匿名请求的固定返回值，登录后即可解除
+                104009 => Reason::NeedLogin,
+                // 版权限制 / 不支持该歌曲
+                104003 => Reason::Copyright,
+                _ => Reason::Unknown,
+            };
+            return Err(Error::unavailable_with(
+                Source::Qq,
+                reason,
+                if msg.is_empty() {
+                    format!("req_0.code={req_code}")
+                } else {
+                    format!("req_0.code={req_code} {msg}")
+                },
+            ));
+        }
+
         let purl = body
             .pointer("/req_0/data/midurlinfo/0/purl")
             .and_then(|v| v.as_str())
             .unwrap_or_default();
         if purl.is_empty() {
-            return Ok(None);
+            // 没有链接时，`result` 才是真正的说明：
+            // 0       —— 有权限但这次没给（继续降级无意义，也算取不到）
+            // 101404  —— 该音源没有这个档位的文件
+            let result = body
+                .pointer("/req_0/data/midurlinfo/0/result")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            let need_buy = body
+                .pointer("/req_0/data/midurlinfo/0/pneedbuy")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            let tips = body
+                .pointer("/req_0/data/midurlinfo/0/tips")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            let reason = match result {
+                // 档位不存在：继续往下试更低音质是合理的，交给调用方处理
+                101404 => return Ok(None),
+                _ if need_buy != 0 => Reason::VipOnly,
+                _ if !tips.is_empty() => Reason::VipOnly,
+                _ => Reason::Unknown,
+            };
+            return Err(Error::unavailable_with(
+                Source::Qq,
+                reason,
+                if tips.is_empty() {
+                    format!("result={result}")
+                } else {
+                    tips.to_string()
+                },
+            ));
         }
         let sip = body
             .pointer("/req_0/data/sip/0")
@@ -144,34 +207,36 @@ impl MusicPlatform for QqMusic {
 
     async fn resolve(&self, variant: &Variant, bitrate: u32) -> Result<PlayUrl> {
         let mid = variant.id.as_str();
-        let mut attempts: Vec<Option<Vec<String>>> = Vec::new();
+        // 档位含义：F000 = FLAC，M800 = 320k mp3，M500 = 128k mp3。
+        // 从高到低依次尝试，命中即返回；全部落空时把信息量最大的原因带出去。
+        let mut chain: Vec<(&str, u32, &str)> = Vec::new();
         if bitrate >= 700 {
-            attempts.push(Some(vec![
-                format!("F000{mid}{mid}.flac"),
-                format!("M800{mid}{mid}.mp3"),
-            ]));
-        } else if bitrate >= 300 {
-            attempts.push(Some(vec![format!("M800{mid}{mid}.mp3")]));
+            chain.push(("F000", 999, "flac"));
         }
-        attempts.push(Some(vec![format!("M500{mid}{mid}.mp3")]));
-        attempts.push(None);
+        if bitrate >= 300 {
+            chain.push(("M800", 320, "mp3"));
+        }
+        chain.push(("M500", 128, "mp3"));
 
-        for filenames in attempts {
-            if let Some((url, format)) = self.vkey(mid, filenames.as_deref()).await? {
-                let actual = if format == "flac" {
-                    999
-                } else {
-                    bitrate.max(128)
-                };
-                return Ok(PlayUrl {
-                    url,
-                    bitrate: actual,
-                    format,
-                    size: 0,
-                });
+        let mut best: Option<Error> = None;
+        for (prefix, level, ext) in chain {
+            let files = vec![format!("{prefix}{mid}{mid}.{ext}")];
+            match self.vkey(mid, Some(&files)).await {
+                Ok(Some((url, format))) => {
+                    let actual = if format == "flac" { 999 } else { level };
+                    return Ok(PlayUrl {
+                        url,
+                        bitrate: actual,
+                        format,
+                        size: 0,
+                    });
+                }
+                // 该档位服务端没有文件，继续试更低一档
+                Ok(None) => {}
+                Err(err) => keep_most_actionable(&mut best, err),
             }
         }
-        Err(Error::NoPlayableUrl)
+        Err(best.unwrap_or_else(|| Error::unavailable(Source::Qq, Reason::QualityMissing)))
     }
 }
 

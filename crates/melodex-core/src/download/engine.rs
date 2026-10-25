@@ -11,11 +11,11 @@ use tokio::sync::broadcast;
 use crate::download::naming::{self, NamingContext, Resolution};
 use crate::download::tags::{self, TagMeta};
 use crate::download::transfer::{self, TransferOutcome};
-use crate::error::{Error, Result};
+use crate::error::{keep_most_actionable, Error, Reason, Result};
 use crate::model::{Fee, Source, Variant};
 use crate::platform::Registry;
 use crate::settings::{default_download_dir, Settings};
-use crate::task::{DownloadTask, TaskState};
+use crate::task::{DownloadTask, Fallback, TaskState};
 
 /// 引擎向前端推送的事件。序列化后形如 `{"type":"taskUpsert","payload":{...}}`，
 /// 前端按 `type` 分派即可。
@@ -63,6 +63,9 @@ pub struct EnqueueInput {
     pub bitrate: Option<u32>,
     #[serde(default)]
     pub format: Option<String>,
+    /// 同一首歌在其它音源上的记录，首选源取不到链接时依次尝试
+    #[serde(default)]
+    pub fallbacks: Vec<Fallback>,
 }
 
 struct Control {
@@ -158,6 +161,11 @@ impl DownloadEngine {
                 task.album = input.album;
                 task.cover = input.cover;
                 task.duration_ms = input.duration_ms;
+                task.fallbacks = input
+                    .fallbacks
+                    .into_iter()
+                    .filter(|item| item.source != input.source)
+                    .collect();
                 if let Some(format) = input.format {
                     task.format = format;
                 }
@@ -484,6 +492,7 @@ async fn run_task(inner: Arc<Inner>, id: String, pause: Arc<AtomicBool>, cancel:
         }
         Err(err) => {
             inner.mutate(&id, |task| {
+                task.fail_reason = err.reason();
                 task.error = Some(err.to_string());
                 task.mark(TaskState::Failed);
             });
@@ -504,44 +513,96 @@ async fn execute(
         .find(id)
         .ok_or_else(|| Error::TaskNotFound(id.into()))?;
     let settings = inner.settings();
-    let platform = inner.registry.get(task.source)?;
 
-    let variant = Variant {
-        source: task.source,
-        id: task.source_id.clone(),
-        title: task.title.clone(),
-        artists: task.artists.clone(),
-        album: task.album.clone(),
-        duration_ms: task.duration_ms,
-        cover: task.cover.clone(),
-        bitrate: task.bitrate,
-        format: task.format.clone(),
-        size: 0,
-        fee: Fee::Unknown,
-    };
+    // 1) 取链接：首选音源 → 其它音源，每个源内部再走「目标音质 → 降级链」。
+    //
+    // 同一首歌在不同音源的可获取性差异极大（QQ 要会员、酷我免费是常态），
+    // 所以首选源失败时不该直接判死，而是按用户当初的排序换源再试。
+    let mut candidates: Vec<(Source, String)> = vec![(task.source, task.source_id.clone())];
+    candidates.extend(
+        task.fallbacks
+            .iter()
+            .map(|item| (item.source, item.source_id.clone())),
+    );
 
-    // 1) 取链接：目标音质 → 降级链
-    let mut play = None;
-    let mut last_error = None;
-    for bitrate in settings.bitrate_chain() {
+    let chain = settings.bitrate_chain();
+    let mut play: Option<crate::model::PlayUrl> = None;
+    let mut resolved: Option<(Source, String)> = None;
+    // 记录信息量最大的失败原因（NeedLogin 比 QualityMissing 有用得多）
+    let mut best: Option<Error> = None;
+
+    'candidates: for (source, source_id) in candidates {
         if cancel.load(Ordering::Relaxed) {
             return Ok(Step::Canceled);
         }
-        match platform.resolve(&variant, bitrate).await {
-            Ok(result) => {
-                play = Some(result);
-                break;
+        let platform = match inner.registry.get(source) {
+            Ok(platform) => platform,
+            Err(err) => {
+                keep_most_actionable(&mut best, err);
+                continue;
             }
-            Err(err) => last_error = Some(err),
+        };
+        let variant = Variant {
+            source,
+            id: source_id.clone(),
+            title: task.title.clone(),
+            artists: task.artists.clone(),
+            album: task.album.clone(),
+            duration_ms: task.duration_ms,
+            cover: task.cover.clone(),
+            bitrate: chain.first().copied().unwrap_or(task.bitrate),
+            format: task.format.clone(),
+            size: 0,
+            fee: Fee::Unknown,
+        };
+        for bitrate in chain.iter().copied() {
+            if cancel.load(Ordering::Relaxed) {
+                return Ok(Step::Canceled);
+            }
+            match platform.resolve(&variant, bitrate).await {
+                Ok(result) => {
+                    resolved = Some((source, source_id));
+                    play = Some(result);
+                    break 'candidates;
+                }
+                Err(err) => keep_most_actionable(&mut best, err),
+            }
         }
     }
-    let play = play.ok_or_else(|| last_error.unwrap_or(Error::NoPlayableUrl))?;
+
+    let play = match play {
+        Some(play) => play,
+        None => {
+            return Err(best.unwrap_or_else(|| Error::unavailable(task.source, Reason::Unknown)))
+        }
+    };
 
     let extension = normalize_ext(&play.format);
+    // 后面取歌词要用「实际拿到链接的那个音源」，换过源时不能再用首选源的 ID
+    let (play_source, play_id) = resolved
+        .clone()
+        .unwrap_or_else(|| (task.source, task.source_id.clone()));
+    let platform = inner.registry.get(play_source)?;
+    let switched = resolved.as_ref().map(|(source, _)| *source != task.source);
     inner.mutate(id, |task| {
         task.format = extension.clone();
         task.bitrate = play.bitrate;
+        task.resolved_source = resolved.as_ref().map(|(source, _)| *source);
+        task.error = None;
+        task.fail_reason = None;
     });
+    if let Some(true) = switched {
+        if let Some((source, _)) = resolved.as_ref() {
+            inner.notice(
+                NoticeLevel::Info,
+                format!(
+                    "《{}》原音源不可用，已自动改用{}",
+                    task.title,
+                    source.label()
+                ),
+            );
+        }
+    }
 
     // 2) 目标路径与重复策略
     let dir = if settings.download_dir.trim().is_empty() {
@@ -633,7 +694,7 @@ async fn execute(
     inner.mutate(id, |task| task.mark(TaskState::Tagging));
     let lyric = if settings.write_tags || settings.save_lyric {
         platform
-            .lyric(&task.source_id)
+            .lyric(&play_id)
             .await
             .ok()
             .flatten()
@@ -718,6 +779,49 @@ mod tests {
         assert_eq!(input.source, Source::Qq);
         assert_eq!(input.source_id, "0039MnYb0qxYhV");
         assert_eq!(input.bitrate, Some(320));
+        assert!(input.fallbacks.is_empty());
+    }
+
+    #[test]
+    fn enqueue_input_parses_fallbacks() {
+        let input: EnqueueInput = serde_json::from_str(
+            r#"{"source":"qq","sourceId":"a","title":"x",
+                "fallbacks":[{"source":"kuwo","sourceId":"MUSIC_1","bitrate":320}]}"#,
+        )
+        .unwrap();
+        assert_eq!(input.fallbacks.len(), 1);
+        assert_eq!(input.fallbacks[0].source, Source::Kuwo);
+    }
+
+    /// 换源失败时不能把「无此音质」当成最终原因盖掉「需要登录」。
+    #[test]
+    fn keeps_the_most_actionable_reason() {
+        let mut best = None;
+        keep_most_actionable(
+            &mut best,
+            Error::unavailable(Source::Qq, Reason::QualityMissing),
+        );
+        keep_most_actionable(&mut best, Error::unavailable(Source::Qq, Reason::NeedLogin));
+        keep_most_actionable(
+            &mut best,
+            Error::unavailable(Source::Kuwo, Reason::Copyright),
+        );
+        assert_eq!(
+            best.as_ref().and_then(Error::reason),
+            Some(Reason::NeedLogin)
+        );
+    }
+
+    #[test]
+    fn keeps_first_error_when_ranks_tie() {
+        let mut best = None;
+        keep_most_actionable(&mut best, Error::unavailable(Source::Qq, Reason::NeedLogin));
+        keep_most_actionable(
+            &mut best,
+            Error::unavailable(Source::Kuwo, Reason::NeedLogin),
+        );
+        let message = best.unwrap().to_string();
+        assert!(message.contains("QQ 音乐"), "{message}");
     }
 
     /// 前端靠 `type`/`payload` 分派事件，装箱不能改变 JSON 形状。

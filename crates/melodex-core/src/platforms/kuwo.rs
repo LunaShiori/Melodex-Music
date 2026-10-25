@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
-use crate::error::{Error, Result};
+use crate::error::{Error, Reason, Result};
 use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
 use crate::net::Net;
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
@@ -109,15 +109,35 @@ impl MusicPlatform for Kuwo {
             .await?;
         let link = body.trim();
         if !link.starts_with("http") {
-            return Err(Error::NoPlayableUrl);
+            // antiserver 拿不到链接时返回的是纯文本，按内容判断原因
+            let lowered = link.to_ascii_lowercase();
+            let reason = if lowered.contains("copyright") || link.contains("版权") {
+                Reason::Copyright
+            } else if lowered.contains("vip") || link.contains("会员") {
+                Reason::VipOnly
+            } else if link.is_empty() {
+                Reason::Unknown
+            } else {
+                Reason::Copyright
+            };
+            return Err(Error::unavailable_with(
+                Source::Kuwo,
+                reason,
+                if link.is_empty() {
+                    "antiserver 返回空响应".to_string()
+                } else {
+                    link.chars().take(60).collect::<String>()
+                },
+            ));
         }
+        // 实测：antiserver 的 convert_url 无论 `br` 传 320k 还是 flac，
+        // 返回的都是同一个 128k mp3（晴天 269 秒对应 4.32 MB）。这里如实上报 128，
+        // 不能沿用搜索结果里 FORMATS 声称的 320——那会让界面显示的音质是假的。
+        // 真实码率在下载完成后会按「文件大小 / 时长」再校准一次。
+        let _ = bitrate;
         Ok(PlayUrl {
             url: link.to_string(),
-            bitrate: if variant.bitrate > 0 {
-                variant.bitrate
-            } else {
-                bitrate
-            },
+            bitrate: 128,
             format: "mp3".into(),
             size: 0,
         })

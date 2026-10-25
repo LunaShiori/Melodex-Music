@@ -102,6 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             duration_ms: variant.duration_ms,
             bitrate: Some(320),
             format: Some(variant.format.clone()),
+            fallbacks: Vec::new(),
         }]);
         println!("已入队：{:?}", ids);
 

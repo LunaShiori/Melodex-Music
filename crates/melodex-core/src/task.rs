@@ -1,6 +1,21 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::Reason;
 use crate::model::Source;
+
+/// 同一首歌在**其它**音源上的候选记录。
+///
+/// 一首歌在 QQ 音乐要会员、在酷我免费是常态。入队时把其它音源的 ID 一起带上，
+/// 首选音源拿不到链接时引擎可以自动换源，而不是直接判失败。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Fallback {
+    pub source: Source,
+    pub source_id: String,
+    /// 该音源上这首的标称音质，仅用于展示
+    #[serde(default)]
+    pub bitrate: u32,
+}
 
 /// 下载任务状态机：
 /// `Queued → Resolving → Downloading → Tagging → Completed`，
@@ -54,6 +69,15 @@ pub struct DownloadTask {
     pub speed_bps: u64,
     pub path: Option<String>,
     pub error: Option<String>,
+    /// 失败的结构化原因，界面据此决定显示「去登录」还是「重试」
+    #[serde(default)]
+    pub fail_reason: Option<Reason>,
+    /// 其它音源上的候选，首选源失败时自动换源
+    #[serde(default)]
+    pub fallbacks: Vec<Fallback>,
+    /// 最终真正取到链接的音源（可能与 `source` 不同）
+    #[serde(default)]
+    pub resolved_source: Option<Source>,
     pub created_at: i64,
     pub finished_at: Option<i64>,
 }
@@ -84,6 +108,9 @@ impl DownloadTask {
             speed_bps: 0,
             path: None,
             error: None,
+            fail_reason: None,
+            fallbacks: Vec::new(),
+            resolved_source: None,
             created_at: now_secs(),
             finished_at: None,
         }
@@ -162,5 +189,37 @@ mod tests {
         let b = make_id("qq:1");
         assert_ne!(a, b);
         assert!(a.len() >= 8);
+    }
+
+    /// 旧版本落盘的任务 JSON 没有 failReason / fallbacks 字段，反序列化不能失败，
+    /// 否则升级后历史任务全部丢失。
+    #[test]
+    fn old_persisted_task_without_new_fields_still_parses() {
+        let json = r#"{
+            "id":"abc","title":"晴天","artists":["周杰伦"],"album":"","cover":null,
+            "source":"qq","sourceId":"0039MnYb0qxYhV","bitrate":320,"format":"mp3",
+            "durationMs":269000,"state":"completed","downloaded":0,"total":0,
+            "speedBps":0,"path":null,"error":null,"createdAt":1,"finishedAt":2
+        }"#;
+        let task: DownloadTask = serde_json::from_str(json).unwrap();
+        assert!(task.fail_reason.is_none());
+        assert!(task.fallbacks.is_empty());
+        assert!(task.resolved_source.is_none());
+    }
+
+    #[test]
+    fn fallback_round_trips() {
+        let mut task = DownloadTask::new(Source::Qq, "1", "x", vec![], 320);
+        task.fallbacks.push(Fallback {
+            source: Source::Kuwo,
+            source_id: "MUSIC_1".into(),
+            bitrate: 320,
+        });
+        task.fail_reason = Some(Reason::NeedLogin);
+        let json = serde_json::to_string(&task).unwrap();
+        let back: DownloadTask = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.fail_reason, Some(Reason::NeedLogin));
+        assert_eq!(back.fallbacks.len(), 1);
+        assert_eq!(back.fallbacks[0].source, Source::Kuwo);
     }
 }
