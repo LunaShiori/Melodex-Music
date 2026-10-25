@@ -158,7 +158,15 @@ jobs:
       - name: 整理并校验产物
         run: |
           mkdir -p out
-          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec cp {} out/ \;
+          # Gradle 产出的名字固定叫 app-universal-release.apk，下载到本地后无法区分版本，
+          # 这里统一重命名为 Melodex_<版本>_universal.apk。
+          version="${GITHUB_REF_NAME#v}"
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -n 1)
+          if [ -z "$apk" ]; then
+            echo "未找到 APK 产物" >&2
+            exit 1
+          fi
+          cp "$apk" "out/Melodex_${version}_universal.apk"
           ls -lh out
           python3 scripts/check-apk.py out/*.apk
 
