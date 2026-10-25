@@ -76,7 +76,23 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # 不用 android-actions/setup-android@v3：它内部会执行 `sdkmanager tools`，
+      # 而当前镜像已不再提供 `tools` 包，会直接失败。ubuntu 运行器本来就预装了 SDK。
+      - name: 准备 Android SDK
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          # 逐个安装，避免某个包不存在导致整批失败；AGP 构建时还会按需自动补齐
+          for pkg in "platform-tools" \
+                     "platforms;android-34" "platforms;android-35" "platforms;android-36" \
+                     "build-tools;34.0.0" "build-tools;35.0.0" "build-tools;36.0.0"; do
+            "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "$pkg" > /dev/null 2>&1 \
+              && echo "installed $pkg" || echo "skip $pkg"
+          done
 
       - name: 安装 NDK
         uses: nttld/setup-ndk@v1
@@ -86,7 +102,10 @@ jobs:
           add-to-path: true
 
       - name: 配置 NDK 环境变量
-        run: echo "NDK_HOME=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+        run: |
+          echo "NDK_HOME=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
