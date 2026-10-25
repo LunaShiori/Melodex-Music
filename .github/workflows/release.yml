@@ -183,22 +183,29 @@ jobs:
       - name: 列出待发布文件
         run: ls -lh dist-artifacts
 
+      - name: 生成发布说明（文件清单按实际产物生成，避免写死名称）
+        run: |
+          {
+            cat .github/release-body.md
+            echo
+            echo "### 本次构建产物"
+            echo
+            echo "| 文件 | 大小 |"
+            echo "| --- | --- |"
+            for f in dist-artifacts/*; do
+              [ -f "$f" ] || continue
+              printf '| `%s` | %s |\n' "$(basename "$f")" "$(du -h "$f" | cut -f1)"
+            done
+          } > release-body.md
+          cat release-body.md
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Melodex ${{ github.ref_name }}
+          name: Melodex ${{ github.ref_name }} · Windows 安装包 + Android APK
           draft: false
           prerelease: false
           generate_release_notes: true
-          body: |
-            ## 安装方式
-
-            | 平台 | 文件 | 说明 |
-            | --- | --- | --- |
-            | Windows 10/11 x64 | `Melodex_*_x64-setup.exe` | 推荐，双击安装 |
-            | Windows 10/11 x64 | `Melodex_*_x64_en-US.msi` | 企业/静默部署用 |
-            | Android 8.0+ | `app-universal-release.apk` | 通用包，允许「安装未知来源应用」后安装 |
-
-            应用内「设置 → 关于 → 检查更新」会自动比对本页版本。
+          body_path: release-body.md
           files: dist-artifacts/*
           fail_on_unmatched_files: true

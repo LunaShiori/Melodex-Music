@@ -113,27 +113,28 @@ impl Settings {
 }
 
 /// 平台默认下载目录。
+///
+/// 每个目标平台只编译出**一个** `let dir`，避免用 `return` 早退导致其余分支成为
+/// 不可达代码（Android 目标上曾因此触发 `unreachable_code` 警告）。
 pub fn default_download_dir() -> std::path::PathBuf {
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(profile) = std::env::var("USERPROFILE") {
-            return std::path::PathBuf::from(profile)
-                .join("Music")
-                .join("Melodex");
-        }
-    }
     #[cfg(target_os = "android")]
-    {
-        // Android 由外壳层注入实际目录，这里只作兜底
-        return std::path::PathBuf::from("/storage/emulated/0/Download/Melodex");
-    }
+    let dir = std::path::PathBuf::from("/storage/emulated/0/Download/Melodex");
+
+    #[cfg(target_os = "windows")]
+    let dir = std::env::var("USERPROFILE")
+        .map(|profile| {
+            std::path::PathBuf::from(profile)
+                .join("Music")
+                .join("Melodex")
+        })
+        .unwrap_or_else(|_| std::path::PathBuf::from("Melodex"));
+
     #[cfg(not(any(target_os = "windows", target_os = "android")))]
-    {
-        if let Ok(home) = std::env::var("HOME") {
-            return std::path::PathBuf::from(home).join("Music").join("Melodex");
-        }
-    }
-    std::path::PathBuf::from("Melodex")
+    let dir = std::env::var("HOME")
+        .map(|home| std::path::PathBuf::from(home).join("Music").join("Melodex"))
+        .unwrap_or_else(|_| std::path::PathBuf::from("Melodex"));
+
+    dir
 }
 
 #[cfg(test)]
