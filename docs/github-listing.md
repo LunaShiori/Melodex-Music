@@ -3,6 +3,33 @@
 > 这份文件是**可直接照抄**的仓库门面配置。GitHub 的搜索排序主要看：仓库名 → 简介（description）→
 > Topics → README 正文关键词 → star / 活跃度。下面每段都用改好。
 
+## 0. 一条命令搞定（推荐）
+
+网页上逐项点太慢，下面的命令会一次性写好简介与全部 20 个 Topics。
+需要一个有 `repo` 权限的 Personal Access Token（Settings → Developer settings →
+Personal access tokens），**只在本地变量里用，不要提交进仓库**。
+
+```bash
+export GH_TOKEN=ghp_你的令牌
+
+# 简介 + 主页
+curl -sS -X PATCH https://api.github.com/repos/LunaShiori/melodex \
+  -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  -d '{
+    "description": "Melodex｜多源音乐聚合搜索与下载器（Windows + Android）。一个关键词同时搜网易云音乐、QQ音乐、酷我音乐，按「标题+歌手+时长」指纹合并同一首歌并标注每个音源是否可播；支持断点续传、音质自动降级、ID3v2.3 标签与歌词内嵌、启动检查更新。Rust + Tauri 2 + Vue 3 开源，Apache-2.0。music downloader / music aggregator"
+  }' >/dev/null && echo "简介已写入"
+
+# Topics
+curl -sS -X PUT https://api.github.com/repos/LunaShiori/melodex/topics \
+  -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  -d '{"names":["music","music-downloader","music-search","music-aggregator","netease-cloud-music","qqmusic","kuwo","tauri","tauri-app","rust","vue3","typescript","android","windows","cross-platform","desktop-app","id3v2","lrc-lyrics","resumable-download","open-source"]}' \
+  | python -c "import json,sys; print('已写入', len(json.load(sys.stdin)['names']), '个 Topics')"
+```
+
+改完后刷新仓库首页即可看到效果；GitHub 的搜索索引大约需要几分钟到几小时才更新。
+
 ## 1. 简介（About → Description，上限 350 字符）
 
 **推荐版（中文优先，尾部带英文检索词）**
