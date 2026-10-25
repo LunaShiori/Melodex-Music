@@ -3,6 +3,14 @@
 本项目的版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)，
 安装包命名与 `Cargo.toml` / `tauri.conf.json` 的 `version` 保持一致。
 
+## v0.2.1
+
+### 修复
+
+- **QQ 音乐登录后仍然拿不到 vkey**：`CgiGetVkey` 的 `uin` 之前写死为 `0`，
+  服务端只按匿名请求处理。现在会从 Cookie 的 `uin` / `p_uin` 解析真实账号，
+  分别填入 `param.uin`（字符串）与 `comm.uin`（数字）。
+
 ## v0.2.0
 
 ### 新增 · 账号登录与本地加密凭据

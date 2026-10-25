@@ -3,6 +3,7 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::cookie::value_of as cookie_value;
 use crate::error::{Error, Result};
 use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
 use crate::net::Net;
@@ -34,11 +35,21 @@ impl QqMusic {
         filenames: Option<&[String]>,
     ) -> Result<Option<(String, String)>> {
         let guid = guid();
+        // 未登录时 uin 固定 0（匿名）；登录后必须带真实 uin，否则服务端不会下发 vkey
+        let cookie = self.creds.cookie(Source::Qq);
+        let uin = cookie
+            .as_deref()
+            .and_then(|value| cookie_value(value, "uin").or_else(|| cookie_value(value, "p_uin")))
+            .map(|value| value.trim_start_matches(['o', 'u', '_']).to_string())
+            .filter(|value| !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()))
+            .unwrap_or_else(|| "0".to_string());
+        // comm.uin 在协议里是数字，param.uin 是字符串，两者不能混用
+        let uin_num: u64 = uin.parse().unwrap_or(0);
         let mut param = json!({
             "guid": guid,
             "songmid": [mid],
             "songtype": [0],
-            "uin": "0",
+            "uin": uin,
             "loginflag": 1,
             "platform": "20"
         });
@@ -56,12 +67,11 @@ impl QqMusic {
                 "method": "CgiGetVkey",
                 "param": param
             },
-            "comm": { "uin": 0, "format": "json", "ct": 6, "cv": 0 }
+            "comm": { "uin": uin_num, "format": "json", "ct": 6, "cv": 0 }
         });
         let encoded = utf8_percent_encode(&payload.to_string(), NON_ALPHANUMERIC).to_string();
         let url = format!("{MUSICU}?format=json&data={encoded}");
 
-        let cookie = self.creds.cookie(Source::Qq);
         let mut headers = self.headers();
         if let Some(ref c) = cookie {
             headers.push(("Cookie", c.as_str()));
