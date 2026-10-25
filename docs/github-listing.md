@@ -5,30 +5,64 @@
 
 ## 0. 一条命令搞定（推荐）
 
-网页上逐项点太慢，下面的命令会一次性写好简介与全部 20 个 Topics。
-需要一个有 `repo` 权限的 Personal Access Token（Settings → Developer settings →
-Personal access tokens），**只在本地变量里用，不要提交进仓库**。
+网页上逐项点太慢，仓库里有个脚本能一次做完三件事：写简介、写 20 个 Topics、
+把 v0.1.0 标记成 pre-release（那个版本有「点下载即崩溃」的 bug，别让新用户下到）。
+
+只差一个令牌，创建流程 5 步、约 1 分钟：
+
+1. 打开 <https://github.com/settings/tokens>（头像 → Settings → 左下角 Developer settings →
+   Personal access tokens → **Tokens (classic)**）；
+2. 右上 **Generate new token** → **Generate new token (classic)**；
+   可能会要求输入密码或走一次 2FA，正常验证即可；
+3. Note 填 `melodex-repo-meta`，Expiration 选 **7 days**（用完就删，不必给长有效期）；
+4. 勾选权限：只勾最上面的 **`repo`** 整个大类（它会连带勾上下面几项，这是正常的）。
+   不要勾 `delete_repo`、`admin:org`、`workflow` 这些用不到的；
+5. 页面拉到底点 **Generate token**，出来的 `ghp_` 开头字符串**只显示这一次**，立刻复制。
+
+然后在本仓库根目录：
+
+```bash
+export GH_TOKEN=ghp_刚才复制的一串       # 注意：等号两边不要空格
+bash scripts/setup-github-meta.sh
+```
+
+正常会输出三行 `[OK]`。看到 `[FAIL] ... 403` 就是权限没给够，回到第 4 步重勾。
+
+**用完立刻撤销**：<https://github.com/settings/tokens> → 找到 `melodex-repo-meta` → Delete。
+令牌等同于密码，泄漏后别人能以你的身份改仓库。
+
+> 为什么不用 fine-grained token：它按仓库授权，改仓库简介属于 “Administration”，
+> 勾选面板藏得深、容易漏勾（本项目实测就撞过 403）。classic 勾一个 `repo` 就够了。
+>
+> 另外：不要用 `git config` 里已存的推送令牌做这件事——那把通常是只读或仅有 Contents 权限，
+> 写简介会返回 `Resource not accessible by personal access token`。
+
+改完后刷新仓库首页即可看到效果；GitHub 的搜索索引大约需要几分钟到几小时才更新。
+
+<details>
+<summary>不想跑脚本？等价的三条 curl</summary>
 
 ```bash
 export GH_TOKEN=ghp_你的令牌
 
-# 简介 + 主页
 curl -sS -X PATCH https://api.github.com/repos/LunaShiori/melodex \
-  -H "Authorization: Bearer $GH_TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  -d '{
-    "description": "Melodex｜多源音乐聚合搜索与下载器（Windows + Android）。一个关键词同时搜网易云音乐、QQ音乐、酷我音乐，按「标题+歌手+时长」指纹合并同一首歌并标注每个音源是否可播；支持断点续传、音质自动降级、ID3v2.3 标签与歌词内嵌、启动检查更新。Rust + Tauri 2 + Vue 3 开源，Apache-2.0。music downloader / music aggregator"
-  }' >/dev/null && echo "简介已写入"
+  -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+  -d '{"description":"Melodex｜多源音乐聚合搜索与下载器（Windows + Android）…"}'
 
-# Topics
 curl -sS -X PUT https://api.github.com/repos/LunaShiori/melodex/topics \
-  -H "Authorization: Bearer $GH_TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  -d '{"names":["music","music-downloader","music-search","music-aggregator","netease-cloud-music","qqmusic","kuwo","tauri","tauri-app","rust","vue3","typescript","android","windows","cross-platform","desktop-app","id3v2","lrc-lyrics","resumable-download","open-source"]}' \
-  | python -c "import json,sys; print('已写入', len(json.load(sys.stdin)['names']), '个 Topics')"
+  -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+  -d '{"names":["music","music-downloader","music-search","music-aggregator","netease-cloud-music","qqmusic","kuwo","tauri","tauri-app","rust","vue3","typescript","android","windows","cross-platform","desktop-app","id3v2","lrc-lyrics","resumable-download","open-source"]}'
+
+# 先把 v0.1.0 的 release id 查出来，再改
+RID=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+  https://api.github.com/repos/LunaShiori/melodex/releases/tags/v0.1.0 \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+curl -sS -X PATCH "https://api.github.com/repos/LunaShiori/melodex/releases/$RID" \
+  -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+  -d '{"prerelease":true}'
 ```
 
-改完后刷新仓库首页即可看到效果；GitHub 的搜索索引大约需要几分钟到几小时才更新。
+</details>
 
 ## 1. 简介（About → Description，上限 350 字符）
 
