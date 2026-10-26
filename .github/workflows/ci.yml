@@ -35,10 +35,14 @@ jobs:
           if cargo test -p melodex-core --features net > /tmp/core-test.log 2>&1; then
             tail -n 5 /tmp/core-test.log
           else
-            echo "测试或编译失败，关键行如下："
-            grep -nE "panicked at|^error|^failures:|FAILED|left:|right:" /tmp/core-test.log | head -10 \
-              | sed 's/^/::error::/'
-            tail -n 40 /tmp/core-test.log
+            # 日志本身需要仓库权限才能下载，所以把尾部同时写进 job summary（公开可读）
+            {
+              echo '### 核心测试失败'
+              echo '```'
+              tail -n 60 /tmp/core-test.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            tail -n 15 /tmp/core-test.log | sed 's/^/::error::/'
             exit 1
           fi
 
