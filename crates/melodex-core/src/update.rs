@@ -352,12 +352,15 @@ pub async fn download_asset(
         };
 
         let mut stream = response.bytes_stream();
+        // 断流原因先记在局部，等文件句柄收尾后再决定「换源续传」还是「报完整」。
+        // 直接在循环里写 `last_err` 的话，后面 `done == 0` 分支一定会把它覆盖掉，
+        // 真实的断流原因（比如连接被重置）就丢了。
+        let mut interrupted: Option<String> = None;
         while let Some(chunk) = stream.next().await {
             let chunk = match chunk {
                 Ok(chunk) => chunk,
                 Err(err) => {
-                    // 中途断流：保留已写入的字节，换源续传
-                    last_err = Some(format!("{candidate}：下载中断（{err}）"));
+                    interrupted = Some(err.to_string());
                     break;
                 }
             };
@@ -368,6 +371,12 @@ pub async fn download_asset(
         file.flush().await?;
         file.sync_all().await.ok();
         drop(file);
+
+        // 中途断流：已写入的字节留在 `.part` 里，换下一个源续传
+        if let Some(err) = interrupted {
+            last_err = Some(format!("{candidate}：下载中断（{err}）"));
+            continue;
+        }
 
         // 判断这一源是否完整下完；不完整则换下一个源继续
         if done == 0 {

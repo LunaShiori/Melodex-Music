@@ -60,11 +60,14 @@ impl QqMusic {
             .map(|value| value.trim_start_matches(['o', 'u', '_']).to_string())
             .filter(|value| !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()))
             .unwrap_or_default();
+        // `cookie_value` 借的是 cookie 字符串，这里要拿走所有权：后面拼 JSON 时
+        // cookie 的局部变量可能已经离开作用域。
         let authst = cookie_value(&cookie, "authst")
             .or_else(|| cookie_value(&cookie, "qm_keyst"))
             .or_else(|| cookie_value(&cookie, "qqmusic_key"))
             .or_else(|| cookie_value(&cookie, "musickey"))
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .to_string();
         (uin, authst)
     }
 

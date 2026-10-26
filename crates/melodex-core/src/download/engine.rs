@@ -575,6 +575,10 @@ async fn execute(
             format: task.format.clone(),
             size: 0,
             fee: Fee::Unknown,
+            // 下载任务只带 songmid，不带 media_mid：QQ 的 resolve 发现它是 None
+            // 会自己去歌曲详情里补真实值，比把搜索结果的 mid 一路传下来更可靠
+            // （歌单接口干脆不给 media_mid）。
+            media_mid: None,
         };
         for item in ladder {
             if cancel.load(Ordering::Relaxed) {
