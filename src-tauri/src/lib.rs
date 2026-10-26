@@ -535,22 +535,24 @@ async fn read_window_cookies(
 /// 还会让保险库里的密文白白变长。
 #[cfg_attr(not(desktop), allow(dead_code))]
 fn collect_cookie(source: Source, cookies: &[(String, String)]) -> Option<String> {
-    let get = |name: &str| {
+    fn get<'a>(cookies: &'a [(String, String)], name: &str) -> Option<&'a str> {
         cookies
             .iter()
             .find(|(key, _)| key == name)
             .map(|(_, value)| value.as_str())
             .filter(|value| !value.is_empty())
-    };
+    }
     match source {
         Source::Qq => {
-            let uin = get("uin").or_else(|| get("p_uin")).or_else(|| get("wxuin"))?;
-            let key = get("qm_keyst").or_else(|| get("qqmusic_key"))?;
+            let uin = get(cookies, "uin")
+                .or_else(|| get(cookies, "p_uin"))
+                .or_else(|| get(cookies, "wxuin"))?;
+            let key = get(cookies, "qm_keyst").or_else(|| get(cookies, "qqmusic_key"))?;
             Some(format!("uin={uin}; qm_keyst={key}; qqmusic_key={key}"))
         }
         Source::Netease => {
-            let token = get("MUSIC_U")?;
-            let csrf = get("__csrf").unwrap_or_default();
+            let token = get(cookies, "MUSIC_U")?;
+            let csrf = get(cookies, "__csrf").unwrap_or_default();
             Some(format!("MUSIC_U={token}; __csrf={csrf}"))
         }
         // 酷我不需要登录，永远不会走到这里

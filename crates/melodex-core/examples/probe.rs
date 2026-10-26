@@ -107,6 +107,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cover: variant.cover.clone(),
             duration_ms: variant.duration_ms,
             bitrate: Some(320),
+            // 不指定档位时按设置里的目标音质走
+            quality: None,
             format: Some(variant.format.clone()),
             fallbacks: Vec::new(),
         }]);
