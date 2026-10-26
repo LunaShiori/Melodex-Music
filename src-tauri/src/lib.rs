@@ -925,6 +925,27 @@ fn reveal_path(path: String) -> Result<(), String> {
     }
 }
 
+/// 桌面端弹出系统目录选择框，返回用户选中的目录绝对路径；取消返回 None。
+#[tauri::command]
+async fn pick_download_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_dialog::DialogExt;
+        let default_dir = crate::default_download_dir(app.clone());
+        let picked = app
+            .dialog()
+            .file()
+            .set_directory(&default_dir)
+            .blocking_pick_folder();
+        Ok(picked.map(|path| path.to_string()))
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        Ok(None)
+    }
+}
+
 /// 安装崩溃日志钩子。
 ///
 /// Windows 释放版没有控制台，panic 穿过 WebView 回调时进程直接 abort，
@@ -955,6 +976,7 @@ fn install_panic_hook(dir: PathBuf) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // 先装钩子，后面任何初始化失败也能留下记录
             if let Ok(dir) = app.path().app_data_dir() {
@@ -1001,6 +1023,7 @@ pub fn run() {
             account_save,
             account_clear,
             default_download_dir,
+            pick_download_dir,
             reveal_path,
             check_update,
             update_download,

@@ -497,6 +497,11 @@ export function createDemoTransport(): Transport {
       return demoDir
     },
 
+    async pickDownloadDir() {
+      /* 浏览器端无系统目录选择框 */
+      return null
+    },
+
     async reveal() {
       /* 浏览器端不支持打开文件位置 */
     },

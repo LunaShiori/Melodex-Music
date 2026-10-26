@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { transport } from '@/lib/transport'
-import type { DownloadTask, EngineEvent, EnqueueInput, Track } from '@/lib/types'
+import type { DownloadTask, EngineEvent, EnqueueInput, QualityLevel, Track, Variant } from '@/lib/types'
 import { bestVariant, fallbacksOf } from '@/lib/track'
 
 export type TaskFilter = 'all' | 'active' | 'done'
@@ -103,6 +103,29 @@ export const useTasksStore = defineStore('tasks', () => {
     return ids
   }
 
+  /**
+   * 用户在下载选择弹窗里明确指定了平台与音质，按该选择入队，
+   * 其余平台作为兜底（首选源取不到链接时依次尝试）。
+   */
+  async function enqueuePicked(track: Track, variant: Variant, quality: QualityLevel) {
+    const input: EnqueueInput = {
+      source: variant.source,
+      sourceId: variant.id,
+      title: track.title,
+      artists: track.artists,
+      album: track.album,
+      cover: track.cover,
+      durationMs: track.durationMs,
+      bitrate: variant.bitrate || undefined,
+      format: variant.format,
+      quality,
+      fallbacks: fallbacksOf(track, variant.source),
+    }
+    const ids = await transport.enqueue([input])
+    pushNotice('info', `已加入下载任务`)
+    return ids
+  }
+
   async function pause(id: string) {
     await transport.pause(id)
   }
@@ -140,6 +163,7 @@ export const useTasksStore = defineStore('tasks', () => {
     completed,
     init,
     enqueue,
+    enqueuePicked,
     pause,
     resume,
     remove,

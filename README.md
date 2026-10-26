@@ -295,7 +295,7 @@ Windows DPAPI / Android Keystore。
       内核 pick_asset()       Windows 优先 nsis(.exe)，Android 取 .apk
         │
         ▼
-      download_asset()        流式写 .part，边下边 emit「update-progress」
+      download_asset()        写 .part 断点续传 + 失败自动换 GitHub 加速源，边下边 emit「update-progress」
         │
         ▼
       落地校验字节数 → 改名 → 点「立即安装并重启」

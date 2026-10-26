@@ -55,6 +55,8 @@ export interface Transport {
   saveSettings(settings: Settings): Promise<void>
   onEvent(handler: (event: EngineEvent) => void): () => void
   defaultDownloadDir(): Promise<string>
+  /** 桌面端弹目录选择框，返回选中的目录（取消为 null） */
+  pickDownloadDir(): Promise<string | null>
   reveal(path: string): Promise<void>
   /** 检查线上是否有新版本（feed 留空用内置发布源） */
   checkUpdate(feed?: string): Promise<UpdateInfo>

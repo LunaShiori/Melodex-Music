@@ -22,6 +22,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset"] }
 # 安卓侧打开已下载的安装包需要系统 Intent，桌面侧走系统默认程序
 tauri-plugin-opener = "2"
+# 桌面端「浏览选择下载目录」的系统目录选择框
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }

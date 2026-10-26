@@ -88,6 +88,11 @@ async function update(patch: Partial<Settings>) {
   window.setTimeout(() => (saving.value = false), 400)
 }
 
+async function browseDir() {
+  const dir = await transport.pickDownloadDir()
+  if (dir) void update({ downloadDir: dir })
+}
+
 function toggleSource(source: SourceId) {
   if (!settings.value) return
   const has = settings.value.sources.includes(source)
@@ -135,6 +140,9 @@ onMounted(async () => {
               :placeholder="defaultDir"
               @change="update({ downloadDir: ($event.target as HTMLInputElement).value })"
             />
+            <button class="btn btn-sm" type="button" @click="browseDir">
+              浏览…
+            </button>
             <button class="btn btn-sm" type="button" @click="update({ downloadDir: '' })">
               用默认
             </button>

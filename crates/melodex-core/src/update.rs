@@ -230,9 +230,47 @@ fn safe_file_name(name: &str) -> String {
     }
 }
 
+/// GitHub 加速代理镜像列表。
+///
+/// 直连 GitHub Releases 在国内经常超时/被重置，导致更新失败。这里按顺序列出
+/// 若干把原始 URL 拼到后面的反向代理（`ghproxy` 系 / `moeyy` 系），下载失败时
+/// 自动顺延到下一个。它们只是转发，不改动文件内容，因此 `.part` 断点续传仍然
+/// 按原始 URL 的字节偏移进行，换源后可以接着下。
+///
+/// 前缀约定：`{url}` 会被替换成原始的 `browser_download_url`。
+const ACCELERATE_PREFIXES: &[&str] = &[
+    "https://mirror.ghproxy.com/",
+    "https://ghproxy.net/",
+    "https://gh-proxy.com/",
+    "https://ghfast.top/",
+    "https://gh.api.99988866.xyz/",
+];
+
+/// 给某个原始下载地址拼出「加速源优先候选列表」。
+///
+/// 只有 GitHub 域名的地址才套代理（自建清单 / 其它 CDN 的 URL 直接原样返回，
+/// 避免把非 GitHub 链接也发给第三方）。直连排在最前，代理兜底在后。
+fn build_candidate_urls(original: &str) -> Vec<String> {
+    let mut urls = vec![original.to_string()];
+    // 仅对 github.com / objects.githubusercontent.com 的资产启用代理
+    let is_github =
+        original.contains("github.com") || original.contains("objects.githubusercontent.com");
+    if is_github {
+        for prefix in ACCELERATE_PREFIXES {
+            urls.push(format!("{prefix}{original}"));
+        }
+    }
+    urls
+}
+
 /// 把安装包下载到 `dir`，边下边回报进度，落地前做完整性校验。
 ///
-/// 先写 `.part` 再改名，避免下载中断留下一个「看起来能用」的半截文件。
+/// 两层健壮性：
+/// 1. **断点续传**：先写 `.part`，中断后重试用 `Range` 接着下，服务端不支持
+///    （返回 200）则自动从头写；断点越界（416）则清掉临时文件重来。
+/// 2. **加速代理兜底**：直连失败或连接被重置时，自动换 GitHub 加速 CDN 源，
+///    逐个尝试直到有一个能下。`.part` 已下字节跨源复用。
+///
 /// `expected_size` 来自发布清单；服务端给了 `Content-Length` 时以它为准。
 #[cfg(feature = "net")]
 pub async fn download_asset(
@@ -250,41 +288,107 @@ pub async fn download_asset(
     let target = dir.join(safe_file_name(file_name));
     let part = target.with_extension("part");
 
-    let response = net.get(url, &[]).await?;
-    let total = response.content_length().unwrap_or(expected_size);
-    let mut file = tokio::fs::File::create(&part).await?;
-    let mut stream = response.bytes_stream();
-    let mut done = 0u64;
-
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk?;
-        file.write_all(&chunk).await?;
-        done += chunk.len() as u64;
-        on_progress(done, total);
-    }
-    file.flush().await?;
-    file.sync_all().await.ok();
-    drop(file);
-
     let fail = |reason: String| Error::Source {
         platform: "update".into(),
         reason,
     };
-    if done == 0 {
-        let _ = tokio::fs::remove_file(&part).await;
-        return Err(fail("下载到的安装包是空的，请检查网络后重试".into()));
-    }
-    if total > 0 && done != total {
-        let _ = tokio::fs::remove_file(&part).await;
-        return Err(fail(format!("安装包下载不完整（{done}/{total} 字节）")));
+
+    let candidates = build_candidate_urls(url);
+    let mut last_err: Option<String> = None;
+
+    // 逐个候选源尝试；`.part` 已下载的字节跨源保留，换源后从断点继续
+    for candidate in &candidates {
+        let existing = tokio::fs::metadata(&part)
+            .await
+            .map(|meta| meta.len())
+            .unwrap_or(0);
+
+        let mut request = net.client().get(candidate);
+        if existing > 0 {
+            request = request.header("Range", format!("bytes={existing}-"));
+        }
+        let response = match request.send().await {
+            Ok(resp) => resp,
+            Err(err) => {
+                // 连接被重置/超时是直连 GitHub 的典型失败，换下一个源
+                last_err = Some(format!("{candidate}：{err}"));
+                continue;
+            }
+        };
+        let status = response.status();
+
+        // 断点越界：临时文件比远端还大，清掉重来（同一源即可，不必换）
+        if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+            let _ = tokio::fs::remove_file(&part).await;
+            last_err = Some("断点位置越界，已清理临时文件".to_string());
+            continue;
+        }
+        if !status.is_success() {
+            last_err = Some(format!("{candidate}：HTTP {status}"));
+            continue;
+        }
+
+        let resumed = status == reqwest::StatusCode::PARTIAL_CONTENT;
+        let body_len = response.content_length().unwrap_or(0);
+        let total = if resumed {
+            existing + body_len
+        } else {
+            body_len
+        };
+        // 服务端没给 Content-Length 时用清单里的期望大小兜底
+        let total = if total > 0 { total } else { expected_size };
+        let mut done = if resumed { existing } else { 0 };
+
+        let mut file = if resumed {
+            tokio::fs::OpenOptions::new()
+                .append(true)
+                .open(&part)
+                .await?
+        } else {
+            tokio::fs::File::create(&part).await?
+        };
+
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = match chunk {
+                Ok(chunk) => chunk,
+                Err(err) => {
+                    // 中途断流：保留已写入的字节，换源续传
+                    last_err = Some(format!("{candidate}：下载中断（{err}）"));
+                    break;
+                }
+            };
+            file.write_all(&chunk).await?;
+            done += chunk.len() as u64;
+            on_progress(done, total);
+        }
+        file.flush().await?;
+        file.sync_all().await.ok();
+        drop(file);
+
+        // 判断这一源是否完整下完；不完整则换下一个源继续
+        if done == 0 {
+            let _ = tokio::fs::remove_file(&part).await;
+            last_err = Some(format!("{candidate}：下载到空内容"));
+            continue;
+        }
+        if total > 0 && done < total {
+            // 不删 `.part`，保留断点交给下一个源续传
+            last_err = Some(format!("{candidate}：数据不完整（{done}/{total} 字节）"));
+            continue;
+        }
+
+        // 下完了：落地改名
+        if tokio::fs::try_exists(&target).await.unwrap_or(false) {
+            let _ = tokio::fs::remove_file(&target).await;
+        }
+        tokio::fs::rename(&part, &target).await?;
+        return Ok(target);
     }
 
-    // Windows 上目标文件可能正被占用（上一次没退出干净），先删再改名
-    if tokio::fs::try_exists(&target).await.unwrap_or(false) {
-        let _ = tokio::fs::remove_file(&target).await;
-    }
-    tokio::fs::rename(&part, &target).await?;
-    Ok(target)
+    let detail = last_err.unwrap_or_else(|| "所有源均不可用".to_string());
+    let _ = tokio::fs::remove_file(&part).await;
+    Err(fail(format!("安装包下载失败：{detail}")))
 }
 
 #[cfg(test)]
@@ -388,5 +492,24 @@ mod tests {
             "Melodex_0.4.0_x64-setup.exe"
         );
         assert_eq!(safe_file_name(".."), "melodex-update");
+    }
+
+    #[test]
+    fn github_url_gets_acceleration_mirrors() {
+        let original = "https://github.com/LunaShiori/melodex/releases/download/v1.0.0/setup.exe";
+        let urls = build_candidate_urls(original);
+        // 直连排最前
+        assert_eq!(urls[0], original);
+        // 每个代理前缀各一条，且都拼在原始 URL 后面
+        assert_eq!(urls.len(), 1 + ACCELERATE_PREFIXES.len());
+        assert_eq!(urls[1], format!("https://mirror.ghproxy.com/{original}"));
+        assert!(urls.iter().all(|u| u.contains(original)));
+    }
+
+    #[test]
+    fn non_github_url_has_no_mirror() {
+        let original = "https://cdn.example.com/releases/setup.exe";
+        let urls = build_candidate_urls(original);
+        assert_eq!(urls, vec![original.to_string()]);
     }
 }

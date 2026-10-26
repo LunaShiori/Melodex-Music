@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 
 import Icon from '@/components/Icon.vue'
 import TrackRow from '@/components/TrackRow.vue'
+import DownloadPicker from '@/components/DownloadPicker.vue'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
 import { usePlayerStore } from '@/stores/player'
@@ -46,8 +47,29 @@ function playTrack(track: Track) {
   void player.playList(search.tracks, index < 0 ? 0 : index)
 }
 
-function download(track: Track, _variant?: Variant) {
-  void tasks.enqueue([track])
+/** 单曲下载时弹出平台/音质选择框 */
+const pickerTrack = ref<Track | null>(null)
+const pickerSource = ref<string | null>(null)
+
+function download(track: Track, variant?: Variant) {
+  // 只有一个音源时没有选择必要，直接入队（引擎按设置音质自动降级）
+  if (track.variants.length <= 1) {
+    void tasks.enqueue([track])
+    return
+  }
+  // 点了某个音源芯片：预选该平台；否则默认按最高音质挑平台
+  pickerSource.value = variant?.source ?? null
+  pickerTrack.value = track
+}
+
+function onPickerConfirm(payload: { variant: Variant; quality: string }) {
+  if (!pickerTrack.value) return
+  void tasks.enqueuePicked(
+    pickerTrack.value,
+    payload.variant,
+    payload.quality as import('@/lib/types').QualityLevel,
+  )
+  pickerTrack.value = null
 }
 
 function downloadAll() {
@@ -279,6 +301,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         </button>
       </div>
     </Transition>
+
+    <DownloadPicker
+      v-if="pickerTrack"
+      :track="pickerTrack"
+      :initial-source="pickerSource"
+      @confirm="onPickerConfirm"
+      @close="pickerTrack = null"
+    />
   </div>
 </template>
 

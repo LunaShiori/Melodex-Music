@@ -104,6 +104,10 @@ export function createTauriTransport(): Transport {
       return invoke<string>('default_download_dir')
     },
 
+    pickDownloadDir() {
+      return invoke<string | null>('pick_download_dir')
+    },
+
     async reveal(path: string) {
       await invoke('reveal_path', { path })
     },
