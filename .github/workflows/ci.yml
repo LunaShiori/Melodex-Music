@@ -30,15 +30,15 @@ jobs:
 
       - name: 含网络层的全量测试
         run: |
-          set -o pipefail
-          cargo test -p melodex-core --features net 2>&1 | tee /tmp/core-test.log
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            # 把失败的断言与编译错误打成 annotation，失败原因在 UI 上直接可见
-            grep -nE "^(error|failures:|test .* FAILED)|^---- .* stdout|panicked at" /tmp/core-test.log \
-              | head -20 | while IFS= read -r line; do
-                printf '::error::%s\n' "${line//'%'/'%25'}"
-              done
+          # 注意用 if ! 而不是管道 + PIPESTATUS：workflow 的 bash 带 -e，
+          # 管道一失败脚本就直接退出，后面的诊断代码根本不会执行。
+          if cargo test -p melodex-core --features net > /tmp/core-test.log 2>&1; then
+            tail -n 5 /tmp/core-test.log
+          else
+            echo "测试或编译失败，关键行如下："
+            grep -nE "panicked at|^error|^failures:|FAILED|left:|right:" /tmp/core-test.log | head -10 \
+              | sed 's/^/::error::/'
+            tail -n 40 /tmp/core-test.log
             exit 1
           fi
 
