@@ -264,7 +264,8 @@ fn decode_target(target: &str, token: &str) -> Option<Call> {
         return None;
     }
     Some(Call {
-        url: url?,
+        // 空链接当成没给：否则会在转发阶段变成一个语义不清的 502
+        url: url.filter(|value| !value.is_empty())?,
         referer,
         origin,
     })

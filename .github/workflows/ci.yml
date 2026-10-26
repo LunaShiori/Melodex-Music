@@ -29,7 +29,18 @@ jobs:
         run: cargo test -p melodex-core --no-default-features
 
       - name: 含网络层的全量测试
-        run: cargo test -p melodex-core --features net
+        run: |
+          set -o pipefail
+          cargo test -p melodex-core --features net 2>&1 | tee /tmp/core-test.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            # 把失败的断言与编译错误打成 annotation，失败原因在 UI 上直接可见
+            grep -nE "^(error|failures:|test .* FAILED)|^---- .* stdout|panicked at" /tmp/core-test.log \
+              | head -20 | while IFS= read -r line; do
+                printf '::error::%s\n' "${line//'%'/'%25'}"
+              done
+            exit 1
+          fi
 
       - name: 格式检查
         run: cargo fmt --all -- --check
@@ -58,7 +69,17 @@ jobs:
         shell: pwsh
 
       - name: 编译检查
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+        run: |
+          cargo check --manifest-path src-tauri/Cargo.toml 2>&1 | Tee-Object -FilePath check.log
+          if ($LASTEXITCODE -ne 0) {
+            # 失败原因打成 annotation：Actions 日志需要仓库权限，注解是公开可读的
+            Select-String -Path check.log -Pattern '^error(\[|:)' -Context 0,6 |
+              Select-Object -First 12 |
+              ForEach-Object { ($_.ToString() -split "`r?`n") } |
+              ForEach-Object { "::error::$($_ -replace '%','%25')" }
+            exit 1
+          }
+        shell: pwsh
 
   frontend:
     name: 前端（类型检查 + 构建）
