@@ -302,7 +302,8 @@ async fn read_head(socket: &mut TcpStream) -> std::io::Result<Option<String>> {
     }
 }
 
-fn header_value(head: &str, wanted: &str) -> Option<&str> {
+/// 取某个请求头的值。两个参数都是 `&str`，必须显式声明返回值借用自 `head`。
+fn header_value<'a>(head: &'a str, wanted: &str) -> Option<&'a str> {
     head.lines().skip(1).find_map(|line| {
         let (name, value) = line.split_once(':')?;
         name.trim()
