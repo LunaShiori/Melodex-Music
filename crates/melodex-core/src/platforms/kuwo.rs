@@ -11,6 +11,8 @@ use crate::quality::Quality;
 const SEARCH_API: &str = "http://search.kuwo.cn/r.s";
 const RESOLVE_API: &str = "http://antiserver.kuwo.cn/anti.s";
 const REFERER: &str = "http://www.kuwo.cn/";
+/// 播放直链的附加请求头（本地代理用）。
+const STREAM_HEADERS: &[(&'static str, &'static str)] = &[("Referer", REFERER)];
 
 /// 酷我音乐：搜索接口返回单引号 JSON，用 [`crate::pseudo_json`] 解析；
 /// 播放链接由 `antiserver` 直出，拿到就能下。
@@ -30,6 +32,10 @@ impl Kuwo {
 impl MusicPlatform for Kuwo {
     fn source(&self) -> Source {
         Source::Kuwo
+    }
+
+    fn stream_headers(&self) -> &'static [(&'static str, &'static str)] {
+        STREAM_HEADERS
     }
 
     async fn search(&self, query: &SearchQuery) -> Result<SearchPage> {

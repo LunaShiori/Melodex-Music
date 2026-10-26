@@ -3,6 +3,8 @@ import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 
 import PlayerBar from '@/components/PlayerBar.vue'
+import LyricPanel from '@/components/LyricPanel.vue'
+import NowPlaying from '@/components/NowPlaying.vue'
 import SideBar from '@/components/SideBar.vue'
 import TabBar from '@/components/TabBar.vue'
 import ToastStack from '@/components/ToastStack.vue'
@@ -36,7 +38,9 @@ onMounted(async () => {
       </main>
     </div>
     <PlayerBar />
+    <LyricPanel />
     <TabBar />
+    <NowPlaying />
     <UpdateNotice />
     <ToastStack />
   </div>

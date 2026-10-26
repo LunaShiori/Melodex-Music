@@ -35,7 +35,7 @@ argon2 = "0.5"
 getrandom = "0.2"
 # 二维码渲染成 SVG（关闭 image 特性，避免引入图像编解码与 C 依赖）
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "fs", "io-util", "macros"], optional = true }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "fs", "io-util", "net", "macros"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "gzip", "charset"], optional = true }
 async-trait = { version = "0.1", optional = true }
 futures-util = { version = "0.3", optional = true }

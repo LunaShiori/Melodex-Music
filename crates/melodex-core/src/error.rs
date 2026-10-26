@@ -21,6 +21,11 @@ pub enum Reason {
     Copyright,
     /// 网络抖动或音源服务异常，重试可能成功。
     Network,
+    /// 拿到了直链，但 CDN 拒绝提供音频（403/404）。多见于链接过期、
+    /// 地区的 CDN 节点不可用，或请求缺了必要的头。
+    LinkRejected,
+    /// 调用参数不合法（前端传了未注册的音源、空 id 等）。
+    Invalid,
     /// 兜底：拿到了响应但没读懂原因。
     Unknown,
 }
@@ -34,6 +39,8 @@ impl Reason {
             Reason::QualityMissing => "无此音质",
             Reason::Copyright => "已下架",
             Reason::Network => "网络异常",
+            Reason::LinkRejected => "直链被拒",
+            Reason::Invalid => "参数不合法",
             Reason::Unknown => "暂不可用",
         }
     }
@@ -46,13 +53,20 @@ impl Reason {
             Reason::QualityMissing => "该音源没有你要的音质，已自动尝试更低音质，仍不可用",
             Reason::Copyright => "版权方下架或当前地区不可播，换一个音源可能还有",
             Reason::Network => "网络或音源服务暂时异常，稍后重试",
+            Reason::LinkRejected => {
+                "音源给的播放地址被它自己的 CDN 拒绝了（常见于链接过期或该地区节点不可用），重试或换音源"
+            }
+            Reason::Invalid => "调用参数有问题，换一首歌或重启应用",
             Reason::Unknown => "音源没有返回可用链接，稍后重试或换一个音源",
         }
     }
 
     /// 是否值得再点一次「重试」。
     pub fn is_retryable(self) -> bool {
-        matches!(self, Reason::Network | Reason::Unknown)
+        matches!(
+            self,
+            Reason::Network | Reason::LinkRejected | Reason::Unknown
+        )
     }
 
     /// 是否可以通过「去登录」解决。
@@ -68,7 +82,9 @@ impl Reason {
             Reason::VipOnly => 4,
             Reason::Copyright => 3,
             Reason::QualityMissing => 2,
+            Reason::LinkRejected => 1,
             Reason::Network => 1,
+            Reason::Invalid => 0,
             Reason::Unknown => 0,
         }
     }

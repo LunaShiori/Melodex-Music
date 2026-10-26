@@ -88,6 +88,14 @@ pub trait MusicPlatform: Send + Sync {
     fn qualities(&self) -> &'static [Quality] {
         quality::table(self.source())
     }
+
+    /// 播放直链需要的额外请求头（`Referer` / `Origin`）。
+    ///
+    /// `<audio>` 的请求头由 WebView 决定，改不了；缺 Referer 时 QQ 音乐的 CDN
+    /// 会 403，所以外壳拿这张表去跑 [`crate::stream`] 里的本地代理。
+    fn stream_headers(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
 }
 
 /// 音源注册表：把 `Source` 映射到具体实现。

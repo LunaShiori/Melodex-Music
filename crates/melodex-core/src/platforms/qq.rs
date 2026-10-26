@@ -11,6 +11,9 @@ use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::quality::{Quality, QualityLevel};
 
 const REFERER: &str = "https://y.qq.com/";
+/// 播放直链的附加请求头（本地代理用）。
+const STREAM_HEADERS: &[(&'static str, &'static str)] =
+    &[("Referer", REFERER), ("Origin", "https://y.qq.com")];
 const MUSICU: &str = "https://u.y.qq.com/cgi-bin/musicu.fcg";
 const COVER_BASE: &str = "https://y.qq.com/music/photo_new/T002R300x300M000";
 
@@ -195,6 +198,12 @@ impl QqMusic {
 impl MusicPlatform for QqMusic {
     fn source(&self) -> Source {
         Source::Qq
+    }
+
+    /// QQ 的 CDN 校验 Referer：不带 `https://y.qq.com/` 时直链返回 403。
+    /// 下载侧我们自己拼头所以无感，播放侧要靠本地代理补上。
+    fn stream_headers(&self) -> &'static [(&'static str, &'static str)] {
+        STREAM_HEADERS
     }
 
     async fn search(&self, query: &SearchQuery) -> Result<SearchPage> {

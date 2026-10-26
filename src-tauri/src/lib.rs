@@ -8,8 +8,8 @@ use std::sync::Mutex;
 
 use melodex_core::vault::{Account, AccountInfo, Opened, Vault, VaultData, MIN_PIN_LEN};
 use melodex_core::{
-    AggregatedPage, Aggregator, CredStore, DownloadEngine, EnqueueInput, Lyric, PlayUrl,
-    PlaylistDetail, Registry, Settings, Source, Variant,
+    AggregatedPage, Aggregator, CredStore, DownloadEngine, EnqueueInput, Lyric, PlaylistDetail,
+    Registry, Settings, Source, Variant,
 };
 use tauri::{Emitter, Manager, State};
 
@@ -25,6 +25,8 @@ pub struct AppState {
     vault_dir: PathBuf,
     /// `None` 表示未解锁（启用了 PIN 但还没输入）
     vault: Mutex<Option<Vault>>,
+    /// 回环流代理。`<audio>` 设不了 Referer，播放 QQ 直链要靠它补头。
+    proxy: Option<melodex_core::stream::StreamProxy>,
 }
 
 impl AppState {
@@ -71,6 +73,7 @@ impl AppState {
             creds,
             vault_dir,
             vault: Mutex::new(unlocked),
+            proxy: None,
         })
     }
 
@@ -180,26 +183,137 @@ async fn search(
         .await)
 }
 
+/// 交给 `<audio>` 的播放地址。
+///
+/// `url` 已经过探测：能被 WebView 直接拉的给原直链，否则给本地代理地址。
+/// 前端不需要知道 Referer 这回事，只要 `url` 播不了就换 `proxyUrl` 再试。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayResponse {
+    url: String,
+    /// 直链与代理地址各留一份，供前端换着试
+    direct_url: String,
+    proxy_url: Option<String>,
+    bitrate: u32,
+    format: String,
+    size: u64,
+}
+
+/// 播放失败的结构化原因。前端据此显示「为什么播不了」，而不是干瞪眼。
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayFailure {
+    reason: melodex_core::Reason,
+    label: String,
+    message: String,
+    hint: String,
+    source: String,
+}
+
+impl PlayFailure {
+    fn new(err: &melodex_core::Error, fallback: Source) -> Self {
+        let reason = err.reason().unwrap_or(melodex_core::Reason::Unknown);
+        Self {
+            reason,
+            label: reason.label().to_string(),
+            message: err.to_string(),
+            hint: reason.hint().to_string(),
+            source: err.origin().unwrap_or(fallback).id().to_string(),
+        }
+    }
+
+    fn plain(source: Source, reason: melodex_core::Reason, detail: impl Into<String>) -> Self {
+        let err = melodex_core::Error::unavailable_with(source, reason, detail.into());
+        Self::new(&err, source)
+    }
+}
+
 #[tauri::command]
 async fn resolve(
     state: State<'_, AppState>,
     source: String,
     id: String,
     quality: Option<String>,
-) -> Result<PlayUrl, String> {
-    let source = parse_source(&source)?;
+) -> Result<PlayResponse, PlayFailure> {
+    let source = match parse_source(&source) {
+        Ok(source) => source,
+        Err(_) => {
+            return Err(PlayFailure::plain(
+                Source::Netease,
+                melodex_core::Reason::Invalid,
+                "音源参数不合法",
+            ))
+        }
+    };
     let level = quality
         .as_deref()
         .and_then(melodex_core::quality::QualityLevel::parse)
         .unwrap_or_else(|| state.engine.settings().quality_of(source));
-    let item = melodex_core::quality::find(source, level)
-        .ok_or_else(|| format!("{} 没有可用音质档位", source.label()))?;
-    let platform = state.registry.get(source).map_err(|err| err.to_string())?;
+    let Some(item) = melodex_core::quality::find(source, level) else {
+        return Err(PlayFailure::plain(
+            source,
+            melodex_core::Reason::QualityMissing,
+            "该音源没有可用音质档位",
+        ));
+    };
+    let platform = match state.registry.get(source) {
+        Ok(platform) => platform,
+        Err(err) => return Err(PlayFailure::new(&err, source)),
+    };
     let variant = Variant::new(source, id, String::new());
-    platform
-        .resolve(&variant, item)
-        .await
-        .map_err(|err| err.to_string())
+    let play = match platform.resolve(&variant, item).await {
+        Ok(play) => play,
+        Err(err) => return Err(PlayFailure::new(&err, source)),
+    };
+
+    // 直链能不能直接被 <audio> 拉？分别试「裸链」和「带 Referer」：
+    // - 裸链通过 → 不折腾，直接给原地址（少一层中转，seek 最快）
+    // - 只有带头通过 → 说明 CDN 校验 Referer，给代理地址
+    // - 都不通过 → 如实报错，把状态码带给用户
+    let headers = platform.stream_headers();
+    let referer = header_of(headers, "Referer");
+    let origin = header_of(headers, "Origin");
+    let (bare, signed) = melodex_core::stream::probe_pair(&play.url, referer, origin).await;
+
+    let proxy_url = state
+        .proxy
+        .as_ref()
+        .map(|proxy| proxy.wrap(&play.url, referer, origin));
+
+    let url = match (&bare, &signed) {
+        (melodex_core::stream::Probe::Direct, _) => Ok(play.url.clone()),
+        (_, melodex_core::stream::Probe::Direct) => proxy_url.clone().ok_or_else(|| {
+            PlayFailure::plain(
+                source,
+                melodex_core::Reason::LinkRejected,
+                "这个音源的直链必须带 Referer，但本地代理没有启动",
+            )
+        }),
+        (melodex_core::stream::Probe::Failed(bare_err), melodex_core::stream::Probe::Failed(err)) => {
+            Err(PlayFailure::plain(
+                source,
+                melodex_core::Reason::LinkRejected,
+                format!("直链不可用（裸链 {bare_err}；带 Referer 后 {err}）"),
+            ))
+        }
+    }?;
+
+    Ok(PlayResponse {
+        url,
+        direct_url: play.url,
+        proxy_url,
+        bitrate: play.bitrate,
+        format: play.format,
+        size: play.size,
+    })
+}
+
+/// 从平台的附加头里取指定名字的值（大小写不敏感）。
+fn header_of<'a>(headers: &'a [(&'static str, &'static str)], name: &str) -> Option<&'a str> {
+    headers
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(name))
+        .map(|(_, value)| *value)
 }
 
 /// 各音源的音质档位表。界面按平台分栏渲染，名称直接照抄平台自己的叫法。
@@ -846,8 +960,13 @@ pub fn run() {
             if let Ok(dir) = app.path().app_data_dir() {
                 install_panic_hook(dir);
             }
-            let state = AppState::new(app.handle())
+            let mut state = AppState::new(app.handle())
                 .map_err(|err| -> Box<dyn std::error::Error> { Box::from(err) })?;
+            // 只绑 127.0.0.1 的随机端口，起不来也不致命：播放会退回直链
+            match tauri::async_runtime::block_on(melodex_core::stream::spawn()) {
+                Ok(proxy) => state.proxy = Some(proxy),
+                Err(err) => eprintln!("流代理启动失败，播放将直连：{err}"),
+            }
             let mut events = state.engine.subscribe();
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {

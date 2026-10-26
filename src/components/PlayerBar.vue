@@ -37,14 +37,33 @@ function startScrub(event: PointerEvent) {
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', up)
 }
+
+/** 手机端点播放条 → 全屏播放页；桌面端播放条本身已经够用 */
+function openSheet() {
+  if (!player.current) return
+  if (window.matchMedia('(max-width: 860px)').matches) player.expanded = true
+}
 </script>
 
 <template>
   <footer class="player" :class="{ empty: !player.current }">
+    <!-- 失败原因：说清为什么播不了，而不是静默无声 -->
+    <Transition name="slide-up">
+      <div v-if="player.error" class="play-error" role="alert">
+        <Icon name="alert" :size="15" />
+        <div class="pe-text">
+          <p class="pe-title">{{ player.error.label }}</p>
+          <p class="pe-hint">{{ player.error.hint }}</p>
+        </div>
+        <button class="btn btn-sm" type="button" @click="player.toggle()">重试</button>
+      </div>
+    </Transition>
+
     <div class="mobile-progress">
       <div class="mobile-fill" :style="{ width: `${player.progress * 100}%` }" />
     </div>
-    <div class="now">
+
+    <div class="now" @click="openSheet">
       <div class="thumb">
         <img v-if="cover" :src="cover" alt="" />
         <span v-else class="placeholder"><Icon name="disc" :size="20" /></span>
@@ -71,8 +90,19 @@ function startScrub(event: PointerEvent) {
         <button class="icon-btn" title="上一首" :disabled="!player.current" @click="player.prev()">
           <Icon name="prev" :size="18" />
         </button>
-        <button class="play" :disabled="!player.current" @click="player.toggle()">
-          <Icon :name="player.playing ? 'pause' : 'play'" :size="18" :filled="!player.playing" />
+        <button
+          class="play"
+          :class="{ busy: player.loading }"
+          :disabled="!player.current"
+          @click="player.toggle()"
+        >
+          <span v-if="player.loading" class="spinner" />
+          <Icon
+            v-else
+            :name="player.playing ? 'pause' : 'play'"
+            :size="18"
+            :filled="!player.playing"
+          />
         </button>
         <button class="icon-btn" title="下一首" :disabled="!player.current" @click="player.next()">
           <Icon name="next" :size="18" />
@@ -80,12 +110,7 @@ function startScrub(event: PointerEvent) {
       </div>
       <div class="timeline">
         <span class="t mono">{{ formatDuration(player.position) }}</span>
-        <div
-          ref="bar"
-          class="bar"
-          :class="{ scrubbing }"
-          @pointerdown.prevent="startScrub"
-        >
+        <div ref="bar" class="bar" :class="{ scrubbing }" @pointerdown.prevent="startScrub">
           <div class="fill" :style="{ width: `${player.progress * 100}%` }" />
           <div class="knob" :style="{ left: `${player.progress * 100}%` }" />
         </div>
@@ -117,6 +142,25 @@ function startScrub(event: PointerEvent) {
         />
       </div>
     </div>
+
+    <!-- 手机端的常驻控制：与控制台三键同一套逻辑，只是位置不同 -->
+    <div class="mobile-controls">
+      <button class="m-btn" :disabled="!player.current" @click="player.prev()">
+        <Icon name="prev" :size="20" />
+      </button>
+      <button class="m-play" :disabled="!player.current" @click="player.toggle()">
+        <span v-if="player.loading" class="spinner dark" />
+        <Icon
+          v-else
+          :name="player.playing ? 'pause' : 'play'"
+          :size="20"
+          :filled="!player.playing"
+        />
+      </button>
+      <button class="m-btn" :disabled="!player.current" @click="player.next()">
+        <Icon name="next" :size="20" />
+      </button>
+    </div>
   </footer>
 </template>
 
@@ -134,6 +178,43 @@ function startScrub(event: PointerEvent) {
   backdrop-filter: blur(18px) saturate(1.4);
   position: relative;
   z-index: 20;
+}
+
+/* 失败原因条：贴在播放条顶边，不挤压布局 */
+.play-error {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(100% + 8px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  z-index: 2;
+}
+.play-error > :first-child {
+  color: var(--danger);
+  flex: 0 0 auto;
+}
+.pe-text {
+  min-width: 0;
+  flex: 1;
+}
+.pe-title {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.pe-hint {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--text-2);
+  line-height: 1.5;
 }
 
 .now {
@@ -260,6 +341,24 @@ function startScrub(event: PointerEvent) {
   cursor: not-allowed;
 }
 
+.spinner {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--bg) 28%, transparent);
+  border-top-color: var(--bg);
+  animation: spin 0.7s linear infinite;
+}
+.spinner.dark {
+  border-color: color-mix(in srgb, #fff 30%, transparent);
+  border-top-color: #fff;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .timeline {
   width: 100%;
   display: flex;
@@ -345,41 +444,121 @@ function startScrub(event: PointerEvent) {
 .mobile-progress {
   display: none;
 }
+.mobile-controls {
+  display: none;
+}
 
 .empty .title {
   color: var(--text-3);
 }
 
+/* ---------- 手机端：悬浮玻璃卡 + 常驻控制 ---------- */
 @media (max-width: 860px) {
   .player {
-    height: 64px;
-    grid-template-columns: 1fr auto;
+    height: auto;
+    margin: 0 10px 8px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
-    padding: 0 12px calc(env(safe-area-inset-bottom, 0px) * 0.2);
+    background: color-mix(in srgb, var(--surface) 62%, transparent);
+    backdrop-filter: blur(28px) saturate(1.8);
+    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.5);
   }
-  .center {
+  .center,
+  .right {
     display: none;
   }
-  .right .volume {
-    display: none;
+  .now {
+    gap: 10px;
+    min-width: 0;
   }
   .thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+  }
+  .title {
+    font-size: 13px;
+  }
+  .sub {
+    font-size: 11px;
+  }
+
+  .mobile-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .m-btn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: var(--text-2);
+    transition: background var(--dur) var(--ease), transform 120ms var(--ease);
+  }
+  .m-btn:active {
+    transform: scale(0.9);
+    background: var(--hover);
+  }
+  .m-btn:disabled {
+    opacity: 0.35;
+  }
+  .m-play {
+    display: grid;
+    place-items: center;
     width: 42px;
     height: 42px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 80%, transparent);
+    transition: transform 140ms var(--ease);
   }
+  .m-play:active {
+    transform: scale(0.92);
+  }
+  .m-play:disabled {
+    opacity: 0.4;
+    box-shadow: none;
+  }
+
   .mobile-progress {
     display: block;
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: 14px;
+    right: 14px;
+    bottom: 3px;
     height: 2px;
-    background: var(--surface-3);
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--text) 12%, transparent);
+    overflow: hidden;
   }
   .mobile-fill {
     height: 100%;
+    border-radius: 2px;
     background: var(--accent);
     transition: width 240ms linear;
   }
+
+  .play-error {
+    position: static;
+    grid-column: 1 / -1;
+    margin-bottom: 2px;
+    box-shadow: none;
+  }
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: opacity 200ms var(--ease), transform 200ms var(--ease);
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 </style>

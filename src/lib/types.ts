@@ -41,6 +41,8 @@ export type FailReason =
   | 'qualityMissing'
   | 'copyright'
   | 'network'
+  | 'linkRejected'
+  | 'invalid'
   | 'unknown'
 
 export interface Variant {
@@ -86,10 +88,24 @@ export interface AggregatedPage {
 }
 
 export interface PlayUrl {
+  /** 已经挑好的地址：能直连就是原链，否则是本地代理 */
   url: string
+  /** 音源原始直链 */
+  directUrl?: string
+  /** 补了 Referer 的代理地址，直连失败时换这个 */
+  proxyUrl?: string | null
   bitrate: number
   format: string
   size: number
+}
+
+/** 播放失败的结构化原因，由内核直接给文案 */
+export interface PlayFailure {
+  reason: FailReason
+  label: string
+  message: string
+  hint: string
+  source: SourceId
 }
 
 export interface Lyric {

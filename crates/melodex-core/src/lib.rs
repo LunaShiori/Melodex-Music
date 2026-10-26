@@ -27,6 +27,9 @@ pub mod qr;
 /// 音质档位表。纯数据、无网络依赖，所有平台与界面共用这一份。
 pub mod quality;
 pub mod settings;
+/// 回环流代理：给 `<audio>` 补 Referer，解决「能下载但播放没声音」。
+#[cfg(feature = "net")]
+pub mod stream;
 pub mod task;
 pub mod update;
 pub mod vault;
@@ -35,7 +38,7 @@ pub mod vault;
 pub use aggregator::Aggregator;
 #[cfg(feature = "net")]
 pub use download::engine::{DownloadEngine, EngineEvent, EnqueueInput, Notice, NoticeLevel};
-pub use error::{Error, Result};
+pub use error::{Error, Reason, Result};
 pub use model::{
     AggregatedPage, Fee, Lyric, PlayUrl, PlaylistDetail, SearchPage, Source, SourceReport, Track,
     Variant,

@@ -11,6 +11,8 @@ use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::quality::{Quality, QualityLevel};
 
 const ORIGIN: &str = "https://music.163.com";
+/// 播放直链的附加请求头（本地代理用）。
+const STREAM_HEADERS: &[(&'static str, &'static str)] = &[("Referer", ORIGIN)];
 
 /// 网易云音乐：搜索 / 播放链接 / 歌词 / 歌单全部走公开 Web 接口。
 pub struct Netease {
@@ -143,6 +145,10 @@ impl Netease {
 impl MusicPlatform for Netease {
     fn source(&self) -> Source {
         Source::Netease
+    }
+
+    fn stream_headers(&self) -> &'static [(&'static str, &'static str)] {
+        STREAM_HEADERS
     }
 
     async fn search(&self, query: &SearchQuery) -> Result<SearchPage> {

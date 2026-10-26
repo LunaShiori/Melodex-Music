@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import Icon from '@/components/Icon.vue'
@@ -18,10 +18,19 @@ const tasks = useTasksStore()
 const inputEl = ref<HTMLInputElement | null>(null)
 const hot = ['晴天', '周杰伦', '起风了', 'Lemon', '漠河舞厅', '夜空中最亮的星']
 
+/** 多选下载。批量操作必须由用户明确勾选，不能一键把整页结果全塞进队列。 */
+const selectMode = ref(false)
+const picked = reactive(new Set<string>())
+
 const summary = computed(() => {
   if (!search.searched) return ''
   return `${search.tracks.length} 首 · ${search.elapsed}ms`
 })
+
+const pickedTracks = computed(() => search.tracks.filter((item) => picked.has(item.fingerprint)))
+const allPicked = computed(
+  () => search.tracks.length > 0 && picked.size >= search.tracks.length,
+)
 
 function submit() {
   void search.run(1, false)
@@ -45,11 +54,42 @@ function downloadAll() {
   if (search.tracks.length) void tasks.enqueue(search.tracks)
 }
 
+function enterSelect() {
+  selectMode.value = true
+  picked.clear()
+}
+
+function exitSelect() {
+  selectMode.value = false
+  picked.clear()
+}
+
+function togglePick(track: Track) {
+  if (picked.has(track.fingerprint)) picked.delete(track.fingerprint)
+  else picked.add(track.fingerprint)
+}
+
+function toggleAll() {
+  if (allPicked.value) {
+    picked.clear()
+    return
+  }
+  for (const track of search.tracks) picked.add(track.fingerprint)
+}
+
+function downloadPicked() {
+  const list = pickedTracks.value
+  if (!list.length) return
+  void tasks.enqueue(list)
+  exitSelect()
+}
+
 function onKeydown(event: KeyboardEvent) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     inputEl.value?.focus()
   }
+  if (event.key === 'Escape' && selectMode.value) exitSelect()
 }
 
 onMounted(() => {
@@ -127,7 +167,17 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </div>
 
       <button
-        v-if="search.tracks.length"
+        v-if="search.tracks.length && !selectMode"
+        class="btn btn-sm pick-btn"
+        type="button"
+        @click="enterSelect"
+      >
+        <Icon name="check" :size="14" />
+        多选
+      </button>
+
+      <button
+        v-if="search.tracks.length && !selectMode"
         class="btn btn-primary btn-sm all"
         type="button"
         @click="downloadAll"
@@ -170,8 +220,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         :index="index"
         :active="player.isCurrent(track)"
         :playing="player.playing"
+        :select-mode="selectMode"
+        :selected="picked.has(track.fingerprint)"
         @play="playTrack"
         @download="download"
+        @toggle="togglePick"
       />
       <div class="more">
         <button
@@ -204,31 +257,27 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </div>
     </section>
 
-    <!-- 歌词抽屉：与播放器共用状态 -->
-    <Transition name="fade">
-      <aside v-if="player.lyricOpen && player.current" class="lyric">
-        <header>
-          <div>
-            <p class="l-title">{{ player.current.title }}</p>
-            <p class="l-sub muted">{{ player.current.artists.join(' / ') }}</p>
-          </div>
-          <button class="icon-btn" type="button" @click="player.lyricOpen = false">
-            <Icon name="close" :size="16" />
-          </button>
-        </header>
-        <div class="l-body">
-          <p v-if="!player.lyricLines.length" class="muted">该音源暂未提供歌词</p>
-          <p
-            v-for="(line, index) in player.lyricLines"
-            :key="index"
-            class="l-line"
-            :class="{ on: index === player.activeLyricIndex }"
-          >
-            <span class="l-text">{{ line.text }}</span>
-            <span v-if="line.translation" class="l-tr">{{ line.translation }}</span>
-          </p>
-        </div>
-      </aside>
+    <!-- 批量操作条：只对勾选的歌曲生效 -->
+    <Transition name="bulk">
+      <div v-if="selectMode" class="bulk">
+        <button class="bulk-all" type="button" @click="toggleAll">
+          <span class="bulk-box" :class="{ on: allPicked }">
+            <Icon v-if="allPicked" name="check" :size="12" />
+          </span>
+          全选
+        </button>
+        <span class="bulk-count mono">已选 {{ picked.size }} 首</span>
+        <button class="btn btn-sm" type="button" @click="exitSelect">取消</button>
+        <button
+          class="btn btn-primary btn-sm"
+          type="button"
+          :disabled="!picked.size"
+          @click="downloadPicked"
+        >
+          <Icon name="download" :size="14" />
+          下载
+        </button>
+      </div>
     </Transition>
   </div>
 </template>
@@ -375,6 +424,65 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .all {
   margin-left: auto;
 }
+.pick-btn {
+  margin-left: auto;
+}
+.pick-btn + .all {
+  margin-left: 0;
+}
+
+/* 批量操作条：浮在播放条之上，不挤压列表 */
+.bulk {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--player) + 16px);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 9px 14px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--line-strong);
+  background: var(--glass);
+  backdrop-filter: blur(22px) saturate(1.6);
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+}
+.bulk-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.bulk-box {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  border: 1.5px solid var(--line-strong);
+  color: #fff;
+}
+.bulk-box.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.bulk-count {
+  font-size: 11.5px;
+  color: var(--text-2);
+  min-width: 62px;
+}
+.bulk-enter-active,
+.bulk-leave-active {
+  transition: opacity 180ms var(--ease), transform 220ms var(--ease);
+}
+.bulk-enter-from,
+.bulk-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 10px);
+}
 
 .banner {
   display: flex;
@@ -503,61 +611,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   }
 }
 
-.lyric {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: var(--player);
-  width: 360px;
-  display: flex;
-  flex-direction: column;
-  background: var(--glass);
-  backdrop-filter: blur(22px);
-  border-left: 1px solid var(--line);
-  z-index: 15;
-  padding: 18px 0 8px;
-}
-.lyric header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 0 18px 12px;
-  border-bottom: 1px solid var(--line);
-}
-.l-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-}
-.l-sub {
-  margin: 3px 0 0;
-  font-size: 11.5px;
-}
-.l-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 18px 22px 40px;
-}
-.l-line {
-  margin: 0;
-  padding: 7px 0;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--text-3);
-  transition: color 200ms var(--ease), transform 200ms var(--ease);
-}
-.l-line.on {
-  color: var(--accent);
-  font-weight: 500;
-  transform: translateX(2px);
-}
-.l-tr {
-  display: block;
-  font-size: 11.5px;
-  color: var(--text-3);
-  margin-top: 2px;
-}
-
 @media (max-width: 860px) {
   .view {
     padding: 18px 14px 28px;
@@ -579,6 +632,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   .searchbar {
     height: 46px;
     padding-left: 12px;
+    /* 滚动时搜索框吸顶，配合毛玻璃让下面的列表透出来 */
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: color-mix(in srgb, var(--surface) 66%, transparent);
+    backdrop-filter: blur(22px) saturate(1.7);
+    box-shadow: 0 8px 24px -18px rgba(0, 0, 0, 0.6);
   }
   .hint {
     display: none;
@@ -590,12 +650,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     height: 34px;
     padding: 0 14px;
   }
-  .lyric {
-    width: 100%;
-    top: auto;
-    height: 62vh;
-    border-left: none;
-    border-top: 1px solid var(--line);
+  /* 手机端要给播放条 + 底部标签栏让出位置 */
+  .bulk {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 128px);
+    gap: 8px;
+    padding: 8px 10px 8px 12px;
+  }
+  .pick-btn {
+    margin-left: auto;
   }
 }
 </style>

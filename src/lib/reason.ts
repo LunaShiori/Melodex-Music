@@ -47,6 +47,18 @@ export const REASON_META: Record<FailReason, ReasonMeta> = {
     login: false,
     retry: true,
   },
+  linkRejected: {
+    label: '直链被拒',
+    hint: '音源给了播放地址，但它自己的 CDN 拒绝提供音频（多因链接过期或该地区节点不可用）',
+    login: false,
+    retry: true,
+  },
+  invalid: {
+    label: '参数有误',
+    hint: '请求参数不合法，换一首歌或重启应用',
+    login: false,
+    retry: false,
+  },
   unknown: {
     label: '暂不可用',
     hint: '音源没有返回可用链接，稍后重试或换一个音源',

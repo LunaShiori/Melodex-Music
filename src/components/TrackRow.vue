@@ -7,10 +7,20 @@ import { formatBitrate, formatDuration } from '@/lib/format'
 import { SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
 
-const props = defineProps<{ track: Track; index?: number; active?: boolean; playing?: boolean }>()
+const props = defineProps<{
+  track: Track
+  index?: number
+  active?: boolean
+  playing?: boolean
+  /** 多选模式下的勾选状态 */
+  selected?: boolean
+  /** 多选模式：整行点击改为勾选，不再触发播放 */
+  selectMode?: boolean
+}>()
 const emit = defineEmits<{
   (e: 'play', track: Track, variant?: Variant): void
   (e: 'download', track: Track, variant?: Variant): void
+  (e: 'toggle', track: Track): void
 }>()
 
 const cover = computed(() => coverOf(props.track.cover, props.track.fingerprint))
@@ -20,21 +30,57 @@ const feeLabel = computed(() => {
   if (props.track.fee === 'paid') return '付费'
   return ''
 })
+
+function onRowClick() {
+  if (props.selectMode) {
+    emit('toggle', props.track)
+    return
+  }
+  // 窄屏没有 hover、也没有双击习惯，点一下整行就是播放入口
+  if (isNarrow()) emit('play', props.track)
+}
+
+function isNarrow() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 860px)').matches
+}
+
+function onPlay() {
+  if (props.selectMode) {
+    emit('toggle', props.track)
+    return
+  }
+  emit('play', props.track)
+}
 </script>
 
 <template>
-  <article class="row" :class="{ active, playing }" @dblclick="emit('play', track)">
-    <span class="index mono">
+  <article
+    class="row"
+    :class="{ active, playing, picked: selected, selectable: selectMode }"
+    @dblclick="!selectMode && emit('play', track)"
+    @click="onRowClick"
+  >
+    <!-- 勾选框只在多选模式出现；平时这个位置是序号 -->
+    <span v-if="selectMode" class="pick">
+      <span class="box" :class="{ on: selected }">
+        <Icon v-if="selected" name="check" :size="12" />
+      </span>
+    </span>
+    <span v-else class="index mono">
       <template v-if="playing && active">
         <span class="mini-eq"><i /><i /><i /></span>
       </template>
       <template v-else>{{ (index ?? 0) + 1 }}</template>
     </span>
 
-    <div class="cover">
+    <div class="cover" @click.stop="onPlay">
       <img :src="cover" alt="" loading="lazy" />
-      <button class="cover-play" type="button" title="播放" @click="emit('play', track)">
-        <Icon :name="playing && active ? 'pause' : 'play'" :size="15" :filled="!(playing && active)" />
+      <button class="cover-play" type="button" :title="playing && active ? '暂停' : '播放'">
+        <Icon
+          :name="playing && active ? 'pause' : 'play'"
+          :size="15"
+          :filled="!(playing && active)"
+        />
       </button>
     </div>
 
@@ -54,7 +100,7 @@ const feeLabel = computed(() => {
         type="button"
         :title="`从${SOURCE_META[variant.source].label}下载`"
         :style="{ '--src': SOURCE_META[variant.source].color }"
-        @click="emit('download', track, variant)"
+        @click.stop="emit('download', track, variant)"
       >
         <i />
         {{ SOURCE_META[variant.source].short }}
@@ -69,13 +115,18 @@ const feeLabel = computed(() => {
     <span class="dur mono">{{ formatDuration(track.durationMs) }}</span>
 
     <div class="actions">
-      <button class="icon-btn" type="button" title="播放" @click="emit('play', track)">
+      <button class="icon-btn" type="button" title="播放" @click.stop="emit('play', track)">
         <Icon name="play" :size="15" />
       </button>
-      <button class="icon-btn dl" type="button" title="下载" @click="emit('download', track)">
+      <button class="icon-btn dl" type="button" title="下载" @click.stop="emit('download', track)">
         <Icon name="download" :size="15" />
       </button>
     </div>
+
+    <!-- 手机端没有 hover，下载入口必须常驻可见 -->
+    <button class="m-dl" type="button" title="下载" @click.stop="emit('download', track)">
+      <Icon name="download" :size="17" />
+    </button>
   </article>
 </template>
 
@@ -107,11 +158,37 @@ const feeLabel = computed(() => {
   border-radius: 2px;
   background: var(--accent);
 }
+.row.picked {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.row.selectable {
+  cursor: pointer;
+}
 
 .index {
   font-size: 11px;
   color: var(--text-3);
   text-align: center;
+}
+
+.pick {
+  display: grid;
+  place-items: center;
+}
+.box {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line-strong);
+  color: #fff;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease), transform 140ms var(--ease);
+}
+.box.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.05);
 }
 
 .mini-eq {
@@ -278,6 +355,10 @@ const feeLabel = computed(() => {
   background: var(--active);
 }
 
+.m-dl {
+  display: none;
+}
+
 @media (max-width: 1100px) {
   .sources {
     max-width: 60px;
@@ -299,26 +380,50 @@ const feeLabel = computed(() => {
 
 @media (max-width: 860px) {
   .row {
-    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-columns: 40px minmax(0, 1fr) auto auto;
     gap: 10px;
-    height: 64px;
+    height: 62px;
     padding: 0 10px;
+  }
+  /* 触屏没有 hover，按下要有即时反馈 */
+  .row:active {
+    background: var(--hover);
+  }
+  .row.picked:active {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .row.selectable {
+    grid-template-columns: 24px 40px minmax(0, 1fr) auto;
   }
   .index,
   .quality,
   .dur,
-  .actions {
+  .actions,
+  .sources {
     display: none;
   }
   .cover {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
   }
-  .sources {
-    max-width: none;
+  .sub {
+    font-size: 11px;
   }
-  .src-chip {
-    padding: 0 6px;
+  .m-dl {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: var(--text-2);
+    background: color-mix(in srgb, var(--surface) 60%, transparent);
+    border: 1px solid var(--line);
+    transition: transform 130ms var(--ease), color var(--dur) var(--ease);
+  }
+  .m-dl:active {
+    transform: scale(0.9);
+    color: var(--accent);
   }
 }
 </style>
