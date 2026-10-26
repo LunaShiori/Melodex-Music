@@ -108,13 +108,6 @@ const S_BOXES: [[u8; 64]; 8] = [
     ],
 ];
 
-/// 加解密模式
-enum CryptMode {
-    #[allow(dead_code)]
-    Encrypt,
-    Decrypt,
-}
-
 #[inline]
 fn permute(data: u64, mapper: &[i16]) -> u64 {
     let mut ret = 0u64;
