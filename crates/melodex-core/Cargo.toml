@@ -45,6 +45,10 @@ tokio-tungstenite = { version = "0.24", default-features = false, features = [
   "connect",
   "handshake",
 ], optional = true }
+# QMC/QMCv2 音频解密（.mflac/.mgg），vendored 自 um_crypto（Apache-2.0/MIT）
+umc_qmc = { path = "../vendor/umc_qmc" }
+# 酷我 kwDES 的 Base64 编解码
+base64 = "0.22"
 
 [[example]]
 name = "probe"

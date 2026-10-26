@@ -92,6 +92,9 @@ pub struct Variant {
     pub format: String,
     pub size: u64,
     pub fee: Fee,
+    /// 媒体文件 mid（QQ 音乐取链接用，区别于歌曲 mid）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media_mid: Option<String>,
 }
 
 impl Variant {
@@ -108,6 +111,7 @@ impl Variant {
             format: "mp3".into(),
             size: 0,
             fee: Fee::Unknown,
+            media_mid: None,
         }
     }
 
@@ -237,6 +241,10 @@ pub struct PlayUrl {
     pub bitrate: u32,
     pub format: String,
     pub size: u64,
+    /// 加密格式（.mflac/.mgg）的解密密钥；明文格式为 None。
+    /// 下载器拿到非空 ekey 时，写入文件前需流式 QMCv2 解密。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ekey: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

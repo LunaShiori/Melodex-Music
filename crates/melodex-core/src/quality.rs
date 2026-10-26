@@ -193,37 +193,28 @@ pub const NETEASE: &[Quality] = &[
     ),
 ];
 
-/// QQ 音乐：`code` 是 `CgiGetVkey` 的文件名前缀。
+/// QQ 音乐：`code` 是 `CgiGetVkey` 的文件名前缀，`format` 是文件扩展名。
 ///
-/// 高两档（`RS01` / `AI00`）走的是同一套 vkey 接口，只是文件名不同。
-/// 服务端对不认识的档位会回 `result=101404`，引擎据此继续降级，
-/// 所以这里可以放心把两档列出来——真正拿不到时会退到 SQ 而不是报错。
+/// 无损及以上的真实文件是加密的 `.mflac`（文件名前缀 `F0M0` / `RSM1`），
+/// 取链接时服务端返回 `ekey`，下载后需 QMCv2 解密。
+/// 服务端对没权限的档位回 `result=101404`，引擎据此继续降级。
 pub const QQ: &[Quality] = &[
     q(
-        "AI00",
-        "臻品母带",
-        "FLAC 24bit/192kHz",
-        QualityLevel::Master,
-        3_000,
-        "flac",
-        true,
-    ),
-    q(
-        "RS01",
+        "RSM1",
         "Hi-Res 无损",
         "FLAC 24bit/96kHz",
         QualityLevel::HiRes,
         2_000,
-        "flac",
+        "mflac",
         true,
     ),
     q(
-        "F000",
+        "F0M0",
         "SQ 无损",
         "FLAC 44.1kHz",
         QualityLevel::Lossless,
         1_000,
-        "flac",
+        "mflac",
         true,
     ),
     q(
@@ -246,19 +237,75 @@ pub const QQ: &[Quality] = &[
     ),
 ];
 
-/// 酷我音乐：公开的 `convert_url` 接口只稳定给 128k。
+/// 酷我音乐：走 `mobi.kuwo.cn/mobi.s` 的 `convert_url_with_sign` 接口。
 ///
-/// 实测传 `br=320kmp3` 或 `flac` 返回的都是同一个 128k mp3 文件，
-/// 所以这里只列一档——列出来却下不到，比不列更糟。
-pub const KUWO: &[Quality] = &[q(
-    "128kmp3",
-    "标准音质",
-    "MP3 128kbps（该接口上限）",
-    QualityLevel::Standard,
-    128,
-    "mp3",
-    false,
-)];
+/// `code` 是真实 br 码（`20900` 母带 / `2000` 无损 / `320` / `128` / `48`），
+/// 请求时拼成 `br={code}k{format}`。`mflac`/`mgg` 是加密格式，返回 `ekey`。
+pub const KUWO: &[Quality] = &[
+    q(
+        "20900",
+        "臻品母带",
+        "FLAC 24bit/192kHz",
+        QualityLevel::Master,
+        3_000,
+        "mflac",
+        true,
+    ),
+    q(
+        "20501",
+        "臻品全景声 5.1",
+        "FLAC 多声道",
+        QualityLevel::Master,
+        2_800,
+        "mflac",
+        true,
+    ),
+    q(
+        "20201",
+        "臻品全景声",
+        "FLAC 多声道",
+        QualityLevel::HiRes,
+        2_500,
+        "mflac",
+        true,
+    ),
+    q(
+        "2000",
+        "无损音质",
+        "FLAC 44.1kHz",
+        QualityLevel::Lossless,
+        1_000,
+        "flac",
+        true,
+    ),
+    q(
+        "320",
+        "高品质",
+        "MP3 320kbps",
+        QualityLevel::Exquisite,
+        320,
+        "mp3",
+        false,
+    ),
+    q(
+        "128",
+        "标准音质",
+        "MP3 128kbps",
+        QualityLevel::Standard,
+        128,
+        "mp3",
+        false,
+    ),
+    q(
+        "48",
+        "流畅音质",
+        "AAC 48kbps",
+        QualityLevel::Standard,
+        48,
+        "aac",
+        false,
+    ),
+];
 
 /// 某个平台的全部档位，从高到低。
 pub fn table(source: Source) -> &'static [Quality] {

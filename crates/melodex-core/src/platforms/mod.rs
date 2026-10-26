@@ -4,5 +4,6 @@
 //! 契约与 [`crate::net::Net`]，彼此之间没有耦合。
 
 pub mod kuwo;
+pub mod kuwo_des;
 pub mod netease;
 pub mod qq;

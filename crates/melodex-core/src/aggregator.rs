@@ -199,6 +199,12 @@ fn relevance(track: &Track, keyword: &str) -> i64 {
     } else if title.contains(&key) {
         score += 300;
     }
+    // 翻唱/改编版（Live、cover、remix、伴奏、各种「版」）在标题归一化后
+    // 会和原唱撞名，但原始标题带了这些标记——匿名搜索常把翻唱排前面，
+    // 这里把它们压下去，让真正的原唱（标题就是关键词本身）浮上来。
+    if is_cover(&track.title) {
+        score -= 250;
+    }
     if track
         .artists
         .iter()
@@ -219,6 +225,37 @@ fn relevance(track: &Track, keyword: &str) -> i64 {
         score -= 60;
     }
     score
+}
+
+/// 判断标题是否带翻唱/改编/现场等标记。
+///
+/// 网易云匿名搜索常把翻唱（如「晴天(深情版)」「晴天 钢琴版」）排在原唱前面，
+/// 通过识别这些后缀词把翻唱降权。
+fn is_cover(title: &str) -> bool {
+    let lower = title.to_ascii_lowercase();
+    [
+        "live",
+        "cover",
+        "remix",
+        "翻唱",
+        "翻自",
+        "伴奏",
+        "纯音乐",
+        "钢琴版",
+        "吉他版",
+        "深情版",
+        "女生版",
+        "女声版",
+        "男生版",
+        "男声版",
+        "dj版",
+        "史诗版",
+        "改编",
+        "原唱",
+        "自唱",
+    ]
+    .iter()
+    .any(|mark| lower.contains(mark))
 }
 
 #[cfg(test)]
@@ -280,5 +317,23 @@ mod tests {
         let other = Track::from_variant(variant(Source::Qq, "2", "晴天的雨", "周杰伦", 269_000));
         assert!(relevance(&exact, "晴天") > relevance(&other, "晴天"));
         assert!(!fingerprint("晴天", &["周杰伦".into()], 269_000).is_empty());
+    }
+
+    #[test]
+    fn relevance_demotes_cover_versions() {
+        let original =
+            Track::from_variant(variant(Source::Netease, "1", "晴天", "周杰伦", 269_000));
+        let cover = Track::from_variant(variant(
+            Source::Netease,
+            "2",
+            "晴天(深情版)",
+            "某翻唱",
+            269_000,
+        ));
+        // 归一化后两者标题都是「晴天」，但翻唱带标记应被压下去
+        assert!(relevance(&original, "晴天") > relevance(&cover, "晴天"));
+        assert!(is_cover("晴天 (钢琴版)"));
+        assert!(is_cover("晴天 Live"));
+        assert!(!is_cover("晴天"));
     }
 }

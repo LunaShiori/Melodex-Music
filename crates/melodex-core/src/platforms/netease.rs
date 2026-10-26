@@ -92,6 +92,7 @@ impl Netease {
             bitrate: kbps.min(999),
             format: item.kind.unwrap_or_else(|| quality.format.into()),
             size: item.size.unwrap_or(0.0) as u64,
+            ekey: None,
         }))
     }
 
@@ -153,8 +154,10 @@ impl MusicPlatform for Netease {
 
     async fn search(&self, query: &SearchQuery) -> Result<SearchPage> {
         let keyword = utf8_percent_encode(&query.keyword, NON_ALPHANUMERIC).to_string();
+        // cloudsearch/pc 比老的 search/get/web 返回更完整（含 dt 时长、更准的 songCount），
+        // 且登录态（MUSIC_U）下原唱/热门排序更贴近 Web 端。
         let url = format!(
-            "{ORIGIN}/api/search/get/web?s={keyword}&type=1&limit={}&offset={}",
+            "{ORIGIN}/api/cloudsearch/pc?s={keyword}&type=1&limit={}&offset={}&total=true",
             query.limit,
             query.offset()
         );

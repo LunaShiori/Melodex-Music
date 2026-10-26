@@ -39,11 +39,14 @@ impl QqMusic {
     ///
     /// 返回 `Ok(None)` 表示「服务端没有这个档位」，调用方可以继续降级；
     /// 返回 `Err` 表示这首在当前账号下明确下不了，原因已经分类好。
+    ///
+    /// 成功时返回 `(url, format, ekey)`：`ekey` 是 `.mflac`/`.mgg` 的解密密钥，
+    /// 明文格式（`.mp3`/`.m4a`）为 `None`。
     async fn vkey(
         &self,
         mid: &str,
         filenames: Option<&[String]>,
-    ) -> Result<Option<(String, String)>> {
+    ) -> Result<Option<(String, String, Option<String>)>> {
         let cookie = self.creds.cookie(Source::Qq);
         let uin = cookie
             .as_deref()
@@ -189,7 +192,17 @@ impl QqMusic {
             .filter(|ext| ext.len() <= 4 && !ext.contains('/'))
             .unwrap_or("m4a")
             .to_string();
-        Ok(Some((full, format)))
+        // 加密格式（mflac/mgg）带解密密钥，明文格式忽略
+        let encrypted = matches!(format.as_str(), "mflac" | "mgg");
+        let ekey = if encrypted {
+            item.get("ekey")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.is_empty())
+                .map(|v| v.to_string())
+        } else {
+            None
+        };
+        Ok(Some((full, format, ekey)))
     }
 }
 
@@ -235,14 +248,18 @@ impl MusicPlatform for QqMusic {
 
     async fn resolve(&self, variant: &Variant, quality: &'static Quality) -> Result<PlayUrl> {
         let mid = variant.id.as_str();
-        // 文件名 = 档位前缀 + mid + mid + 扩展名，例如 F0000039MnYb0qxYhV0039MnYb0qxYhV.flac
-        let files = vec![format!("{}{mid}{mid}.{}", quality.code, quality.format)];
+        // 取链接用的是 media_mid（媒体文件 mid），不是 songmid。搜索结果里两者不同，
+        // 用 songmid 拼文件名时服务端对无损档返回 101404（实测）。
+        let media = variant.media_mid.as_deref().unwrap_or(mid);
+        // 文件名 = 档位前缀 + media_mid + 扩展名，例如 F000003Qui1q2u1Zho.flac
+        let files = vec![format!("{}{media}.{}", quality.code, quality.format)];
         let missing = || Error::unavailable(Source::Qq, Reason::QualityMissing);
         match self.vkey(mid, Some(&files)).await? {
-            Some((url, format)) => {
+            Some((url, format, ekey)) => {
                 // 服务端对没权限的档位有时不报错，而是静默回一个低码率文件。
-                // 无损及以上必须是 flac，否则视为「这个档位拿不到」，交给引擎降级。
-                if quality.level >= QualityLevel::Lossless && format != "flac" {
+                // 无损及以上必须是 flac/mflac，否则视为「这个档位拿不到」，交给引擎降级。
+                if quality.level >= QualityLevel::Lossless && format != "flac" && format != "mflac"
+                {
                     return Err(missing());
                 }
                 Ok(PlayUrl {
@@ -250,6 +267,7 @@ impl MusicPlatform for QqMusic {
                     bitrate: quality.bitrate,
                     format,
                     size: 0,
+                    ekey,
                 })
             }
             // 服务端明确说没有这个档位
@@ -309,6 +327,11 @@ struct RawSong {
     #[serde(default)]
     sizeflac: u64,
     #[serde(default)]
+    sizeape: u64,
+    /// 媒体文件 mid（取下载链接用，区别于 songmid）
+    #[serde(default)]
+    media_mid: Option<String>,
+    #[serde(default)]
     pay: Option<RawPay>,
 }
 
@@ -336,10 +359,19 @@ impl RawSong {
             .filter(|mid| !mid.is_empty())
             .map(|mid| format!("{COVER_BASE}{mid}.jpg"));
         variant.duration_ms = self.interval.saturating_mul(1000);
+        // 取链接用的 media_mid，缺失时回退到 songmid
+        variant.media_mid = self
+            .media_mid
+            .filter(|mid| !mid.is_empty())
+            .or_else(|| Some(self.songmid.clone()));
         if self.sizeflac > 0 {
             variant.bitrate = 999;
             variant.format = "flac".into();
             variant.size = self.sizeflac;
+        } else if self.sizeape > 0 {
+            variant.bitrate = 999;
+            variant.format = "ape".into();
+            variant.size = self.sizeape;
         } else if self.size320 > 0 {
             variant.bitrate = 320;
             variant.format = "mp3".into();

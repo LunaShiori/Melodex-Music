@@ -9,7 +9,6 @@ use crate::pseudo_json;
 use crate::quality::Quality;
 
 const SEARCH_API: &str = "http://search.kuwo.cn/r.s";
-const RESOLVE_API: &str = "http://antiserver.kuwo.cn/anti.s";
 const REFERER: &str = "http://www.kuwo.cn/";
 /// 播放直链的附加请求头（本地代理用）。
 const STREAM_HEADERS: &[(&str, &str)] = &[("Referer", REFERER)];
@@ -103,50 +102,98 @@ impl MusicPlatform for Kuwo {
     }
 
     async fn resolve(&self, variant: &Variant, quality: &'static Quality) -> Result<PlayUrl> {
+        // 酷我高音质走 mobi.kuwo.cn/mobi.s 的 convert_url_with_sign 接口，
+        // 用数字 rid + `br={bitrate}k{format}` 定位资源，可拿到 320k/flac/母带。
+        // 加密格式（mflac/mgg）返回 ekey，需 kwDES 解密后交给下载器 QMCv2 解密。
+        let rid: u64 = variant
+            .id
+            .parse()
+            .map_err(|_| Error::unavailable(Source::Kuwo, Reason::QualityMissing))?;
+        if rid == 0 {
+            return Err(Error::unavailable(Source::Kuwo, Reason::QualityMissing));
+        }
+
+        // 每次请求生成随机 user（u32）和 android_id（16 位 hex）
+        let user: u32 = random_u32();
+        let android_id: String = random_hex(16);
+        // br 用真实的档位码（code 字段），如 20900kmflac / 2000kflac / 320kmp3
+        let br = format!("{}k{}", quality.code, quality.format);
         let url = format!(
-            "{RESOLVE_API}?type=convert_url&rid=MUSIC_{}&format=mp3&response=url",
-            variant.id
+            "http://mobi.kuwo.cn/mobi.s?f=web&user={user}&android_id={android_id}&\
+             source=kwplayer_ar_5.1.0.0_B_jiakong_vh.apk&type=convert_url_with_sign&from=PC&\
+             rid={rid}&br={br}&format={}",
+            quality.format
         );
+
         let body = self
             .net
             .text(
                 &url,
-                &[("Referer", REFERER), ("User-Agent", crate::net::UA)],
+                &[("User-Agent", "okhttp/4.10.0"), ("Referer", REFERER)],
             )
             .await?;
-        let link = body.trim();
-        if !link.starts_with("http") {
-            // antiserver 拿不到链接时返回的是纯文本，按内容判断原因
-            let lowered = link.to_ascii_lowercase();
-            let reason = if lowered.contains("copyright") || link.contains("版权") {
-                Reason::Copyright
-            } else if lowered.contains("vip") || link.contains("会员") {
-                Reason::VipOnly
-            } else if link.is_empty() {
-                Reason::Unknown
-            } else {
-                Reason::Copyright
-            };
+        let data: serde_json::Value = serde_json::from_str(&body)
+            .map_err(|err| Error::decode(format!("酷我 mobi.s 响应解析失败：{err}")))?;
+
+        let code = data.get("code").and_then(|v| v.as_i64()).unwrap_or(-1);
+        if code != 200 {
+            let msg = data
+                .get("msg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             return Err(Error::unavailable_with(
                 Source::Kuwo,
-                reason,
-                if link.is_empty() {
-                    "antiserver 返回空响应".to_string()
+                Reason::QualityMissing,
+                if msg.is_empty() {
+                    format!("code={code}")
                 } else {
-                    link.chars().take(60).collect::<String>()
+                    msg
                 },
             ));
         }
-        // 实测：antiserver 的 convert_url 无论 `br` 传 320k 还是 flac，
-        // 返回的都是同一个 128k mp3（晴天 269 秒对应 4.32 MB）。所以档位表里
-        // 只有一档，这里也不看 quality——按实际返回如实上报，绝不虚标。
-        // 真实码率在下载完成后会按「文件大小 / 时长」再校准一次。
-        let _ = quality;
+
+        let data_obj = data
+            .get("data")
+            .ok_or_else(|| Error::unavailable(Source::Kuwo, Reason::QualityMissing))?;
+        let link = data_obj
+            .get("url")
+            .and_then(|v| v.as_str())
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| Error::unavailable(Source::Kuwo, Reason::QualityMissing))?;
+
+        // 加密格式（mflac/mgg）取 ekey，用 kwDES 解密后去掉 user 前缀
+        let format = quality.format;
+        let encrypted = matches!(format, "mflac" | "mgg");
+        let ekey = if encrypted {
+            let raw = data_obj
+                .get("ekey")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            if raw.is_empty() {
+                None
+            } else {
+                let decrypted = super::kuwo_des::base64_decrypt(raw, super::kuwo_des::DEFAULT_KEY)
+                    .map_err(|e| Error::decode(format!("酷我 ekey 解密失败：{e}")))?;
+                // 去掉开头的本次随机 user 前缀
+                let user_str = user.to_string();
+                Some(
+                    decrypted
+                        .strip_prefix(&user_str)
+                        .unwrap_or(&decrypted)
+                        .to_string(),
+                )
+            }
+        } else {
+            None
+        };
+
         Ok(PlayUrl {
             url: link.to_string(),
-            bitrate: 128,
-            format: "mp3".into(),
+            bitrate: quality.bitrate,
+            format: format.to_string(),
             size: 0,
+            ekey,
         })
     }
 }
@@ -181,6 +228,22 @@ fn bitrate_of(formats: &str) -> u32 {
     } else {
         0
     }
+}
+
+/// 生成随机 u32（mobi.s 接口的 user 参数）。
+fn random_u32() -> u32 {
+    use getrandom::getrandom;
+    let mut buf = [0u8; 4];
+    let _ = getrandom(&mut buf);
+    u32::from_le_bytes(buf)
+}
+
+/// 生成 n 字节的随机小写 hex 字符串（mobi.s 接口的 android_id 参数）。
+fn random_hex(bytes: usize) -> String {
+    use getrandom::getrandom;
+    let mut buf = vec![0u8; bytes];
+    let _ = getrandom(&mut buf);
+    buf.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 #[cfg(test)]

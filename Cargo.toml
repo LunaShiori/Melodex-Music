@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/melodex-core"]
+members = ["crates/melodex-core", "crates/vendor/umc_utils", "crates/vendor/umc_qmc"]
 exclude = ["src-tauri"]
 
 [workspace.package]

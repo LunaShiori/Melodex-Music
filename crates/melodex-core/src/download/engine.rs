@@ -668,6 +668,7 @@ async fn execute(
         &part,
         cancel,
         pause,
+        play.ekey.as_deref(),
         move |downloaded, total| {
             let now = Instant::now();
             if now.duration_since(last_emit) < Duration::from_millis(240) {
@@ -776,6 +777,9 @@ fn normalize_ext(format: &str) -> String {
     match lowered.as_str() {
         "mp3" | "flac" | "m4a" | "aac" | "ogg" | "wav" => lowered,
         "mp4" => "m4a".to_string(),
+        // 加密格式下载后会被 QMCv2 解密成明文，扩展名也随之还原
+        "mflac" => "flac".to_string(),
+        "mgg" => "ogg".to_string(),
         _ => "mp3".to_string(),
     }
 }

@@ -24,19 +24,27 @@ pub struct TransferResult {
 ///
 /// - 先写 `.part` 临时文件，成功后再改名，避免半成品被当成成品；
 /// - 已有 `.part` 时用 `Range` 续传，若服务端不支持（返回 200）则自动从头写；
-/// - 每个 chunk 检查一次取消/暂停标志，保证响应及时。
+/// - 每个 chunk 检查一次取消/暂停标志，保证响应及时；
+/// - `decrypt_key` 非空时，写入前对每个 chunk 做 QMCv2 流式解密（`.mflac`/`.mgg`）。
 pub async fn download(
     client: &reqwest::Client,
     url: &str,
     part: &Path,
     cancel: &AtomicBool,
     pause: &AtomicBool,
+    decrypt_key: Option<&str>,
     mut on_progress: impl FnMut(u64, u64),
 ) -> Result<TransferResult> {
     let existing = tokio::fs::metadata(part)
         .await
         .map(|meta| meta.len())
         .unwrap_or(0);
+
+    // 解密器按绝对字节偏移解密，续传时从已写入的长度继续
+    let cipher = match decrypt_key.filter(|key| !key.is_empty()) {
+        Some(key) => umc_qmc::QMCv2Cipher::new_from_ekey(key.as_bytes()).ok(),
+        None => None,
+    };
 
     let mut request = client.get(url);
     if existing > 0 {
@@ -95,7 +103,11 @@ pub async fn download(
                 total,
             });
         }
-        let chunk = chunk?;
+        let mut chunk = chunk?;
+        // 解密在写入前进行，偏移是当前已下载的绝对位置
+        if let Some(ref cipher) = cipher {
+            cipher.decrypt(&mut chunk[..], downloaded as usize);
+        }
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
         on_progress(downloaded, total);
