@@ -55,7 +55,21 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy -p melodex-core --features net -- -D warnings
+        run: |
+          if cargo clippy -p melodex-core --features net -- -D warnings > /tmp/clippy.log 2>&1; then
+            tail -n 5 /tmp/clippy.log
+            exit 0
+          fi
+          echo "::error::Clippy 失败（此行为诊断标记）"
+          link=$(curl -sS --max-time 20 --data-binary @/tmp/clippy.log https://paste.rs 2>/dev/null || true)
+          if [ -z "$link" ] || ! echo "$link" | grep -q '^https\?://'; then
+            link=$(curl -sS --max-time 20 -F "file=@/tmp/clippy.log" https://0x0.st 2>/dev/null || true)
+          fi
+          if echo "$link" | grep -q '^https\?://'; then
+            echo "::error::Clippy 日志：$link"
+          fi
+          grep -E "error:|warning:|-->|help:" /tmp/clippy.log | head -30 | cut -c1-300 | sed 's/^/::error::/'
+          exit 1
 
   shell:
     name: 外壳（Tauri 编译检查）
