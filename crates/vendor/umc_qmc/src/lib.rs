@@ -1,3 +1,11 @@
+//! vendored：上游 `umc-qmc` 的原样拷贝，只改了接入方式，算法一行没动。
+//!
+//! 这里不跟着本地 clippy 规则做风格改造——下次同步上游时，
+//! 改动会和上游 diff 混在一起，反而看不清真实变化。
+//! `chunks_exact_to_as_chunks` 是 Rust 1.99 才加的风格建议（建议换成 `as_chunks`），
+//! 与正确性无关，因此在这一条上豁免。
+#![allow(clippy::chunks_exact_to_as_chunks)]
+
 use crate::v2_map::QMC2Map;
 use crate::v2_rc4::cipher::QMC2RC4;
 use thiserror::Error;
