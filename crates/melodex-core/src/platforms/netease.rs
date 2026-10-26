@@ -12,7 +12,7 @@ use crate::quality::{Quality, QualityLevel};
 
 const ORIGIN: &str = "https://music.163.com";
 /// 播放直链的附加请求头（本地代理用）。
-const STREAM_HEADERS: &[(&'static str, &'static str)] = &[("Referer", ORIGIN)];
+const STREAM_HEADERS: &[(&str, &str)] = &[("Referer", ORIGIN)];
 
 /// 网易云音乐：搜索 / 播放链接 / 歌词 / 歌单全部走公开 Web 接口。
 pub struct Netease {
