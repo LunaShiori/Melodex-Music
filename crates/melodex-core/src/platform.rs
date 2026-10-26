@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 
 use crate::error::{Error, Result};
-use crate::model::{Lyric, PlayUrl, PlaylistDetail, SearchPage, Source, Variant};
+use crate::model::{Lyric, PlayUrl, PlaylistDetail, PlaylistSummary, SearchPage, Source, Variant};
 use crate::net::Net;
 use crate::quality::{self, Quality};
 
@@ -82,6 +82,11 @@ pub trait MusicPlatform: Send + Sync {
 
     async fn playlist(&self, _id: &str) -> Result<Option<PlaylistDetail>> {
         Ok(None)
+    }
+
+    /// 当前登录账号的歌单列表（自建 + 收藏）。未登录时返回 `Reason::NeedLogin`。
+    async fn my_playlists(&self) -> Result<Vec<PlaylistSummary>> {
+        Ok(Vec::new())
     }
 
     /// 该音源支持的音质档位，从高到低。默认取 [`quality::table`] 里的静态表。

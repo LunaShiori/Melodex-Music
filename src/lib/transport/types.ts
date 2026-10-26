@@ -6,6 +6,8 @@ import type {
   EnqueueInput,
   Lyric,
   PlatformQuality,
+  PlaylistDetail,
+  PlaylistSummary,
   PlayUrl,
   QrPoll,
   QrTicket,
@@ -45,6 +47,10 @@ export interface Transport {
   /** 各音源的音质档位表（名称与规格由后端唯一维护） */
   platformQualities(): Promise<PlatformQuality[]>
   lyric(ref: { source: SourceId; id: string }): Promise<Lyric | null>
+  /** 当前登录账号的歌单列表；不传 sources 则查全部平台 */
+  myPlaylists(sources?: SourceId[]): Promise<PlaylistSummary[]>
+  /** 拉某个歌单的曲目 */
+  playlist(ref: { source: SourceId; id: string }): Promise<PlaylistDetail | null>
   enqueue(inputs: EnqueueInput[]): Promise<string[]>
   tasks(): Promise<DownloadTask[]>
   pause(id: string): Promise<void>

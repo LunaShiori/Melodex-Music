@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use melodex_core::vault::{Account, AccountInfo, Opened, Vault, VaultData, MIN_PIN_LEN};
 use melodex_core::{
     AggregatedPage, Aggregator, CredStore, DownloadEngine, EnqueueInput, Lyric, PlaylistDetail,
-    Registry, Settings, Source, Variant,
+    PlaylistSummary, Registry, Settings, Source, Variant,
 };
 use tauri::{Emitter, Manager, State};
 
@@ -342,6 +342,40 @@ async fn playlist(
     let source = parse_source(&source)?;
     let platform = state.registry.get(source).map_err(|err| err.to_string())?;
     platform.playlist(&id).await.map_err(|err| err.to_string())
+}
+
+/// 「我的歌单」：当前登录账号在各平台的歌单列表。
+///
+/// 单个平台失败不影响其它平台——界面上分平台展示，某个平台掉线时
+/// 只让那一页显示错误，而不是整页空白。
+#[tauri::command]
+async fn my_playlists(
+    state: State<'_, AppState>,
+    sources: Option<Vec<String>>,
+) -> Result<Vec<PlaylistSummary>, String> {
+    let targets: Vec<Source> = match sources {
+        Some(list) => list
+            .iter()
+            .filter_map(|raw| parse_source(raw).ok())
+            .collect(),
+        None => Source::ALL.to_vec(),
+    };
+    let mut out: Vec<PlaylistSummary> = Vec::new();
+    for source in targets {
+        let Ok(platform) = state.registry.get(source) else {
+            continue;
+        };
+        match platform.my_playlists().await {
+            Ok(list) => out.extend(list),
+            Err(err) => {
+                // 未登录/无权限是预期内的情况，静默跳过；其余打日志便于排查
+                if err.reason() != Some(melodex_core::Reason::NeedLogin) {
+                    eprintln!("Melodex: 拉取 {} 歌单失败：{err}", source.id());
+                }
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// 入队。
@@ -886,41 +920,84 @@ fn default_download_dir(app: tauri::AppHandle) -> String {
         .to_string()
 }
 
+/// 在系统文件管理器里定位一个文件。
+///
+/// 之前直接拼 `explorer /select,{path}`，两个坑：
+/// 1. 路径含空格时 `Command` 会再套一层引号，变成 `"/select,"C:\a b\c.mp3""`，
+///    Explorer 解析失败后会打开默认目录（用户看到的就是「都指向文档文件夹」）；
+/// 2. 文件已被移动/删除时同样静默失败。
+///
+/// 所以这里改用 `raw_arg` 原样拼命令行，路径不存在时退化为打开所在目录，
+/// 目录也不存在才报错——让界面能明确告诉用户文件已经不在了。
 #[tauri::command]
 fn reveal_path(path: String) -> Result<(), String> {
+    let raw = path.trim().trim_matches('"').to_string();
+    if raw.is_empty() {
+        return Err("这条记录没有保存文件路径".to_string());
+    }
+    let target = std::path::PathBuf::from(&raw);
+    let file_exists = target.is_file();
+
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
+        // raw_arg 不额外加引号，整段命令行由我们自己拼
+        let argument = if file_exists {
+            format!("/select,\"{}\"", target.display())
+        } else {
+            let dir = target
+                .parent()
+                .filter(|dir| dir.is_dir())
+                .map(|dir| dir.to_path_buf())
+                .ok_or_else(|| {
+                    format!("文件已不存在（可能被移动或删除）：{raw}")
+                })?;
+            format!("\"{}\"", dir.display())
+        };
+        // explorer 即使成功也常返回 1，这里不检查退出码
         std::process::Command::new("explorer")
-            .arg(format!("/select,{path}"))
+            .raw_arg(argument)
             .spawn()
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| format!("无法打开文件管理器：{err}"))?;
         return Ok(());
     }
     #[cfg(target_os = "macos")]
     {
+        if !file_exists {
+            return Err(format!("文件已不存在（可能被移动或删除）：{raw}"));
+        }
         std::process::Command::new("open")
-            .args(["-R", &path])
+            .args(["-R", &raw])
             .spawn()
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| format!("无法打开访达：{err}"))?;
         return Ok(());
     }
     #[cfg(target_os = "linux")]
     {
-        let parent = std::path::Path::new(&path)
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or(path.clone());
+        let dir = if file_exists {
+            target
+                .parent()
+                .map(|dir| dir.to_string_lossy().to_string())
+                .unwrap_or(raw.clone())
+        } else {
+            target
+                .parent()
+                .filter(|dir| dir.is_dir())
+                .map(|dir| dir.to_string_lossy().to_string())
+                .ok_or_else(|| format!("文件已不存在（可能被移动或删除）：{raw}"))?
+        };
         std::process::Command::new("xdg-open")
-            .arg(parent)
+            .arg(dir)
             .spawn()
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| format!("无法打开文件管理器：{err}"))?;
         return Ok(());
     }
     // Android / iOS 没有"文件管理器定位"这一概念：把错误抛给前端，
     // 由界面提示用户在「本地曲库」里直接播放或分享。
     #[allow(unreachable_code)]
     {
-        let _ = path;
+        let _ = file_exists;
+        let _ = target;
         Err("当前平台不支持打开文件所在目录，请到「本地曲库」中操作".to_string())
     }
 }
@@ -1004,6 +1081,7 @@ pub fn run() {
             resolve,
             lyric,
             playlist,
+            my_playlists,
             enqueue,
             list_tasks,
             pause_task,

@@ -23,6 +23,8 @@ pub mod platform;
 #[cfg(feature = "net")]
 pub mod platforms;
 pub mod pseudo_json;
+/// QQ 文件名候选拼装：纯逻辑，不依赖网络层，便于单独测试
+pub mod qq_file;
 pub mod qr;
 /// 音质档位表。纯数据、无网络依赖，所有平台与界面共用这一份。
 pub mod quality;
@@ -40,8 +42,8 @@ pub use aggregator::Aggregator;
 pub use download::engine::{DownloadEngine, EngineEvent, EnqueueInput, Notice, NoticeLevel};
 pub use error::{Error, Reason, Result};
 pub use model::{
-    AggregatedPage, Fee, Lyric, PlayUrl, PlaylistDetail, SearchPage, Source, SourceReport, Track,
-    Variant,
+    AggregatedPage, Fee, Lyric, PlayUrl, PlaylistDetail, PlaylistSummary, SearchPage, Source,
+    SourceReport, Track, Variant,
 };
 #[cfg(feature = "net")]
 pub use platform::{CredStore, MusicPlatform, Registry, SearchQuery};

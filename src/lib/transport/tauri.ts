@@ -9,6 +9,8 @@ import type {
   EnqueueInput,
   Lyric,
   PlatformQuality,
+  PlaylistDetail,
+  PlaylistSummary,
   PlayUrl,
   QrPoll,
   QrTicket,
@@ -50,6 +52,14 @@ export function createTauriTransport(): Transport {
 
     lyric(ref: { source: SourceId; id: string }) {
       return invoke<Lyric | null>('lyric', { source: ref.source, id: ref.id })
+    },
+
+    myPlaylists(sources?: SourceId[]) {
+      return invoke<PlaylistSummary[]>('my_playlists', { sources: sources ?? null })
+    },
+
+    playlist(ref: { source: SourceId; id: string }) {
+      return invoke<PlaylistDetail | null>('playlist', { source: ref.source, id: ref.id })
     },
 
     enqueue(inputs: EnqueueInput[]) {

@@ -268,6 +268,19 @@ pub struct PlaylistDetail {
     pub items: Vec<Variant>,
 }
 
+/// 「我的歌单」列表项。只是一个摘要，点进去再用 [`PlaylistDetail`] 拉曲目。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaylistSummary {
+    pub source: Source,
+    pub id: String,
+    pub name: String,
+    pub cover: Option<String>,
+    pub track_count: u64,
+    /// 创建者昵称：收藏别人的歌单时会显示原作者
+    pub creator: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Lyric {

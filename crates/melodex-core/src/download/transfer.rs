@@ -103,11 +103,18 @@ pub async fn download(
                 total,
             });
         }
-        let mut chunk = chunk?;
-        // 解密在写入前进行，偏移是当前已下载的绝对位置
-        if let Some(ref cipher) = cipher {
-            cipher.decrypt(&mut chunk[..], downloaded as usize);
-        }
+        let bytes = chunk?;
+        // 解密在写入前进行，偏移是当前已下载的绝对位置。
+        // QMCv2 是流式的，chunk 边界任意都不影响结果，`decrypt` 内部会按段切分。
+        // `bytes::Bytes` 是共享不可变的，解密需要可变切片，所以先拷一份。
+        let chunk = match cipher {
+            Some(ref cipher) => {
+                let mut buf = bytes.to_vec();
+                cipher.decrypt(&mut buf[..], downloaded as usize);
+                buf
+            }
+            None => bytes.to_vec(),
+        };
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
         on_progress(downloaded, total);

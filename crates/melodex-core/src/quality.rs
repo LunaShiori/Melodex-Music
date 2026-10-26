@@ -195,10 +195,31 @@ pub const NETEASE: &[Quality] = &[
 
 /// QQ 音乐：`code` 是 `CgiGetVkey` 的文件名前缀，`format` 是文件扩展名。
 ///
-/// 无损及以上的真实文件是加密的 `.mflac`（文件名前缀 `F0M0` / `RSM1`），
-/// 取链接时服务端返回 `ekey`，下载后需 QMCv2 解密。
-/// 服务端对没权限的档位回 `result=101404`，引擎据此继续降级。
+/// 真实文件名分两种拼法（见 `platforms::qq`）：
+/// - 用媒体 mid：`M500`/`M800`/`F0M0`/`RSM1` + `media_mid`
+/// - 用 `vs` 数组的专用下标：`AIM0`（臻品母带）取 `vs[3]`、`Q0M0`（全景声）取 `vs[4]`
+///
+/// 无损及以上是加密的 `.mflac`，取链接时服务端返回 `ekey`，下载后需 QMCv2 解密。
+/// 服务端对当前账号没权限的档位回 `result=101404`，引擎据此继续降级。
 pub const QQ: &[Quality] = &[
+    q(
+        "AIM0",
+        "臻品母带",
+        "FLAC 24bit/192kHz",
+        QualityLevel::Master,
+        3_000,
+        "mflac",
+        true,
+    ),
+    q(
+        "Q0M0",
+        "臻品全景声",
+        "FLAC 多声道",
+        QualityLevel::Master,
+        2_800,
+        "mflac",
+        true,
+    ),
     q(
         "RSM1",
         "Hi-Res 无损",
@@ -364,8 +385,10 @@ pub fn catalog() -> Vec<PlatformQuality> {
 fn note_of(source: Source) -> &'static str {
     match source {
         Source::Netease => "登录后可用无损及以上；超清母带需要会员账号",
-        Source::Qq => "无损及以上需要会员；未登录只能取到标准音质",
-        Source::Kuwo => "该接口只提供标准音质，选更高档位会自动落到这里",
+        Source::Qq => {
+            "登录后按账号权益取最高档：普通账号到 320k，绿钻到 SQ 无损，超级会员可试臻品母带/全景声"
+        }
+        Source::Kuwo => "母带/全景声需要酷我会员账号；未登录多数歌曲只能取到 320k",
     }
 }
 
@@ -379,11 +402,22 @@ mod tests {
             let table = table(source);
             assert!(!table.is_empty(), "{source} 的档位表不能为空");
             for pair in table.windows(2) {
+                // 等级允许并列：同一平台可能有两档同属「母带级」
+                // （QQ 的臻品母带 / 全景声、酷我的母带 / 5.1 全景声）。
                 assert!(
-                    pair[0].level > pair[1].level,
-                    "{source} 档位必须从高到低且不重复：{:?} / {:?}",
+                    pair[0].level >= pair[1].level,
+                    "{source} 档位必须从高到低：{:?} / {:?}",
                     pair[0].label,
                     pair[1].label
+                );
+                // 归一化码率必须在平台内严格递减，界面排序与「音质」列靠它
+                assert!(
+                    pair[0].bitrate > pair[1].bitrate,
+                    "{source} 档位码率必须严格从高到低：{:?}({}) / {:?}({})",
+                    pair[0].label,
+                    pair[0].bitrate,
+                    pair[1].label,
+                    pair[1].bitrate
                 );
             }
         }
@@ -391,15 +425,15 @@ mod tests {
 
     #[test]
     fn find_caps_at_platform_ceiling() {
-        // 酷我没有无损，要 master 也只能拿到它唯一的那档
+        // 酷我有母带档，要 master 就给母带
         let found = find(Source::Kuwo, QualityLevel::Master).unwrap();
-        assert_eq!(found.level, QualityLevel::Standard);
-        // QQ 有母带，要 master 就给母带
+        assert_eq!(found.level, QualityLevel::Master);
+        // QQ 也有母带档（臻品母带）
         assert_eq!(
             find(Source::Qq, QualityLevel::Master).unwrap().level,
             QualityLevel::Master
         );
-        // 要 192k（较高）时 QQ 没有这一档，应落到不高于它的最高档
+        // 要 192k（较高）时 QQ 没有这一档，应落到不高于它的最高档（标准）
         assert_eq!(
             find(Source::Qq, QualityLevel::High).unwrap().level,
             QualityLevel::Standard

@@ -116,6 +116,26 @@ export interface Lyric {
   translation: string | null
 }
 
+/** 「我的歌单」列表项（摘要，不含曲目） */
+export interface PlaylistSummary {
+  source: SourceId
+  id: string
+  name: string
+  cover: string | null
+  trackCount: number
+  creator: string | null
+}
+
+/** 歌单详情：点进去才拉曲目 */
+export interface PlaylistDetail {
+  source: SourceId
+  id: string
+  name: string
+  cover: string | null
+  total: number
+  items: Variant[]
+}
+
 export type TaskState =
   | 'queued'
   | 'resolving'

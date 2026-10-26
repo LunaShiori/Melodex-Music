@@ -216,6 +216,7 @@ pub fn pick_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
 }
 
 /// 去掉文件名里的路径部分，防止服务端返回 `../../x.exe` 这类名字。
+#[cfg_attr(not(feature = "net"), allow(dead_code))]
 fn safe_file_name(name: &str) -> String {
     let base = name
         .rsplit(['/', '\\'])
@@ -238,6 +239,7 @@ fn safe_file_name(name: &str) -> String {
 /// 按原始 URL 的字节偏移进行，换源后可以接着下。
 ///
 /// 前缀约定：`{url}` 会被替换成原始的 `browser_download_url`。
+#[cfg_attr(not(feature = "net"), allow(dead_code))]
 const ACCELERATE_PREFIXES: &[&str] = &[
     "https://mirror.ghproxy.com/",
     "https://ghproxy.net/",
@@ -250,6 +252,7 @@ const ACCELERATE_PREFIXES: &[&str] = &[
 ///
 /// 只有 GitHub 域名的地址才套代理（自建清单 / 其它 CDN 的 URL 直接原样返回，
 /// 避免把非 GitHub 链接也发给第三方）。直连排在最前，代理兜底在后。
+#[cfg_attr(not(feature = "net"), allow(dead_code))]
 fn build_candidate_urls(original: &str) -> Vec<String> {
     let mut urls = vec![original.to_string()];
     // 仅对 github.com / objects.githubusercontent.com 的资产启用代理

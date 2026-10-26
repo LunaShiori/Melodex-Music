@@ -600,29 +600,6 @@ onMounted(async () => {
   color: var(--text-2);
 }
 
-.segmented {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
-}
-.segmented button {
-  height: 26px;
-  padding: 0 11px;
-  border-radius: 7px;
-  font-size: 12px;
-  color: var(--text-2);
-  transition: all var(--dur) var(--ease);
-  white-space: nowrap;
-}
-.segmented button.on {
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 500;
-  box-shadow: var(--shadow-sm);
-}
-
 .chip {
   cursor: pointer;
 }

@@ -12,6 +12,7 @@ const items = [
   { name: 'search', path: '/search', label: '搜索', icon: 'search' },
   { name: 'downloads', path: '/downloads', label: '下载', icon: 'download' },
   { name: 'library', path: '/library', label: '曲库', icon: 'library' },
+  { name: 'playlists', path: '/playlists', label: '歌单', icon: 'queue' },
   { name: 'settings', path: '/settings', label: '设置', icon: 'settings' },
 ]
 
@@ -24,7 +25,7 @@ const activeIndex = computed(() => {
 
 <template>
   <nav class="tabbar">
-    <div class="glass">
+    <div class="glass" :style="{ '--count': items.length }">
       <span class="pill" :style="{ '--i': activeIndex }" aria-hidden="true" />
       <RouterLink
         v-for="(item, index) in items"
@@ -62,7 +63,8 @@ const activeIndex = computed(() => {
   .glass {
     position: relative;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* 标签页数量由模板里的 --count 传入，增删导航项不用再改样式 */
+    grid-template-columns: repeat(var(--count, 4), 1fr);
     padding: 5px;
     border-radius: 24px;
     background: color-mix(in srgb, var(--surface) 52%, transparent);
@@ -93,7 +95,7 @@ const activeIndex = computed(() => {
     top: 5px;
     bottom: 5px;
     left: 5px;
-    width: calc((100% - 10px) / 4);
+    width: calc((100% - 10px) / var(--count, 4));
     border-radius: 19px;
     background: color-mix(in srgb, var(--accent) 16%, transparent);
     border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);

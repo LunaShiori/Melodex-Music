@@ -6,6 +6,8 @@ import type {
   EnqueueInput,
   Lyric,
   PlatformQuality,
+  PlaylistDetail,
+  PlaylistSummary,
   PlayUrl,
   QrPoll,
   QrTicket,
@@ -176,11 +178,12 @@ const DEMO_QUALITIES: PlatformQuality[] = [
   {
     source: 'qq',
     label: 'QQ 音乐',
-    note: '无损及以上需要会员；未登录只能取到标准音质',
+    note: '登录后按账号权益取最高档：普通账号到 320k，绿钻到 SQ 无损，超级会员可试臻品母带/全景声',
     items: [
-      { code: 'AI00', label: '臻品母带', detail: 'FLAC 24bit/192kHz', level: 'master', bitrate: 3000, format: 'flac', vip: true },
-      { code: 'RS01', label: 'Hi-Res 无损', detail: 'FLAC 24bit/96kHz', level: 'hiRes', bitrate: 2000, format: 'flac', vip: true },
-      { code: 'F000', label: 'SQ 无损', detail: 'FLAC 44.1kHz', level: 'lossless', bitrate: 1000, format: 'flac', vip: true },
+      { code: 'AIM0', label: '臻品母带', detail: 'FLAC 24bit/192kHz', level: 'master', bitrate: 3000, format: 'mflac', vip: true },
+      { code: 'Q0M0', label: '臻品全景声', detail: 'FLAC 多声道', level: 'master', bitrate: 2800, format: 'mflac', vip: true },
+      { code: 'RSM1', label: 'Hi-Res 无损', detail: 'FLAC 24bit/96kHz', level: 'hiRes', bitrate: 2000, format: 'mflac', vip: true },
+      { code: 'F0M0', label: 'SQ 无损', detail: 'FLAC 44.1kHz', level: 'lossless', bitrate: 1000, format: 'mflac', vip: true },
       { code: 'M800', label: 'HQ 高品质', detail: 'MP3 320kbps', level: 'exquisite', bitrate: 320, format: 'mp3', vip: false },
       { code: 'M500', label: '标准音质', detail: 'MP3 128kbps', level: 'standard', bitrate: 128, format: 'mp3', vip: false },
     ],
@@ -188,12 +191,30 @@ const DEMO_QUALITIES: PlatformQuality[] = [
   {
     source: 'kuwo',
     label: '酷我音乐',
-    note: '该接口只提供标准音质，选更高档位会自动落到这里',
+    note: '母带/全景声需要酷我会员账号；未登录多数歌曲只能取到 320k',
     items: [
-      { code: '128kmp3', label: '标准音质', detail: 'MP3 128kbps（该接口上限）', level: 'standard', bitrate: 128, format: 'mp3', vip: false },
+      { code: '20900', label: '臻品母带', detail: 'FLAC 24bit/192kHz', level: 'master', bitrate: 3000, format: 'mflac', vip: true },
+      { code: '20501', label: '臻品全景声 5.1', detail: 'FLAC 多声道', level: 'master', bitrate: 2800, format: 'mflac', vip: true },
+      { code: '20201', label: '臻品全景声', detail: 'FLAC 多声道', level: 'hiRes', bitrate: 2500, format: 'mflac', vip: true },
+      { code: '2000', label: '无损音质', detail: 'FLAC 44.1kHz', level: 'lossless', bitrate: 1000, format: 'flac', vip: true },
+      { code: '320', label: '高品质', detail: 'MP3 320kbps', level: 'exquisite', bitrate: 320, format: 'mp3', vip: false },
+      { code: '128', label: '标准音质', detail: 'MP3 128kbps', level: 'standard', bitrate: 128, format: 'mp3', vip: false },
+      { code: '48', label: '流畅音质', detail: 'AAC 48kbps', level: 'standard', bitrate: 48, format: 'aac', vip: false },
     ],
   },
 ]
+
+/** 演示模式的「我的歌单」：分平台各给两个，方便看分组效果 */
+const DEMO_PLAYLISTS: PlaylistSummary[] = [
+  { source: 'netease', id: 'demo-ne-1', name: '我喜欢的音乐', cover: null, trackCount: 128, creator: '我' },
+  { source: 'netease', id: 'demo-ne-2', name: '华语流行精选', cover: null, trackCount: 46, creator: '我' },
+  { source: 'netease', id: 'demo-ne-3', name: '深夜车载', cover: null, trackCount: 32, creator: '收藏的歌单' },
+  { source: 'qq', id: 'demo-qq-1', name: '默认收藏', cover: null, trackCount: 87, creator: '我' },
+  { source: 'qq', id: 'demo-qq-2', name: '周杰伦全收录', cover: null, trackCount: 63, creator: '我' },
+]
+
+/** 歌单详情用的曲目池（按平台筛出对应的 variant） */
+const DEMO_DETAIL_TRACKS: Variant[] = TRACKS.flatMap((track) => track.variants)
 
 const DEFAULT_SETTINGS: Settings = {
   downloadDir: 'Music/Melodex',
@@ -388,6 +409,29 @@ export function createDemoTransport(): Transport {
       return { lrc: DEMO_LYRIC, translation: null }
     },
 
+    async myPlaylists(sources?: SourceId[]): Promise<PlaylistSummary[]> {
+      await new Promise((resolve) => setTimeout(resolve, 120))
+      const wanted: SourceId[] = sources?.length ? sources : [...ALL_SOURCES]
+      return DEMO_PLAYLISTS.filter((item) => wanted.includes(item.source))
+    },
+
+    async playlist(ref: { source: SourceId; id: string }): Promise<PlaylistDetail | null> {
+      await new Promise((resolve) => setTimeout(resolve, 140))
+      const summary = DEMO_PLAYLISTS.find(
+        (item) => item.source === ref.source && item.id === ref.id,
+      )
+      if (!summary) return null
+      const items = DEMO_DETAIL_TRACKS.filter((variant) => variant.source === ref.source)
+      return {
+        source: ref.source,
+        id: ref.id,
+        name: summary.name,
+        cover: summary.cover,
+        total: items.length,
+        items,
+      }
+    },
+
     async enqueue(inputs: EnqueueInput[]) {
       const ids: string[] = []
       inputs.forEach((input, index) => {
@@ -511,7 +555,7 @@ export function createDemoTransport(): Transport {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))
       return {
-        current: '1.0.0',
+        current: '1.0.1',
         latest: 'v0.6.1',
         available: true,
         notes:

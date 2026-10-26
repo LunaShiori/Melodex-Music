@@ -75,6 +75,8 @@ export const usePlayerStore = defineStore('player', () => {
   const error = ref<PlayerError | null>(null)
   /** 本次播放是否已经退到代理地址，避免同一个错误反复重试 */
   let triedProxy = false
+  /** 歌词请求序号，用于丢弃「切歌之后才回来的」过期结果 */
+  let lyricToken = 0
 
   const audio = typeof Audio !== 'undefined' ? new Audio() : null
   const isDemo = transport.mode === 'demo'
@@ -134,14 +136,22 @@ export const usePlayerStore = defineStore('player', () => {
     }, 250)
   }
 
+  /**
+   * 拉当前这首歌的歌词。
+   *
+   * 用递增 token 做「后发先至」保护：快速切歌时先发出的请求可能后回来，
+   * 不加保护就会把上一首的歌词盖到当前这首上——表现就是「歌词跟歌对不上」。
+   */
   async function loadLyric(target: Variant) {
+    const token = ++lyricToken
     lyricLines.value = []
     try {
       const result = await transport.lyric({ source: target.source, id: target.id })
+      if (token !== lyricToken) return
       if (!result) return
       lyricLines.value = mergeTranslation(parseLrc(result.lrc), result.translation)
     } catch {
-      lyricLines.value = []
+      if (token === lyricToken) lyricLines.value = []
     }
   }
 
@@ -207,7 +217,14 @@ export const usePlayerStore = defineStore('player', () => {
     position.value = 0
     error.value = null
     loading.value = true
-    lyricLines.value = []
+    // 本地文件本身不带歌词，但仍然知道它来自哪个平台的哪首歌，
+    // 所以照样去源站拉一次——否则从曲库起播时歌词区会一直是上一首的残留。
+    if (variant.value) {
+      void loadLyric(variant.value)
+    } else {
+      lyricLines.value = []
+      lyricToken += 1
+    }
     if (isDemo || !src) {
       loading.value = false
       playing.value = true

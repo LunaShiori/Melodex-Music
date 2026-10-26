@@ -5,7 +5,9 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
 use crate::error::{Error, Reason, Result};
-use crate::model::{Fee, Lyric, PlayUrl, PlaylistDetail, SearchPage, Source, Variant};
+use crate::model::{
+    Fee, Lyric, PlayUrl, PlaylistDetail, PlaylistSummary, SearchPage, Source, Variant,
+};
 use crate::net::Net;
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::quality::{Quality, QualityLevel};
@@ -256,6 +258,41 @@ impl MusicPlatform for Netease {
             items,
         }))
     }
+
+    async fn my_playlists(&self) -> Result<Vec<PlaylistSummary>> {
+        let Some(cookie) = self.cookie_header() else {
+            return Err(Error::unavailable(Source::Netease, Reason::NeedLogin));
+        };
+        let mut headers = self.headers();
+        headers.push(("Cookie", cookie.as_str()));
+
+        // 账号接口能直接给出 profile.userId，省去从 Cookie 里猜 uid 的麻烦。
+        let account: RawAccount = self
+            .net
+            .json(&format!("{ORIGIN}/api/nuser/account/get"), &headers)
+            .await?;
+        let uid = account
+            .profile
+            .and_then(|profile| profile.user_id)
+            .ok_or_else(|| Error::unavailable(Source::Netease, Reason::NeedLogin))?;
+
+        let url = format!("{ORIGIN}/api/user/playlist?uid={uid}&limit=200&offset=0");
+        let raw: RawUserPlaylists = self.net.json(&url, &headers).await?;
+        Ok(raw
+            .playlist
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|item| !item.id.is_empty() && !item.name.is_empty())
+            .map(|item| PlaylistSummary {
+                source: Source::Netease,
+                id: item.id,
+                name: item.name,
+                cover: item.cover_img_url,
+                track_count: item.track_count.unwrap_or(0),
+                creator: item.creator.map(|creator| creator.nickname),
+            })
+            .collect())
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -404,6 +441,60 @@ struct RawPlaylistBody {
     track_count: Option<u64>,
     #[serde(default)]
     tracks: Option<Vec<RawSong>>,
+}
+
+/// `/api/nuser/account/get`：确认登录态并拿到 uid。
+#[derive(Debug, Deserialize)]
+struct RawAccount {
+    #[serde(default)]
+    profile: Option<RawProfile>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawProfile {
+    #[serde(default, rename = "userId")]
+    user_id: Option<u64>,
+}
+
+/// `/api/user/playlist`：当前账号的自建 + 收藏歌单。
+#[derive(Debug, Deserialize)]
+struct RawUserPlaylists {
+    #[serde(default)]
+    playlist: Option<Vec<RawUserPlaylist>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawUserPlaylist {
+    /// 歌单 id 在 JSON 里既可能是数字也可能被转成字符串，统一按字符串读
+    #[serde(default, deserialize_with = "id_as_string")]
+    id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default, rename = "coverImgUrl")]
+    cover_img_url: Option<String>,
+    #[serde(default, rename = "trackCount")]
+    track_count: Option<u64>,
+    #[serde(default)]
+    creator: Option<RawCreator>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawCreator {
+    #[serde(default)]
+    nickname: String,
+}
+
+fn id_as_string<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::Number(number) => number.to_string(),
+        serde_json::Value::String(text) => text,
+        _ => String::new(),
+    })
 }
 
 /// 网易云的 fee 位含义：0 免费、1 会员、4 付费专辑、8 低音质免费。

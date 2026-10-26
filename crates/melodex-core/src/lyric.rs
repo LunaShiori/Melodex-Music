@@ -68,6 +68,52 @@ fn parse_stamp(tag: &str) -> Option<u64> {
     Some(minutes * 60_000 + seconds * 1_000 + millis)
 }
 
+/// 还原歌词文本里的 HTML 实体。
+///
+/// QQ 音乐的歌词接口会把时间轴里的冒号、换行写成数字实体（`&#58;`、`&#10;`），
+/// 不还原的话整份 LRC 会被解析成一堆取不到时间戳的垃圾行。
+pub fn unescape_entities(raw: &str) -> String {
+    if !raw.contains('&') {
+        return raw.to_string();
+    }
+    let mut out = String::with_capacity(raw.len());
+    let mut rest = raw;
+    while let Some(index) = rest.find('&') {
+        out.push_str(&rest[..index]);
+        let tail = &rest[index..];
+        // 找最近的 `;`，中间的词就是实体名；解析失败就把它当普通字符吐出去
+        let parsed = tail.find(';').and_then(|end| {
+            let entity = &tail[1..end];
+            let ch = if let Some(number) = entity.strip_prefix('#') {
+                number.parse::<u32>().ok().and_then(char::from_u32)
+            } else {
+                match entity {
+                    "amp" => Some('&'),
+                    "lt" => Some('<'),
+                    "gt" => Some('>'),
+                    "quot" => Some('"'),
+                    "apos" => Some('\''),
+                    "nbsp" => Some(' '),
+                    _ => None,
+                }
+            };
+            ch.map(|ch| (ch, end + 1))
+        });
+        match parsed {
+            Some((ch, consumed)) => {
+                out.push(ch);
+                rest = &tail[consumed..];
+            }
+            None => {
+                out.push('&');
+                rest = &tail[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// 把翻译歌词按时间点并入主歌词。
 pub fn merge_translation(lines: &mut [LyricLine], translation: &str) {
     let translated = parse_lrc(translation);
@@ -163,5 +209,21 @@ mod tests {
         let lines = parse_lrc("[00:12.34]故事的小黄花");
         let text = to_lrc(&lines, false);
         assert_eq!(text.trim(), "[00:12.34]故事的小黄花");
+    }
+
+    #[test]
+    fn unescapes_entities() {
+        // QQ 的 LRC 里冒号/换行常被写成数字实体
+        assert_eq!(unescape_entities("[00&#58;12.00]hi"), "[00:12.00]hi");
+        assert_eq!(unescape_entities("a&#10;b"), "a\nb");
+        assert_eq!(unescape_entities("A &amp; B"), "A & B");
+        assert_eq!(unescape_entities("no entity"), "no entity");
+        // 不完整的实体保持原样，不能吞字符
+        assert_eq!(unescape_entities("50% & more"), "50% & more");
+        assert_eq!(unescape_entities("&unknown;"), "&unknown;");
+        // 还原之后要能被 LRC 解析器正常吃掉
+        let lines = parse_lrc(&unescape_entities("[00&#58;01.00]a"));
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].time_ms, 1_000);
     }
 }
