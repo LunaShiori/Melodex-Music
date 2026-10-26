@@ -27,6 +27,25 @@ pub enum ThemeMode {
     System,
 }
 
+/// 界面强调色（主题色）。与明暗主题正交，用户可以自由组合。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Accent {
+    /// 紫罗兰（默认）
+    #[default]
+    Violet,
+    /// 靛蓝
+    Indigo,
+    /// 青碧
+    Teal,
+    /// 玫红
+    Rose,
+    /// 琥珀
+    Amber,
+    /// 翠绿
+    Green,
+}
+
 /// 全部可配置项。前端设置页与该结构一一对应，改动即持久化。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -69,6 +88,8 @@ pub struct Settings {
     pub duplicate_policy: DuplicatePolicy,
     /// 界面主题
     pub theme: ThemeMode,
+    /// 界面强调色（主题色）
+    pub accent: Accent,
     /// 启用的音源
     pub sources: Vec<Source>,
 }
@@ -92,6 +113,7 @@ impl Default for Settings {
             save_lyric: true,
             duplicate_policy: DuplicatePolicy::KeepBoth,
             theme: ThemeMode::System,
+            accent: Accent::Violet,
             sources: Source::ALL.to_vec(),
         }
     }
@@ -258,5 +280,14 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         assert!(!json.contains("fallbackBitrates"));
         assert!(json.contains("\"schema\":2"));
+    }
+
+    #[test]
+    fn accent_serializes_lowercase_and_defaults_to_violet() {
+        let settings: Settings = serde_json::from_str(r#"{"accent":"teal"}"#).unwrap();
+        assert_eq!(settings.accent, Accent::Teal);
+        assert_eq!(Settings::default().accent, Accent::Violet);
+        let json = serde_json::to_string(&Settings::default()).unwrap();
+        assert!(json.contains("\"accent\":\"violet\""), "{json}");
     }
 }

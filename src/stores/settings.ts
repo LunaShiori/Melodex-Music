@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+import { accentOf } from '@/lib/theme'
 import { transport } from '@/lib/transport'
 import type { Settings } from '@/lib/types'
 
@@ -21,6 +22,12 @@ export const useSettingsStore = defineStore('settings', () => {
     if (typeof document === 'undefined') return
     document.documentElement.dataset.theme = resolvedTheme.value
     document.documentElement.style.colorScheme = resolvedTheme.value
+    // 强调色（主题色）注入 CSS 变量，与明暗主题正交
+    const accent = accentOf(settings.value?.accent ?? 'violet')
+    const root = document.documentElement
+    root.style.setProperty('--accent', accent.accent)
+    root.style.setProperty('--accent-soft', accent.soft)
+    root.style.setProperty('--accent-ink', accent.ink)
   }
 
   async function load() {

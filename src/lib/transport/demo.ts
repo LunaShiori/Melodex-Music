@@ -210,6 +210,7 @@ const DEFAULT_SETTINGS: Settings = {
   saveLyric: true,
   duplicatePolicy: 'keepBoth',
   theme: 'system',
+  accent: 'violet',
   sources: [...ALL_SOURCES],
 }
 

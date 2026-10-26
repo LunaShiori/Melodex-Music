@@ -92,9 +92,9 @@ watch(
         <button
           class="round"
           type="button"
-          aria-label="歌词"
+          aria-label="全屏歌词"
           :class="{ on: player.lyricLines.length }"
-          @click="player.lyricOpen = !player.lyricOpen"
+          @click="player.fullLyric = true"
         >
           <Icon name="lyric" :size="19" />
         </button>

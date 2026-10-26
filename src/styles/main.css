@@ -15,6 +15,10 @@
   --qq: #23a166;
   --kuwo: #ef9f1f;
 
+  /* 强调色的半透明衍生色，供背景氛围光 / 选中态使用 */
+  --accent-glow: color-mix(in srgb, var(--accent) 26%, transparent);
+  --accent-wash: color-mix(in srgb, var(--accent) 8%, transparent);
+
   --r-xs: 6px;
   --r-sm: 9px;
   --r-md: 14px;
@@ -49,7 +53,7 @@
   --shadow-lg: 0 24px 60px -28px rgba(18, 18, 28, 0.35);
   --glass: rgba(255, 255, 255, 0.78);
   --hover: rgba(18, 18, 28, 0.04);
-  --active: rgba(107, 91, 240, 0.1);
+  --active: var(--accent-wash);
 }
 
 [data-theme='dark'] {
@@ -68,7 +72,7 @@
   --shadow-lg: 0 30px 70px -30px rgba(0, 0, 0, 0.85);
   --glass: rgba(14, 14, 20, 0.72);
   --hover: rgba(255, 255, 255, 0.05);
-  --active: rgba(143, 130, 255, 0.16);
+  --active: var(--accent-wash);
 }
 
 * {
@@ -91,6 +95,19 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overscroll-behavior: none;
+}
+
+/* 顶部一圈随强调色流动的氛围光，弱化纯色底，界面更有层次 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(52% 40% at 18% -6%, var(--accent-glow), transparent 72%),
+    radial-gradient(48% 38% at 88% -2%, color-mix(in srgb, var(--accent-2) 16%, transparent), transparent 70%);
+  opacity: 0.5;
 }
 
 button {

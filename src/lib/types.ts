@@ -1,6 +1,9 @@
 export type SourceId = 'netease' | 'qq' | 'kuwo'
 export type Fee = 'free' | 'vip' | 'paid' | 'unknown'
 
+/** 界面强调色（主题色），与明暗主题正交 */
+export type AccentId = 'violet' | 'indigo' | 'teal' | 'rose' | 'amber' | 'green'
+
 /**
  * 跨平台对齐的音质等级。只表达「谁比谁高」，不承诺各平台同等级音质相同——
  * 具体落到哪一档由各平台自己的档位表决定（见 {@link QualityTier}）。
@@ -201,6 +204,7 @@ export interface Settings {
   saveLyric: boolean
   duplicatePolicy: 'skip' | 'overwrite' | 'keepBoth'
   theme: 'light' | 'dark' | 'system'
+  accent: AccentId
   sources: SourceId[]
 }
 

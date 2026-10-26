@@ -4,6 +4,7 @@ import { RouterView } from 'vue-router'
 
 import PlayerBar from '@/components/PlayerBar.vue'
 import LyricPanel from '@/components/LyricPanel.vue'
+import FullLyric from '@/components/FullLyric.vue'
 import NowPlaying from '@/components/NowPlaying.vue'
 import SideBar from '@/components/SideBar.vue'
 import TabBar from '@/components/TabBar.vue'
@@ -39,6 +40,7 @@ onMounted(async () => {
     </div>
     <PlayerBar />
     <LyricPanel />
+    <FullLyric />
     <TabBar />
     <NowPlaying />
     <UpdateNotice />
@@ -48,11 +50,12 @@ onMounted(async () => {
 
 <style scoped>
 .shell {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   height: 100dvh;
   overflow: hidden;
-  background: var(--bg);
 }
 
 .workspace {

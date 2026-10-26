@@ -45,7 +45,7 @@ pub use model::{
 };
 #[cfg(feature = "net")]
 pub use platform::{CredStore, MusicPlatform, Registry, SearchQuery};
-pub use settings::{default_download_dir, DuplicatePolicy, Settings, ThemeMode};
+pub use settings::{default_download_dir, Accent, DuplicatePolicy, Settings, ThemeMode};
 pub use update::{ReleaseAsset, UpdateInfo};
 
 /// 当前核心版本号，随包发布。

@@ -5,6 +5,7 @@ import AccountPanel from '@/components/AccountPanel.vue'
 import Icon from '@/components/Icon.vue'
 import { renderNaming } from '@/lib/naming'
 import { nominalBitrate, QUALITY_LEVELS, qualityRank } from '@/lib/quality'
+import { ACCENTS } from '@/lib/theme'
 import { transport } from '@/lib/transport'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import type { PlatformQuality, QualityLevel, Settings, SourceId } from '@/lib/types'
@@ -400,6 +401,27 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <div class="row">
+          <div class="label">
+            <p>主题色</p>
+            <small>强调色，与明暗主题自由搭配</small>
+          </div>
+          <div class="control accent-row">
+            <button
+              v-for="accent in ACCENTS"
+              :key="accent.id"
+              class="accent-dot"
+              :class="{ on: settings.accent === accent.id }"
+              type="button"
+              :title="accent.label"
+              :style="{ '--sw': accent.accent }"
+              @click="update({ accent: accent.id })"
+            >
+              <Icon v-if="settings.accent === accent.id" name="check" :size="12" />
+            </button>
+          </div>
+        </div>
       </section>
 
       <section class="card">
@@ -726,6 +748,27 @@ onMounted(async () => {
 .switch:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.accent-row {
+  gap: 8px;
+}
+.accent-dot {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--sw);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.accent-dot:hover {
+  transform: scale(1.12);
+}
+.accent-dot.on {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--sw);
 }
 
 .preview-row .preview {

@@ -66,6 +66,8 @@ export const usePlayerStore = defineStore('player', () => {
   const volume = ref(0.8)
   const lyricLines = ref<LrcLine[]>([])
   const lyricOpen = ref(false)
+  /** 全屏沉浸式歌词页是否打开 */
+  const fullLyric = ref(false)
   /** 手机端的全屏播放页是否展开 */
   const expanded = ref(false)
   /** 正在取链接 / 起播（按钮转圈） */
@@ -305,6 +307,7 @@ export const usePlayerStore = defineStore('player', () => {
     volume,
     lyricLines,
     lyricOpen,
+    fullLyric,
     expanded,
     loading,
     error,

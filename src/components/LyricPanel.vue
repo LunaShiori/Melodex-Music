@@ -42,9 +42,19 @@ watch(
           <p class="l-title">{{ title }}</p>
           <p class="l-sub muted">{{ artists }}</p>
         </div>
-        <button class="icon-btn" type="button" @click="player.lyricOpen = false">
-          <Icon name="close" :size="16" />
-        </button>
+        <div class="h-actions">
+          <button
+            class="icon-btn"
+            type="button"
+            title="全屏歌词"
+            @click="player.fullLyric = true"
+          >
+            <Icon name="external" :size="15" />
+          </button>
+          <button class="icon-btn" type="button" @click="player.lyricOpen = false">
+            <Icon name="close" :size="16" />
+          </button>
+        </div>
       </header>
       <div ref="box" class="l-body">
         <p v-if="!player.lyricLines.length" class="muted empty">该音源暂未提供歌词</p>
@@ -95,6 +105,11 @@ watch(
 .l-sub {
   margin: 3px 0 0;
   font-size: 11.5px;
+}
+.h-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .l-body {
   flex: 1;
