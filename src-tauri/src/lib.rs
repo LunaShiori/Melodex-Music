@@ -178,15 +178,27 @@ async fn resolve(
     state: State<'_, AppState>,
     source: String,
     id: String,
-    bitrate: u32,
+    quality: Option<String>,
 ) -> Result<PlayUrl, String> {
     let source = parse_source(&source)?;
+    let level = quality
+        .as_deref()
+        .and_then(melodex_core::quality::QualityLevel::parse)
+        .unwrap_or_else(|| state.engine.settings().quality_of(source));
+    let item = melodex_core::quality::find(source, level)
+        .ok_or_else(|| format!("{} 没有可用音质档位", source.label()))?;
     let platform = state.registry.get(source).map_err(|err| err.to_string())?;
     let variant = Variant::new(source, id, String::new());
     platform
-        .resolve(&variant, bitrate)
+        .resolve(&variant, item)
         .await
         .map_err(|err| err.to_string())
+}
+
+/// 各音源的音质档位表。界面按平台分栏渲染，名称直接照抄平台自己的叫法。
+#[tauri::command]
+fn platform_qualities() -> Vec<melodex_core::quality::PlatformQuality> {
+    melodex_core::quality::catalog()
 }
 
 #[tauri::command]
@@ -353,6 +365,199 @@ async fn login_qr_poll(
     Ok(poll)
 }
 
+// ---------------------------------------------------------------------------
+// 内置网页登录
+//
+// 手机端和桌面端共用一套「打开平台网页 → 用户自己登录 → 读回 Cookie」的流程，
+// 但读 Cookie 的能力只有桌面有（Tauri 的 `cookies()` 在 Android 恒返回空），
+// 所以手机端仍然引导用户扫码，桌面端默认网页登录。
+// ---------------------------------------------------------------------------
+
+/// 网页登录窗口的固定标签，重复点击复用一个窗口，避免开出一堆。
+#[cfg_attr(not(desktop), allow(dead_code))]
+const LOGIN_WINDOW: &str = "login-web";
+/// 网页登录的最长等待时间。QQ / 网易的登录态一般一两分钟就完成，
+/// 超过这个时间用户多半已经走开，继续挂着只是浪费轮询。
+#[cfg_attr(not(desktop), allow(dead_code))]
+const LOGIN_TIMEOUT_SECS: u64 = 300;
+
+/// 手机端的内置浏览器读不到 HttpOnly Cookie，网页登录只在桌面提供。
+#[tauri::command]
+fn login_web_supported() -> bool {
+    cfg!(desktop)
+}
+
+/// 打开内置登录窗口。登录成功后会自己在后台读凭据、存库、关窗。
+#[cfg(desktop)]
+#[tauri::command]
+async fn login_web_start(app: tauri::AppHandle, source: String) -> Result<(), String> {
+    let source = parse_source(&source)?;
+    start_web_login(app, source)
+}
+
+/// 手机端：Tauri 的 `cookies()` 在 Android 恒返回空，网页登录拿不到凭据，
+/// 所以直接引导用户走扫码，而不是给一个必然失败的按钮。
+#[cfg(not(desktop))]
+#[tauri::command]
+async fn login_web_start(app: tauri::AppHandle, source: String) -> Result<(), String> {
+    let _ = (app, source);
+    Err("手机端的内置浏览器读不到登录凭据，请改用扫码登录".into())
+}
+
+#[cfg(desktop)]
+fn start_web_login(app: tauri::AppHandle, source: Source) -> Result<(), String> {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+    let home = match source {
+        Source::Qq => "https://y.qq.com/",
+        Source::Netease => "https://music.163.com/",
+        Source::Kuwo => return Err("酷我音乐免登录即可下载，不需要登录".into()),
+    };
+    let parsed = tauri::Url::parse(home).map_err(|err| format!("登录地址无效：{err}"))?;
+
+    // 已有窗口时只把它提到前面，不重复创建
+    if let Some(existing) = app.get_webview_window(LOGIN_WINDOW) {
+        let _ = existing.unminimize();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    let window = WebviewWindowBuilder::new(&app, LOGIN_WINDOW, WebviewUrl::External(parsed))
+        .title(format!("登录 {}（登录后自动关闭）", source.label()))
+        .inner_size(430.0, 720.0)
+        .min_inner_size(360.0, 520.0)
+        .center()
+        .build()
+        .map_err(|err| format!("无法打开登录窗口：{err}"))?;
+
+    tauri::async_runtime::spawn(async move {
+        watch_web_login(app, window, source).await;
+    });
+    Ok(())
+}
+
+/// 轮询登录窗口的 Cookie，一旦出现该平台的鉴权字段就落库。
+///
+/// 用轮询而不是监听导航：平台登录成功后不一定会跳转，可能只是原地刷新，
+/// 只看 Cookie 有没有出现最可靠。
+#[cfg(desktop)]
+async fn watch_web_login(app: tauri::AppHandle, window: tauri::WebviewWindow, source: Source) {
+    use std::time::{Duration, Instant};
+
+    let home = match source {
+        Source::Qq => "https://y.qq.com/",
+        Source::Netease => "https://music.163.com/",
+        Source::Kuwo => "https://www.kuwo.cn/",
+    };
+    let Ok(scope) = tauri::Url::parse(home) else {
+        return;
+    };
+
+    let deadline = Instant::now() + Duration::from_secs(LOGIN_TIMEOUT_SECS);
+    loop {
+        if Instant::now() > deadline {
+            let _ = app.emit("login-web-error", "等待登录超时，请重新发起登录");
+            close_login_window(&app);
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+
+        // 用户自己把窗口关了，就别再轮询
+        if app.get_webview_window(LOGIN_WINDOW).is_none() {
+            let _ = app.emit("login-web-closed", source.id());
+            return;
+        }
+
+        let cookies = match read_window_cookies(&window, scope.clone()).await {
+            Ok(list) => list,
+            // 窗口刚建好时读不到 Cookie 库是正常的，继续等下一轮
+            Err(_) => continue,
+        };
+        let Some(cookie) = collect_cookie(source, &cookies) else {
+            continue;
+        };
+
+        let state = app.state::<AppState>();
+        let nickname = guess_nickname(source, &cookie).or_else(|| match source {
+            Source::Netease => Some("网易云用户".into()),
+            _ => None,
+        });
+        let saved = state
+            .store_account(source, &cookie, nickname)
+            .map_err(|err| err.to_string());
+        match saved {
+            Ok(info) => {
+                let _ = app.emit("login-web-done", &info);
+            }
+            Err(err) => {
+                let _ = app.emit("login-web-error", err);
+            }
+        }
+        close_login_window(&app);
+        return;
+    }
+}
+
+#[cfg(desktop)]
+fn close_login_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window(LOGIN_WINDOW) {
+        let _ = window.close();
+    }
+}
+
+/// 读窗口里的 Cookie。
+///
+/// Windows 上 `cookies_for_url` 在主线程调用会死锁（WebView2 的已知问题），
+/// 所以必须丢到阻塞线程池，让主线程继续跑消息循环。
+#[cfg(desktop)]
+async fn read_window_cookies(
+    window: &tauri::WebviewWindow,
+    url: tauri::Url,
+) -> Result<Vec<(String, String)>, String> {
+    let window = window.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        window
+            .cookies_for_url(url)
+            .map(|list| {
+                list.into_iter()
+                    .map(|item| (item.name().to_string(), item.value().to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| format!("读取登录状态失败：{err}"))?
+}
+
+/// 从 Cookie 罐里挑出鉴权必需的字段，拼成平台适配器认识的格式。
+///
+/// 只留关键项：`pgv_pvid` 这类统计 Cookie 存进去没有任何用处，
+/// 还会让保险库里的密文白白变长。
+#[cfg_attr(not(desktop), allow(dead_code))]
+fn collect_cookie(source: Source, cookies: &[(String, String)]) -> Option<String> {
+    let get = |name: &str| {
+        cookies
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.as_str())
+            .filter(|value| !value.is_empty())
+    };
+    match source {
+        Source::Qq => {
+            let uin = get("uin").or_else(|| get("p_uin")).or_else(|| get("wxuin"))?;
+            let key = get("qm_keyst").or_else(|| get("qqmusic_key"))?;
+            Some(format!("uin={uin}; qm_keyst={key}; qqmusic_key={key}"))
+        }
+        Source::Netease => {
+            let token = get("MUSIC_U")?;
+            let csrf = get("__csrf").unwrap_or_default();
+            Some(format!("MUSIC_U={token}; __csrf={csrf}"))
+        }
+        // 酷我不需要登录，永远不会走到这里
+        Source::Kuwo => None,
+    }
+}
+
 /// 手动保存 Cookie。扫码失败，或用户直接从浏览器复制时走这条路。
 #[tauri::command]
 fn account_save(
@@ -365,7 +570,6 @@ fn account_save(
     let nickname = nickname.or_else(|| guess_nickname(source, &cookie));
     state.store_account(source, &cookie, nickname)
 }
-
 /// 退出登录：清除内存与保险库中的该音源凭据。
 #[tauri::command]
 fn account_clear(state: State<'_, AppState>, source: String) -> Result<VaultStatus, String> {
@@ -665,6 +869,9 @@ pub fn run() {
             vault_set_pin,
             login_qr_start,
             login_qr_poll,
+            login_web_supported,
+            login_web_start,
+            platform_qualities,
             account_save,
             account_clear,
             default_download_dir,

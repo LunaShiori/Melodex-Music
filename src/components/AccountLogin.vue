@@ -6,13 +6,18 @@ import { SOURCE_META, type QrStatus, type SourceId } from '@/lib/types'
 import { transport } from '@/lib/transport'
 import { useAccountsStore } from '@/stores/accounts'
 
+type LoginMode = 'web' | 'qr' | 'cookie'
+
 const props = defineProps<{ source: SourceId | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const accounts = useAccountsStore()
 
-/** 扫码 / 粘贴 Cookie 两种方式 */
-const mode = ref<'qr' | 'cookie'>('qr')
+/** 登录方式：桌面默认内置登录窗口，手机与网页预览走扫码 / 粘贴 */
+const mode = ref<LoginMode>('cookie')
+/** 当前平台是否支持内置登录窗口（Android 的 WebView 读不到 Cookie） */
+const webSupported = ref(false)
+const webBusy = ref(false)
 const qrSvg = ref('')
 const qrImage = ref('')
 const qrKey = ref('')
@@ -26,9 +31,19 @@ const failure = ref('')
 
 let pollTimer: number | null = null
 let tickTimer: number | null = null
+let stopWeb: (() => void) | null = null
 
 const meta = computed(() => (props.source ? SOURCE_META[props.source] : null))
-const supportsQr = computed(() => props.source === 'netease')
+/** 网易云与 QQ 音乐都有官方扫码接口；酷我免登录，用不上 */
+const supportsQr = computed(() => props.source === 'netease' || props.source === 'qq')
+
+const modes = computed(() => {
+  const list: { id: LoginMode; label: string; icon: string }[] = []
+  if (webSupported.value) list.push({ id: 'web', label: '内置登录', icon: 'external' })
+  if (supportsQr.value) list.push({ id: 'qr', label: '扫码登录', icon: 'qr' })
+  list.push({ id: 'cookie', label: '粘贴 Cookie', icon: 'music' })
+  return list
+})
 
 const STATUS_TEXT: Record<string, string> = {
   loading: '正在获取二维码…',
@@ -46,6 +61,41 @@ function stopTimers() {
   tickTimer = null
 }
 
+function teardownWeb() {
+  stopWeb?.()
+  stopWeb = null
+}
+
+/** 内置登录窗口：后端读 Cookie、存库、关窗，结果通过事件回推 */
+async function openWeb() {
+  if (!props.source) return
+  failure.value = ''
+  webBusy.value = true
+  teardownWeb()
+  stopWeb = transport.onLoginWeb((event) => {
+    if (event.type === 'done') {
+      webBusy.value = false
+      teardownWeb()
+      void accounts.refresh()
+      window.setTimeout(() => emit('close'), 600)
+    } else if (event.type === 'error') {
+      webBusy.value = false
+      teardownWeb()
+      failure.value = event.message
+    } else {
+      // 用户自己关掉了窗口
+      webBusy.value = false
+      teardownWeb()
+    }
+  })
+  const opened = await accounts.startWebLogin(props.source)
+  if (!opened) {
+    webBusy.value = false
+    teardownWeb()
+    failure.value = accounts.error || '无法打开登录窗口'
+  }
+}
+
 async function startQr() {
   if (!props.source) return
   stopTimers()
@@ -54,7 +104,7 @@ async function startQr() {
   failure.value = ''
   try {
     const ticket = await accounts.startQr(props.source)
-    // 网易云给的是 URL，本地渲染成 SVG；QQ 互联只给 PNG 位图，直接当 data URI 用
+    // 网易云给的是 URL，本地渲染成 SVG；QQ 只给 PNG 位图，直接当 data URI 用
     qrSvg.value = ticket.qrSvg ?? ''
     qrImage.value = ticket.qrImage ?? ''
     qrKey.value = ticket.key
@@ -124,15 +174,23 @@ async function openHome() {
 
 watch(
   () => props.source,
-  (source) => {
-    if (!source) {
-      stopTimers()
-      return
-    }
-    mode.value = source === 'netease' ? 'qr' : 'cookie'
+  async (source) => {
+    stopTimers()
+    teardownWeb()
+    if (!source) return
     cookieInput.value = ''
     nickname.value = ''
     failure.value = ''
+    webBusy.value = false
+    qrSvg.value = ''
+    qrImage.value = ''
+    qrKey.value = ''
+    qrState.value = 'loading'
+    qrMessage.value = ''
+    webSupported.value = await transport.loginWebSupported().catch(() => false)
+    // 等待期间用户可能又换了音源，别用旧结果覆盖新弹窗
+    if (props.source !== source) return
+    mode.value = webSupported.value ? 'web' : supportsQr.value ? 'qr' : 'cookie'
     if (mode.value === 'qr') void startQr()
   },
   { immediate: true },
@@ -140,10 +198,17 @@ watch(
 
 watch(mode, (next) => {
   if (next === 'qr' && qrState.value !== 'waiting') void startQr()
-  if (next === 'cookie') stopTimers()
+  if (next !== 'qr') stopTimers()
+  if (next !== 'web') {
+    webBusy.value = false
+    teardownWeb()
+  }
 })
 
-onBeforeUnmount(stopTimers)
+onBeforeUnmount(() => {
+  stopTimers()
+  teardownWeb()
+})
 </script>
 
 <template>
@@ -166,27 +231,47 @@ onBeforeUnmount(stopTimers)
             </button>
           </header>
 
-          <div v-if="supportsQr" class="tabs">
+          <div v-if="modes.length > 1" class="tabs">
             <button
+              v-for="item in modes"
+              :key="item.id"
               class="tab"
-              :class="{ on: mode === 'qr' }"
+              :class="{ on: mode === item.id }"
               type="button"
-              @click="mode = 'qr'"
+              @click="mode = item.id"
             >
-              <Icon name="qr" :size="14" /> 扫码登录
-            </button>
-            <button
-              class="tab"
-              :class="{ on: mode === 'cookie' }"
-              type="button"
-              @click="mode = 'cookie'"
-            >
-              <Icon name="music" :size="14" /> 粘贴 Cookie
+              <Icon :name="item.icon" :size="14" /> {{ item.label }}
             </button>
           </div>
 
+          <!-- 内置登录窗口：推荐方式，登录一次即可 -->
+          <section v-if="mode === 'web'" class="web-wrap">
+            <div class="web-side">
+              <p class="qr-state" :class="webBusy ? 'waiting' : 'idle'">
+                <span class="bulb" />
+                {{ webBusy ? '已打开登录窗口，等你在里面完成登录' : '在自己的登录页里登录，不用碰 Cookie' }}
+              </p>
+              <ol class="steps">
+                <li>点下面的按钮，弹出一个 {{ meta.short }} 的登录窗口</li>
+                <li>
+                  在窗口里用
+                  {{ source === 'qq' ? 'QQ、微信或扫码' : '账号或扫码' }}
+                  登录
+                </li>
+                <li>登录成功后窗口自动关闭，凭据加密存到本机</li>
+              </ol>
+              <button class="btn btn-primary btn-sm web-btn" type="button" :disabled="webBusy" @click="openWeb">
+                <Icon name="external" :size="14" />
+                {{ webBusy ? '等待登录…' : '打开登录窗口' }}
+              </button>
+              <p v-if="webBusy" class="muted small">
+                窗口没出现？再看一眼任务栏，或在下方改用扫码登录。
+              </p>
+            </div>
+          </section>
+
           <!-- 扫码 -->
-          <section v-if="mode === 'qr'" class="qr-wrap">
+          <section v-else-if="mode === 'qr'" class="qr-wrap">
             <div class="qr-box" :class="qrState">
               <div v-if="qrSvg" class="qr-svg" v-html="qrSvg" />
               <img v-else-if="qrImage" class="qr-img" :src="qrImage" alt="扫码登录二维码" />
@@ -348,6 +433,20 @@ onBeforeUnmount(stopTimers)
   gap: 18px;
   align-items: start;
   margin: 6px 0 4px;
+}
+.web-wrap {
+  margin: 6px 0 4px;
+}
+.web-side {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.web-btn {
+  margin-top: 4px;
+}
+.qr-state.idle .bulb {
+  background: var(--text-3);
 }
 .qr-box {
   position: relative;

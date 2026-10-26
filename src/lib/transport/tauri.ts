@@ -8,9 +8,11 @@ import type {
   EngineEvent,
   EnqueueInput,
   Lyric,
+  PlatformQuality,
   PlayUrl,
   QrPoll,
   QrTicket,
+  QualityLevel,
   Settings,
   SourceId,
   UpdateInfo,
@@ -18,7 +20,7 @@ import type {
   VaultStatus,
   Variant,
 } from '../types'
-import type { SearchParams, Transport } from './types'
+import type { LoginWebEvent, SearchParams, Transport } from './types'
 
 /** Tauri 外壳：所有能力都由 Rust 核心通过 command 暴露。 */
 export function createTauriTransport(): Transport {
@@ -34,12 +36,16 @@ export function createTauriTransport(): Transport {
       })
     },
 
-    resolve(variant: Variant, bitrate = 320) {
+    resolve(variant: Variant, quality?: QualityLevel) {
       return invoke<PlayUrl>('resolve', {
         source: variant.source,
         id: variant.id,
-        bitrate,
+        quality: quality ?? null,
       })
+    },
+
+    platformQualities() {
+      return invoke<PlatformQuality[]>('platform_qualities')
     },
 
     lyric(ref: { source: SourceId; id: string }) {
@@ -170,6 +176,36 @@ export function createTauriTransport(): Transport {
 
     clearAccount(source: SourceId) {
       return invoke<VaultStatus>('account_clear', { source })
+    },
+
+    loginWebSupported() {
+      return invoke<boolean>('login_web_supported')
+    },
+
+    async loginWebStart(source: SourceId) {
+      await invoke('login_web_start', { source })
+    },
+
+    onLoginWeb(handler: (event: LoginWebEvent) => void) {
+      let disposed = false
+      const disposers: Array<() => void> = []
+      const bind = <T>(name: string, map: (payload: T) => LoginWebEvent) => {
+        void listen<T>(name, (event) => handler(map(event.payload))).then((off) => {
+          if (disposed) {
+            off()
+          } else {
+            disposers.push(off)
+          }
+        })
+      }
+      // 后端按结果分别 emit 三个事件，这里统一成一个回调
+      bind<AccountInfo>('login-web-done', (account) => ({ type: 'done', account }))
+      bind<string>('login-web-error', (message) => ({ type: 'error', message }))
+      bind<string>('login-web-closed', () => ({ type: 'closed' }))
+      return () => {
+        disposed = true
+        for (const off of disposers.splice(0)) off()
+      }
     },
   }
 }

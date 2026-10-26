@@ -5,9 +5,11 @@ import type {
   EngineEvent,
   EnqueueInput,
   Lyric,
+  PlatformQuality,
   PlayUrl,
   QrPoll,
   QrTicket,
+  QualityLevel,
   Settings,
   SourceId,
   UpdateInfo,
@@ -23,6 +25,13 @@ export interface SearchParams {
   sources: SourceId[]
 }
 
+/** 内置网页登录的推进事件 */
+export type LoginWebEvent =
+  | { type: 'done'; account: AccountInfo }
+  | { type: 'error'; message: string }
+  /** 用户自己关掉了登录窗口 */
+  | { type: 'closed' }
+
 /**
  * 平台传输层：界面只依赖这个接口。
  * - Tauri 端实现直接 invoke Rust 核心；
@@ -31,7 +40,10 @@ export interface SearchParams {
 export interface Transport {
   readonly mode: 'tauri' | 'demo'
   search(params: SearchParams): Promise<AggregatedPage>
-  resolve(variant: Variant, bitrate?: number): Promise<PlayUrl>
+  /** 解析试听链接。`quality` 省略时用设置里该音源的目标音质 */
+  resolve(variant: Variant, quality?: QualityLevel): Promise<PlayUrl>
+  /** 各音源的音质档位表（名称与规格由后端唯一维护） */
+  platformQualities(): Promise<PlatformQuality[]>
   lyric(ref: { source: SourceId; id: string }): Promise<Lyric | null>
   enqueue(inputs: EnqueueInput[]): Promise<string[]>
   tasks(): Promise<DownloadTask[]>
@@ -74,4 +86,10 @@ export interface Transport {
   saveAccount(source: SourceId, cookie: string, nickname?: string | null): Promise<AccountInfo>
   /** 退出登录 */
   clearAccount(source: SourceId): Promise<VaultStatus>
+  /** 当前平台是否支持内置网页登录（Android 的 WebView 读不到 Cookie，只能扫码） */
+  loginWebSupported(): Promise<boolean>
+  /** 打开内置登录窗口；结果通过 `onLoginWeb` 推送，不在这里返回 */
+  loginWebStart(source: SourceId): Promise<void>
+  /** 订阅网页登录结果，返回取消订阅函数 */
+  onLoginWeb(handler: (event: LoginWebEvent) => void): () => void
 }

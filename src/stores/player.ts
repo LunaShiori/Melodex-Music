@@ -87,7 +87,9 @@ export const usePlayerStore = defineStore('player', () => {
     }
     if (!audio) return
     try {
-      const resolved = await transport.resolve(target, 320)
+      // 试听只要够快：固定取 320k 这一档，不跟随下载用的无损设置，
+      // 否则每次点播放都要等一个几十兆的 FLAC 起播
+      const resolved = await transport.resolve(target, 'exquisite')
       audio.src = resolved.url
       audio.volume = volume.value
       await audio.play()

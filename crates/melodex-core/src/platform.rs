@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use crate::error::{Error, Result};
 use crate::model::{Lyric, PlayUrl, PlaylistDetail, SearchPage, Source, Variant};
 use crate::net::Net;
+use crate::quality::{self, Quality};
 
 /// 一次搜索请求。音源的 offset 由适配器自行换算，避免各平台分页口径不同。
 #[derive(Debug, Clone)]
@@ -68,9 +69,12 @@ pub trait MusicPlatform: Send + Sync {
 
     async fn search(&self, query: &SearchQuery) -> Result<SearchPage>;
 
-    /// 把一条记录解析成可播放/可下载的直链。
-    /// `bitrate` 是期望音质，音源不支持时返回它能给的最好结果。
-    async fn resolve(&self, variant: &Variant, bitrate: u32) -> Result<PlayUrl>;
+    /// 把一条记录解析成指定档位的直链。
+    ///
+    /// 只负责**一个**档位：取不到时返回 `Error::Unavailable`（通常是
+    /// `Reason::QualityMissing`），由下载引擎按 [`quality::ladder`] 继续降级，
+    /// 跨源兜底也由引擎统一处理——平台适配器不需要知道降级链长什么样。
+    async fn resolve(&self, variant: &Variant, quality: &'static Quality) -> Result<PlayUrl>;
 
     async fn lyric(&self, _id: &str) -> Result<Option<Lyric>> {
         Ok(None)
@@ -80,9 +84,9 @@ pub trait MusicPlatform: Send + Sync {
         Ok(None)
     }
 
-    /// 该音源支持的音质档位，从高到低。用于下载降级链。
-    fn bitrates(&self) -> &'static [u32] {
-        &[320, 192, 128]
+    /// 该音源支持的音质档位，从高到低。默认取 [`quality::table`] 里的静态表。
+    fn qualities(&self) -> &'static [Quality] {
+        quality::table(self.source())
     }
 }
 

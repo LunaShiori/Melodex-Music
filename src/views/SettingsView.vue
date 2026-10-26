@@ -4,9 +4,10 @@ import { computed, onMounted, ref } from 'vue'
 import AccountPanel from '@/components/AccountPanel.vue'
 import Icon from '@/components/Icon.vue'
 import { renderNaming } from '@/lib/naming'
+import { nominalBitrate, QUALITY_LEVELS, qualityRank } from '@/lib/quality'
 import { transport } from '@/lib/transport'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
-import type { Settings, SourceId } from '@/lib/types'
+import type { PlatformQuality, QualityLevel, Settings, SourceId } from '@/lib/types'
 import { useSettingsStore } from '@/stores/settings'
 import { useUpdateStore } from '@/stores/update'
 
@@ -30,18 +31,55 @@ const preview = computed(() =>
     artists: ['周杰伦'],
     album: '叶惠美',
     source: 'netease',
-    bitrate: settings.value?.bitrate ?? 320,
+    bitrate: nominalBitrate(settings.value?.quality ?? 'lossless'),
     index: 1,
     artistSeparator: settings.value?.artistSeparator,
   }),
 )
 
-const BITRATES = [
-  { value: 999, label: '无损' },
-  { value: 320, label: '320k' },
-  { value: 192, label: '192k' },
-  { value: 128, label: '128k' },
-]
+/* ---------- 音质：全局默认 + 分平台覆盖 ---------- */
+
+/** 各平台的档位表，由后端唯一维护，界面据此渲染平台自己的叫法 */
+const qualities = ref<PlatformQuality[]>([])
+
+/** 该平台的目标等级：分平台设置优先于全局默认 */
+function targetLevel(source: SourceId): QualityLevel {
+  return settings.value?.qualityOverrides[source] ?? settings.value?.quality ?? 'lossless'
+}
+
+/**
+ * 该平台实际会用的档位。目标超出平台上限时落到它的最高档——
+ * 界面上必须高亮这一档，否则用户会以为酷我也能下无损。
+ */
+function shownTier(source: SourceId) {
+  const platform = qualities.value.find((item) => item.source === source)
+  if (!platform?.items.length) return null
+  const target = qualityRank(targetLevel(source))
+  return (
+    platform.items.find((tier) => qualityRank(tier.level) <= target) ??
+    platform.items[platform.items.length - 1]
+  )
+}
+
+function setQuality(source: SourceId, level: QualityLevel) {
+  if (!settings.value) return
+  const overrides = { ...settings.value.qualityOverrides }
+  // 与全局默认一致时不必留覆盖项，配置表越短越好
+  if (level === settings.value.quality) delete overrides[source]
+  else overrides[source] = level
+  void update({ qualityOverrides: overrides })
+}
+
+function resetQuality(source: SourceId) {
+  if (!settings.value) return
+  const overrides = { ...settings.value.qualityOverrides }
+  delete overrides[source]
+  void update({ qualityOverrides: overrides })
+}
+
+function tierClass(source: SourceId, level: QualityLevel) {
+  return { on: shownTier(source)?.level === level }
+}
 
 async function update(patch: Partial<Settings>) {
   if (!settings.value) return
@@ -60,18 +98,9 @@ function toggleSource(source: SourceId) {
   void update({ sources: next })
 }
 
-function toggleFallback(value: number) {
-  if (!settings.value) return
-  const has = settings.value.fallbackBitrates.includes(value)
-  const next = has
-    ? settings.value.fallbackBitrates.filter((item) => item !== value)
-    : [...settings.value.fallbackBitrates, value]
-  if (!next.length) return
-  void update({ fallbackBitrates: next })
-}
-
 onMounted(async () => {
   defaultDir.value = await transport.defaultDownloadDir()
+  qualities.value = await transport.platformQualities().catch(() => [])
 })
 </script>
 
@@ -160,40 +189,72 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>目标音质</p>
-            <small>音源不提供时会按下方降级链尝试</small>
+            <p>默认音质</p>
+            <small>没单独设置过的平台都用这一档；各平台具体落到哪一档见下方</small>
           </div>
           <div class="control">
             <div class="segmented">
               <button
-                v-for="option in BITRATES"
-                :key="option.value"
+                v-for="level in QUALITY_LEVELS"
+                :key="level.id"
                 type="button"
-                :class="{ on: settings.bitrate === option.value }"
-                @click="update({ bitrate: option.value })"
+                :class="{ on: settings.quality === level.id }"
+                @click="update({ quality: level.id })"
               >
-                {{ option.label }}
+                {{ level.label }}
               </button>
             </div>
           </div>
         </div>
 
+        <div class="quality-grid">
+          <article v-for="platform in qualities" :key="platform.source" class="platform">
+            <header class="platform-head">
+              <span class="dot" :style="{ background: SOURCE_META[platform.source].color }" />
+              <strong>{{ platform.label }}</strong>
+              <button
+                v-if="settings.qualityOverrides[platform.source]"
+                class="link"
+                type="button"
+                @click="resetQuality(platform.source)"
+              >
+                跟随默认
+              </button>
+              <span v-else class="muted tiny">跟随默认</span>
+            </header>
+            <p class="muted tiny note">{{ platform.note }}</p>
+            <div class="tiers">
+              <button
+                v-for="tier in platform.items"
+                :key="tier.code"
+                class="tier"
+                :class="tierClass(platform.source, tier.level)"
+                type="button"
+                @click="setQuality(platform.source, tier.level)"
+              >
+                <span class="tier-name">
+                  {{ tier.label }}
+                  <span v-if="tier.vip" class="vip">会员</span>
+                </span>
+                <span class="tier-detail mono">{{ tier.detail }}</span>
+              </button>
+            </div>
+          </article>
+        </div>
+
         <div class="row">
           <div class="label">
-            <p>降级链</p>
-            <small>目标音质取不到链接时，依次尝试</small>
+            <p>自动降级</p>
+            <small>目标档位取不到链接时，自动降到同平台的下一档</small>
           </div>
           <div class="control">
             <button
-              v-for="value in [320, 192, 128]"
-              :key="value"
-              class="chip chip-btn"
-              :class="{ 'is-on': settings.fallbackBitrates.includes(value) }"
+              class="switch"
               type="button"
-              @click="toggleFallback(value)"
-            >
-              {{ value }}k
-            </button>
+              :class="{ on: settings.autoFallback }"
+              :aria-pressed="settings.autoFallback"
+              @click="update({ autoFallback: !settings.autoFallback })"
+            />
           </div>
         </div>
 
@@ -534,6 +595,98 @@ onMounted(async () => {
 
 .chip {
   cursor: pointer;
+}
+
+/* 分平台音质：每个平台一张小卡，档位用平台自己的名字 */
+.quality-grid {
+  display: grid;
+  gap: 10px;
+  padding: 4px 0 12px;
+  border-top: 1px solid var(--line);
+}
+.platform {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  padding: 10px 12px 12px;
+}
+.platform-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+}
+.platform-head strong {
+  font-weight: 600;
+}
+.platform-head .link {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.platform-head .tiny {
+  margin-left: auto;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.note {
+  margin: 4px 0 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+.tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tier {
+  display: grid;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.tier:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+.tier.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.tier-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+.tier.on .tier-name {
+  font-weight: 600;
+}
+.tier-detail {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.vip {
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: #b4802a;
+  background: color-mix(in srgb, #e8a33d 18%, transparent);
 }
 
 .switch {

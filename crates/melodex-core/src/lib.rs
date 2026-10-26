@@ -24,6 +24,8 @@ pub mod platform;
 pub mod platforms;
 pub mod pseudo_json;
 pub mod qr;
+/// 音质档位表。纯数据、无网络依赖，所有平台与界面共用这一份。
+pub mod quality;
 pub mod settings;
 pub mod task;
 pub mod update;

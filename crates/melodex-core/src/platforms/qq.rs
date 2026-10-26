@@ -4,10 +4,11 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::cookie::value_of as cookie_value;
-use crate::error::{keep_most_actionable, Error, Reason, Result};
+use crate::error::{Error, Reason, Result};
 use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
 use crate::net::Net;
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
+use crate::quality::{Quality, QualityLevel};
 
 const REFERER: &str = "https://y.qq.com/";
 const MUSICU: &str = "https://u.y.qq.com/cgi-bin/musicu.fcg";
@@ -224,38 +225,31 @@ impl MusicPlatform for QqMusic {
         })
     }
 
-    async fn resolve(&self, variant: &Variant, bitrate: u32) -> Result<PlayUrl> {
+    async fn resolve(&self, variant: &Variant, quality: &'static Quality) -> Result<PlayUrl> {
         let mid = variant.id.as_str();
-        // 档位含义：F000 = FLAC，M800 = 320k mp3，M500 = 128k mp3。
-        // 从高到低依次尝试，命中即返回；全部落空时把信息量最大的原因带出去。
-        let mut chain: Vec<(&str, u32, &str)> = Vec::new();
-        if bitrate >= 700 {
-            chain.push(("F000", 999, "flac"));
-        }
-        if bitrate >= 300 {
-            chain.push(("M800", 320, "mp3"));
-        }
-        chain.push(("M500", 128, "mp3"));
-
-        let mut best: Option<Error> = None;
-        for (prefix, level, ext) in chain {
-            let files = vec![format!("{prefix}{mid}{mid}.{ext}")];
-            match self.vkey(mid, Some(&files)).await {
-                Ok(Some((url, format))) => {
-                    let actual = if format == "flac" { 999 } else { level };
-                    return Ok(PlayUrl {
-                        url,
-                        bitrate: actual,
-                        format,
-                        size: 0,
-                    });
+        // 文件名 = 档位前缀 + mid + mid + 扩展名，例如 F0000039MnYb0qxYhV0039MnYb0qxYhV.flac
+        let files = vec![format!(
+            "{}{mid}{mid}.{}",
+            quality.code, quality.format
+        )];
+        let missing = || Error::unavailable(Source::Qq, Reason::QualityMissing);
+        match self.vkey(mid, Some(&files)).await? {
+            Some((url, format)) => {
+                // 服务端对没权限的档位有时不报错，而是静默回一个低码率文件。
+                // 无损及以上必须是 flac，否则视为「这个档位拿不到」，交给引擎降级。
+                if quality.level >= QualityLevel::Lossless && format != "flac" {
+                    return Err(missing());
                 }
-                // 该档位服务端没有文件，继续试更低一档
-                Ok(None) => {}
-                Err(err) => keep_most_actionable(&mut best, err),
+                Ok(PlayUrl {
+                    url,
+                    bitrate: quality.bitrate,
+                    format,
+                    size: 0,
+                })
             }
+            // 服务端明确说没有这个档位
+            None => Err(missing()),
         }
-        Err(best.unwrap_or_else(|| Error::unavailable(Source::Qq, Reason::QualityMissing)))
     }
 }
 

@@ -148,9 +148,9 @@ async function logout(source: SourceId) {
           </template>
           <template v-else>
             <button class="btn btn-sm" type="button" @click="loginSource = source">
-              <!-- 网易云与 QQ 音乐都能扫码；酷我在上一个分支里已标注「无需登录」 -->
-              <Icon name="qr" :size="13" />
-              扫码登录
+              <!-- 桌面端默认走内置登录窗口，手机端自动回落到扫码 -->
+              <Icon name="user" :size="13" />
+              登录
             </button>
           </template>
         </div>

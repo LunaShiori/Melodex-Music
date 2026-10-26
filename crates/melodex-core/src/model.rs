@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// 已接入的音源。新增音源时在这里加一个变体，并在 `platforms` 下实现
 /// [`crate::platform::MusicPlatform`] 即可，聚合层与下载层无需改动。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Source {
     Netease,

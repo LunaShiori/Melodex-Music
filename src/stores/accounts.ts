@@ -75,6 +75,18 @@ export const useAccountsStore = defineStore('accounts', () => {
     return transport.loginQrStart(source)
   }
 
+  /** 打开内置登录窗口。返回是否成功打开（结果通过 onLoginWeb 事件推送） */
+  async function startWebLogin(source: SourceId) {
+    error.value = ''
+    try {
+      await transport.loginWebStart(source)
+      return true
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+      return false
+    }
+  }
+
   async function pollQr(source: SourceId, key: string): Promise<QrPoll> {
     const poll = await transport.loginQrPoll(source, key)
     if (poll.status === 'confirmed') await refresh()
@@ -94,6 +106,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     clear,
     saveCookie,
     startQr,
+    startWebLogin,
     pollQr,
   }
 })

@@ -63,7 +63,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let platform = aggregator.registry().get(variant.source)?;
-    match platform.resolve(&variant, 320).await {
+    // 探测用「无损」这一档，平台没有无损时 find 会自动落到它的上限
+    let quality = melodex_core::quality::find(
+        variant.source,
+        melodex_core::quality::QualityLevel::Lossless,
+    )
+    .ok_or("这个音源没有可用档位")?;
+    match platform.resolve(&variant, quality).await {
         Ok(play) => println!(
             "取链成功：{} ({}, {}kbps, {} bytes)",
             &play.url[..play.url.len().min(90)],

@@ -2,6 +2,36 @@ export type SourceId = 'netease' | 'qq' | 'kuwo'
 export type Fee = 'free' | 'vip' | 'paid' | 'unknown'
 
 /**
+ * 跨平台对齐的音质等级。只表达「谁比谁高」，不承诺各平台同等级音质相同——
+ * 具体落到哪一档由各平台自己的档位表决定（见 {@link QualityTier}）。
+ */
+export type QualityLevel = 'standard' | 'high' | 'exquisite' | 'lossless' | 'hiRes' | 'master'
+
+/** 某个平台上的具体音质档位，名称照抄平台自己的叫法 */
+export interface QualityTier {
+  /** 平台内部档位码，仅后端解析器使用 */
+  code: string
+  label: string
+  /** 副标题：格式与规格，例如「FLAC 24bit/96kHz」 */
+  detail: string
+  level: QualityLevel
+  /** 归一化码率，无损按 1000 记，仅用于展示 */
+  bitrate: number
+  format: string
+  /** 通常需要会员 */
+  vip: boolean
+}
+
+/** 一个平台的完整档位表，从高到低 */
+export interface PlatformQuality {
+  source: SourceId
+  label: string
+  /** 平台级说明，例如「该接口只提供标准音质」 */
+  note: string
+  items: QualityTier[]
+}
+
+/**
  * 下载失败的结构化原因。界面据此决定显示「去登录」还是「重试」，
  * 而不是笼统地说一句「该歌曲没有可用的音频链接」。
  */
@@ -100,6 +130,8 @@ export interface DownloadTask {
   fallbacks: Fallback[]
   /** 最终真正取到链接的音源，可能和 source 不同 */
   resolvedSource: SourceId | null
+  /** 入队时选的目标音质 */
+  quality: QualityLevel
   createdAt: number
   finishedAt: number | null
 }
@@ -129,14 +161,21 @@ export interface EnqueueInput {
   cover: string | null
   durationMs: number
   bitrate?: number
+  quality?: QualityLevel
   format?: string
   fallbacks?: Fallback[]
 }
 
 export interface Settings {
   downloadDir: string
-  bitrate: number
-  fallbackBitrates: number[]
+  /** 全局默认目标音质 */
+  quality: QualityLevel
+  /** 分平台覆盖：某个音源单独指定目标音质 */
+  qualityOverrides: Partial<Record<SourceId, QualityLevel>>
+  /** 目标档位取不到时是否自动降级 */
+  autoFallback: boolean
+  /** 配置结构版本，由后端维护 */
+  schema: number
   preferSource: SourceId | null
   namingTemplate: string
   artistSeparator: string

@@ -6,6 +6,7 @@ use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
 use crate::net::Net;
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::pseudo_json;
+use crate::quality::Quality;
 
 const SEARCH_API: &str = "http://search.kuwo.cn/r.s";
 const RESOLVE_API: &str = "http://antiserver.kuwo.cn/anti.s";
@@ -95,7 +96,7 @@ impl MusicPlatform for Kuwo {
         })
     }
 
-    async fn resolve(&self, variant: &Variant, bitrate: u32) -> Result<PlayUrl> {
+    async fn resolve(&self, variant: &Variant, quality: &'static Quality) -> Result<PlayUrl> {
         let url = format!(
             "{RESOLVE_API}?type=convert_url&rid=MUSIC_{}&format=mp3&response=url",
             variant.id
@@ -131,10 +132,10 @@ impl MusicPlatform for Kuwo {
             ));
         }
         // 实测：antiserver 的 convert_url 无论 `br` 传 320k 还是 flac，
-        // 返回的都是同一个 128k mp3（晴天 269 秒对应 4.32 MB）。这里如实上报 128，
-        // 不能沿用搜索结果里 FORMATS 声称的 320——那会让界面显示的音质是假的。
+        // 返回的都是同一个 128k mp3（晴天 269 秒对应 4.32 MB）。所以档位表里
+        // 只有一档，这里也不看 quality——按实际返回如实上报，绝不虚标。
         // 真实码率在下载完成后会按「文件大小 / 时长」再校准一次。
-        let _ = bitrate;
+        let _ = quality;
         Ok(PlayUrl {
             url: link.to_string(),
             bitrate: 128,

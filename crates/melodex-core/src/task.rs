@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Reason;
 use crate::model::Source;
+use crate::quality::QualityLevel;
 
 /// 同一首歌在**其它**音源上的候选记录。
 ///
@@ -78,6 +79,10 @@ pub struct DownloadTask {
     /// 最终真正取到链接的音源（可能与 `source` 不同）
     #[serde(default)]
     pub resolved_source: Option<Source>,
+    /// 入队时用户选的目标音质（跨平台等级）。换源兜底时按同一等级重新映射，
+    /// 所以必须随任务一起持久化，重启后恢复的任务才能按原音质继续。
+    #[serde(default)]
+    pub quality: QualityLevel,
     pub created_at: i64,
     pub finished_at: Option<i64>,
 }
@@ -111,6 +116,7 @@ impl DownloadTask {
             fail_reason: None,
             fallbacks: Vec::new(),
             resolved_source: None,
+            quality: QualityLevel::Standard,
             created_at: now_secs(),
             finished_at: None,
         }

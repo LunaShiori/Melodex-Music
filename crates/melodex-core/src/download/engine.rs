@@ -14,6 +14,7 @@ use crate::download::transfer::{self, TransferOutcome};
 use crate::error::{keep_most_actionable, Error, Reason, Result};
 use crate::model::{Fee, Source, Variant};
 use crate::platform::Registry;
+use crate::quality::{self, QualityLevel};
 use crate::settings::{default_download_dir, Settings};
 use crate::task::{DownloadTask, Fallback, TaskState};
 
@@ -61,6 +62,9 @@ pub struct EnqueueInput {
     pub duration_ms: u64,
     #[serde(default)]
     pub bitrate: Option<u32>,
+    /// 目标音质。缺省时按设置里该音源的档位来（分平台设置优先于全局默认）。
+    #[serde(default)]
+    pub quality: Option<QualityLevel>,
     #[serde(default)]
     pub format: Option<String>,
     /// 同一首歌在其它音源上的记录，首选源取不到链接时依次尝试
@@ -150,13 +154,22 @@ impl DownloadEngine {
         {
             let mut tasks = self.inner.tasks.lock().expect("tasks poisoned");
             for input in inputs {
+                let quality = input
+                    .quality
+                    .unwrap_or_else(|| settings.quality_of(input.source));
+                let nominal = input.bitrate.unwrap_or_else(|| {
+                    quality::find(input.source, quality)
+                        .map(|item| item.bitrate)
+                        .unwrap_or(128)
+                });
                 let mut task = DownloadTask::new(
                     input.source,
                     input.source_id.clone(),
                     input.title.clone(),
                     input.artists.clone(),
-                    input.bitrate.unwrap_or(settings.bitrate),
+                    nominal,
                 );
+                task.quality = quality;
                 task.source_id = input.source_id;
                 task.album = input.album;
                 task.cover = input.cover;
@@ -514,10 +527,11 @@ async fn execute(
         .ok_or_else(|| Error::TaskNotFound(id.into()))?;
     let settings = inner.settings();
 
-    // 1) 取链接：首选音源 → 其它音源，每个源内部再走「目标音质 → 降级链」。
+    // 1) 取链接：首选音源 → 其它音源，每个源内部再按「目标档位 → 逐档降级」。
     //
     // 同一首歌在不同音源的可获取性差异极大（QQ 要会员、酷我免费是常态），
     // 所以首选源失败时不该直接判死，而是按用户当初的排序换源再试。
+    // 换源沿用同一个「等级」，具体落到哪一档由各平台自己的档位表截断。
     let mut candidates: Vec<(Source, String)> = vec![(task.source, task.source_id.clone())];
     candidates.extend(
         task.fallbacks
@@ -525,7 +539,6 @@ async fn execute(
             .map(|item| (item.source, item.source_id.clone())),
     );
 
-    let chain = settings.bitrate_chain();
     let mut play: Option<crate::model::PlayUrl> = None;
     let mut resolved: Option<(Source, String)> = None;
     // 记录信息量最大的失败原因（NeedLogin 比 QualityMissing 有用得多）
@@ -542,6 +555,11 @@ async fn execute(
                 continue;
             }
         };
+        let mut ladder = quality::ladder(source, task.quality);
+        // 关掉自动降级时只试用户选中的那一档：宁可失败，也不要偷偷给个低音质
+        if !settings.auto_fallback && ladder.len() > 1 {
+            ladder.truncate(1);
+        }
         let variant = Variant {
             source,
             id: source_id.clone(),
@@ -550,16 +568,16 @@ async fn execute(
             album: task.album.clone(),
             duration_ms: task.duration_ms,
             cover: task.cover.clone(),
-            bitrate: chain.first().copied().unwrap_or(task.bitrate),
+            bitrate: ladder.first().map(|item| item.bitrate).unwrap_or(task.bitrate),
             format: task.format.clone(),
             size: 0,
             fee: Fee::Unknown,
         };
-        for bitrate in chain.iter().copied() {
+        for item in ladder {
             if cancel.load(Ordering::Relaxed) {
                 return Ok(Step::Canceled);
             }
-            match platform.resolve(&variant, bitrate).await {
+            match platform.resolve(&variant, item).await {
                 Ok(result) => {
                     resolved = Some((source, source_id));
                     play = Some(result);

@@ -8,6 +8,7 @@ use crate::error::{Error, Reason, Result};
 use crate::model::{Fee, Lyric, PlayUrl, PlaylistDetail, SearchPage, Source, Variant};
 use crate::net::Net;
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
+use crate::quality::{Quality, QualityLevel};
 
 const ORIGIN: &str = "https://music.163.com";
 
@@ -54,11 +55,13 @@ impl Netease {
     async fn fetch_url(
         &self,
         id: &str,
-        level: &str,
+        quality: &Quality,
         cookie: Option<&str>,
     ) -> Result<Option<PlayUrl>> {
+        // encodeType 必须跟档位一致：固定写 mp3 会把无损档转成有损再返回
         let url = format!(
-            "{ORIGIN}/api/song/enhance/player/url/v1?ids=%5B{id}%5D&level={level}&encodeType=mp3"
+            "{ORIGIN}/api/song/enhance/player/url/v1?ids=%5B{id}%5D&level={}&encodeType={}",
+            quality.code, quality.format
         );
         let mut headers = self.headers();
         if let Some(cookie) = cookie {
@@ -72,14 +75,16 @@ impl Netease {
             return Ok(None);
         };
         let br = item.br.unwrap_or(0);
+        let kbps = if br > 0 { (br / 1000) as u32 } else { quality.bitrate };
+        // 没有会员时服务端不一定报错，而是静默回一个低码率的替身文件。
+        // 无损及以上必须是 700kbps 以上，否则当作「这档拿不到」继续降级。
+        if quality.level >= QualityLevel::Lossless && kbps < 700 {
+            return Ok(None);
+        }
         Ok(Some(PlayUrl {
             url: link,
-            bitrate: if br > 0 {
-                (br / 1000).min(999) as u32
-            } else {
-                crate::platforms::guess_bitrate(level)
-            },
-            format: item.kind.unwrap_or_else(|| "mp3".into()),
+            bitrate: kbps.min(999),
+            format: item.kind.unwrap_or_else(|| quality.format.into()),
             size: item.size.unwrap_or(0.0) as u64,
         }))
     }
@@ -187,29 +192,16 @@ impl MusicPlatform for Netease {
         })
     }
 
-    async fn resolve(&self, variant: &Variant, bitrate: u32) -> Result<PlayUrl> {
-        // v1 接口按「档位」取链接，比旧的 br 参数更贴近服务端实际能力
-        let level = match bitrate {
-            b if b >= 700 => "lossless",
-            b if b >= 300 => "exhigh",
-            b if b >= 192 => "higher",
-            _ => "standard",
-        };
+    async fn resolve(&self, variant: &Variant, quality: &'static Quality) -> Result<PlayUrl> {
         let cookie = self.cookie_header();
-        let mut asked = Vec::new();
-        for candidate in [level, "exhigh", "higher", "standard"] {
-            if asked.contains(&candidate) {
-                continue;
-            }
-            asked.push(candidate);
-            if let Some(play) = self
-                .fetch_url(&variant.id, candidate, cookie.as_deref())
-                .await?
-            {
-                return Ok(play);
-            }
+        if let Some(play) = self
+            .fetch_url(&variant.id, quality, cookie.as_deref())
+            .await?
+        {
+            return Ok(play);
         }
-
+        // 这一档拿不到，回头查权限档案，给出「要登录」还是「要会员」的准确原因。
+        // 是否继续降级由引擎决定，这里只负责把原因说清楚。
         let reason = self.diagnose(&variant.id).await.unwrap_or(Reason::Unknown);
         Err(Error::unavailable(Source::Netease, reason))
     }

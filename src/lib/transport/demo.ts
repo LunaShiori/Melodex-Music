@@ -5,9 +5,11 @@ import type {
   EngineEvent,
   EnqueueInput,
   Lyric,
+  PlatformQuality,
   PlayUrl,
   QrPoll,
   QrTicket,
+  QualityLevel,
   Settings,
   SourceId,
   UpdateProgress,
@@ -15,7 +17,7 @@ import type {
   Variant,
 } from '../types'
 import { ALL_SOURCES } from '../types'
-import type { SearchParams, Transport } from './types'
+import type { LoginWebEvent, SearchParams, Transport } from './types'
 
 /**
  * 演示传输层：浏览器里没有 Rust 核心，这里用内置曲库 + 模拟进度
@@ -24,6 +26,9 @@ import type { SearchParams, Transport } from './types'
 
 /// 更新下载进度的订阅者（演示模式用它模拟内核推送）
 const updateListeners = new Set<(progress: UpdateProgress) => void>()
+
+/// 网页登录结果的订阅者
+const loginWebHandlers = new Set<(event: LoginWebEvent) => void>()
 
 const demoAccounts_ = new Map<SourceId, AccountInfo>([
   [
@@ -148,10 +153,54 @@ const DEMO_LYRIC = `[00:00.00]Melodex 演示模式
 
 const SETTINGS_KEY = 'melodex.demo.settings'
 
+/**
+ * 演示用的音质档位表。
+ *
+ * 与 `crates/melodex-core/src/quality.rs` 保持一致——真实运行时这张表由后端
+ * `platform_qualities` 命令下发，这里的副本只服务于浏览器预览。
+ */
+const DEMO_QUALITIES: PlatformQuality[] = [
+  {
+    source: 'netease',
+    label: '网易云音乐',
+    note: '登录后可用无损及以上；超清母带需要会员账号',
+    items: [
+      { code: 'jymaster', label: '超清母带', detail: 'FLAC 24bit/192kHz', level: 'master', bitrate: 3000, format: 'flac', vip: true },
+      { code: 'hires', label: 'Hi-Res 无损', detail: 'FLAC 24bit/96kHz', level: 'hiRes', bitrate: 2000, format: 'flac', vip: true },
+      { code: 'lossless', label: '无损音质', detail: 'FLAC 44.1kHz', level: 'lossless', bitrate: 1000, format: 'flac', vip: true },
+      { code: 'exhigh', label: '极高音质', detail: 'MP3 320kbps', level: 'exquisite', bitrate: 320, format: 'mp3', vip: false },
+      { code: 'higher', label: '较高音质', detail: 'MP3 192kbps', level: 'high', bitrate: 192, format: 'mp3', vip: false },
+      { code: 'standard', label: '标准音质', detail: 'MP3 128kbps', level: 'standard', bitrate: 128, format: 'mp3', vip: false },
+    ],
+  },
+  {
+    source: 'qq',
+    label: 'QQ 音乐',
+    note: '无损及以上需要会员；未登录只能取到标准音质',
+    items: [
+      { code: 'AI00', label: '臻品母带', detail: 'FLAC 24bit/192kHz', level: 'master', bitrate: 3000, format: 'flac', vip: true },
+      { code: 'RS01', label: 'Hi-Res 无损', detail: 'FLAC 24bit/96kHz', level: 'hiRes', bitrate: 2000, format: 'flac', vip: true },
+      { code: 'F000', label: 'SQ 无损', detail: 'FLAC 44.1kHz', level: 'lossless', bitrate: 1000, format: 'flac', vip: true },
+      { code: 'M800', label: 'HQ 高品质', detail: 'MP3 320kbps', level: 'exquisite', bitrate: 320, format: 'mp3', vip: false },
+      { code: 'M500', label: '标准音质', detail: 'MP3 128kbps', level: 'standard', bitrate: 128, format: 'mp3', vip: false },
+    ],
+  },
+  {
+    source: 'kuwo',
+    label: '酷我音乐',
+    note: '该接口只提供标准音质，选更高档位会自动落到这里',
+    items: [
+      { code: '128kmp3', label: '标准音质', detail: 'MP3 128kbps（该接口上限）', level: 'standard', bitrate: 128, format: 'mp3', vip: false },
+    ],
+  },
+]
+
 const DEFAULT_SETTINGS: Settings = {
   downloadDir: 'Music/Melodex',
-  bitrate: 320,
-  fallbackBitrates: [320, 192, 128],
+  quality: 'lossless',
+  qualityOverrides: {},
+  autoFallback: true,
+  schema: 2,
   preferSource: null,
   namingTemplate: '{artist} - {title}',
   artistSeparator: ' / ',
@@ -252,6 +301,7 @@ export function createDemoTransport(): Transport {
         failReason: null,
         fallbacks: [],
         resolvedSource: null,
+        quality: 'lossless',
         createdAt: now - index * 3600,
         finishedAt: now - index * 3600 + 60,
         ...extra,
@@ -314,14 +364,22 @@ export function createDemoTransport(): Transport {
       return page
     },
 
-    async resolve(variant: Variant, bitrate = 320): Promise<PlayUrl> {
+    async resolve(variant: Variant, quality?: QualityLevel): Promise<PlayUrl> {
       await new Promise((resolve) => setTimeout(resolve, 120))
+      const tier =
+        DEMO_QUALITIES.find((entry) => entry.source === variant.source)?.items.find(
+          (item) => item.level === (quality ?? 'lossless'),
+        ) ?? null
       return {
         url: `demo://${variant.source}/${variant.id}`,
-        bitrate,
-        format: variant.format,
+        bitrate: tier?.bitrate ?? variant.bitrate,
+        format: tier?.format ?? variant.format,
         size: variant.size,
       }
+    },
+
+    async platformQualities() {
+      return DEMO_QUALITIES
     },
 
     async lyric(): Promise<Lyric | null> {
@@ -353,6 +411,7 @@ export function createDemoTransport(): Transport {
           failReason: null,
           fallbacks: input.fallbacks ?? [],
           resolvedSource: null,
+          quality: input.quality ?? 'lossless',
           createdAt: Math.round(Date.now() / 1000),
           finishedAt: null,
         }
@@ -593,6 +652,34 @@ export function createDemoTransport(): Transport {
     async clearAccount(source: SourceId) {
       demoAccounts_.delete(source)
       return this.vaultStatus()
+    },
+
+    /* ---- 内置网页登录：浏览器里假装用户已经在网页上登录好了 ---- */
+
+    loginWebSupported() {
+      // 浏览器预览没有内置 WebView，但返回 true 并模拟成功，
+      // 这样等待态、成功态都能在设计走查里看到
+      return Promise.resolve(true)
+    },
+
+    async loginWebStart(source: SourceId) {
+      window.setTimeout(() => {
+        const account: AccountInfo = {
+          source,
+          nickname: source === 'qq' ? 'QQ 演示账号' : '演示账号',
+          savedAt: Math.floor(Date.now() / 1000),
+          keys: source === 'qq' ? ['uin', 'qm_keyst'] : ['MUSIC_U'],
+        }
+        demoAccounts_.set(source, account)
+        for (const handler of loginWebHandlers) handler({ type: 'done', account })
+      }, 1600)
+    },
+
+    onLoginWeb(handler: (event: LoginWebEvent) => void) {
+      loginWebHandlers.add(handler)
+      return () => {
+        loginWebHandlers.delete(handler)
+      }
     },
   }
 }
