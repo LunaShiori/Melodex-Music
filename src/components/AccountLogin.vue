@@ -17,6 +17,8 @@ const accounts = useAccountsStore()
 const mode = ref<LoginMode>('cookie')
 /** 当前平台是否支持内置登录窗口（Android 的 WebView 读不到 Cookie） */
 const webSupported = ref(false)
+/** 探测完平台能力之前先不渲染面板，避免标签页闪一下再换 */
+const ready = ref(false)
 const webBusy = ref(false)
 const qrSvg = ref('')
 const qrImage = ref('')
@@ -177,6 +179,7 @@ watch(
   async (source) => {
     stopTimers()
     teardownWeb()
+    ready.value = false
     if (!source) return
     cookieInput.value = ''
     nickname.value = ''
@@ -191,6 +194,7 @@ watch(
     // 等待期间用户可能又换了音源，别用旧结果覆盖新弹窗
     if (props.source !== source) return
     mode.value = webSupported.value ? 'web' : supportsQr.value ? 'qr' : 'cookie'
+    ready.value = true
     if (mode.value === 'qr') void startQr()
   },
   { immediate: true },
@@ -231,107 +235,111 @@ onBeforeUnmount(() => {
             </button>
           </header>
 
-          <div v-if="modes.length > 1" class="tabs">
-            <button
-              v-for="item in modes"
-              :key="item.id"
-              class="tab"
-              :class="{ on: mode === item.id }"
-              type="button"
-              @click="mode = item.id"
-            >
-              <Icon :name="item.icon" :size="14" /> {{ item.label }}
-            </button>
-          </div>
+          <p v-if="!ready" class="muted small preparing">正在准备登录方式…</p>
 
-          <!-- 内置登录窗口：推荐方式，登录一次即可 -->
-          <section v-if="mode === 'web'" class="web-wrap">
-            <div class="web-side">
-              <p class="qr-state" :class="webBusy ? 'waiting' : 'idle'">
-                <span class="bulb" />
-                {{ webBusy ? '已打开登录窗口，等你在里面完成登录' : '在自己的登录页里登录，不用碰 Cookie' }}
-              </p>
-              <ol class="steps">
-                <li>点下面的按钮，弹出一个 {{ meta.short }} 的登录窗口</li>
-                <li>
-                  在窗口里用
-                  {{ source === 'qq' ? 'QQ、微信或扫码' : '账号或扫码' }}
-                  登录
-                </li>
-                <li>登录成功后窗口自动关闭，凭据加密存到本机</li>
-              </ol>
-              <button class="btn btn-primary btn-sm web-btn" type="button" :disabled="webBusy" @click="openWeb">
-                <Icon name="external" :size="14" />
-                {{ webBusy ? '等待登录…' : '打开登录窗口' }}
+          <template v-else>
+            <div v-if="modes.length > 1" class="tabs">
+              <button
+                v-for="item in modes"
+                :key="item.id"
+                class="tab"
+                :class="{ on: mode === item.id }"
+                type="button"
+                @click="mode = item.id"
+              >
+                <Icon :name="item.icon" :size="14" /> {{ item.label }}
               </button>
-              <p v-if="webBusy" class="muted small">
-                窗口没出现？再看一眼任务栏，或在下方改用扫码登录。
-              </p>
             </div>
-          </section>
 
-          <!-- 扫码 -->
-          <section v-else-if="mode === 'qr'" class="qr-wrap">
-            <div class="qr-box" :class="qrState">
-              <div v-if="qrSvg" class="qr-svg" v-html="qrSvg" />
-              <img v-else-if="qrImage" class="qr-img" :src="qrImage" alt="扫码登录二维码" />
-              <div v-if="qrState === 'expired' || qrState === 'error'" class="qr-mask">
-                <button class="btn btn-ghost btn-sm" type="button" @click="startQr">
-                  <Icon name="refresh" :size="14" /> 重新获取
+            <!-- 内置登录窗口：推荐方式，登录一次即可 -->
+            <section v-if="mode === 'web'" class="web-wrap">
+              <div class="web-side">
+                <p class="qr-state" :class="webBusy ? 'waiting' : 'idle'">
+                  <span class="bulb" />
+                  {{ webBusy ? '已打开登录窗口，等你在里面完成登录' : '在自己的登录页里登录，不用碰 Cookie' }}
+                </p>
+                <ol class="steps">
+                  <li>点下面的按钮，弹出一个 {{ meta.short }} 的登录窗口</li>
+                  <li>
+                    在窗口里用
+                    {{ source === 'qq' ? 'QQ、微信或扫码' : '账号或扫码' }}
+                    登录
+                  </li>
+                  <li>登录成功后窗口自动关闭，凭据加密存到本机</li>
+                </ol>
+                <button class="btn btn-primary btn-sm web-btn" type="button" :disabled="webBusy" @click="openWeb">
+                  <Icon name="external" :size="14" />
+                  {{ webBusy ? '等待登录…' : '打开登录窗口' }}
                 </button>
+                <p v-if="webBusy" class="muted small">
+                  窗口没出现？再看一眼任务栏，或在下方改用扫码登录。
+                </p>
               </div>
-            </div>
-            <div class="qr-side">
-              <p class="qr-state" :class="qrState">
-                <span class="bulb" />
-                {{ STATUS_TEXT[qrState] ?? qrState }}
-              </p>
-              <p v-if="qrMessage && qrState !== 'confirmed'" class="muted small">
-                {{ qrMessage }}
-              </p>
-              <p v-if="qrState === 'waiting' || qrState === 'scanned'" class="muted small">
-                {{
-                  props.source === 'qq'
-                    ? '用 QQ、微信或 QQ 音乐 App 扫描，并在手机上确认'
-                    : '打开网易云音乐 App → 右上角「扫一扫」'
-                }}
-              </p>
-              <p v-if="remain > 0 && qrState !== 'confirmed'" class="countdown mono">
-                {{ Math.floor(remain / 60) }}:{{ String(remain % 60).padStart(2, '0') }} 后过期
-              </p>
-              <ol class="steps">
-                <li>手机扫码</li>
-                <li>在手机上点「确认登录」</li>
-                <li>本窗口自动完成登录</li>
-              </ol>
-            </div>
-          </section>
+            </section>
 
-          <!-- Cookie 粘贴 -->
-          <section v-else class="cookie-wrap">
-            <p class="hint">
-              在浏览器打开
-              <button class="link" type="button" @click="openHome">{{ meta.label }}</button>
-              并登录，然后按 F12 → Network → 任选一个请求 → 复制 Request Headers 里的
-              <code>Cookie</code> 整行粘贴到下面。
-            </p>
-            <textarea
-              v-model="cookieInput"
-              class="input cookie-input"
-              rows="4"
-              spellcheck="false"
-              placeholder="MUSIC_U=...; __csrf=... 或 uin=...; qm_keystore=..."
-            />
-            <input
-              v-model="nickname"
-              class="input"
-              type="text"
-              :placeholder="source === 'qq' ? '备注名（可留空，自动识别 QQ 号）' : '备注名（可留空）'"
-            />
-            <p class="muted small">
-              只保存在本机加密保险库；不会上传到任何服务器，也不会被写入日志。
-            </p>
-          </section>
+            <!-- 扫码 -->
+            <section v-else-if="mode === 'qr'" class="qr-wrap">
+              <div class="qr-box" :class="qrState">
+                <div v-if="qrSvg" class="qr-svg" v-html="qrSvg" />
+                <img v-else-if="qrImage" class="qr-img" :src="qrImage" alt="扫码登录二维码" />
+                <div v-if="qrState === 'expired' || qrState === 'error'" class="qr-mask">
+                  <button class="btn btn-ghost btn-sm" type="button" @click="startQr">
+                    <Icon name="refresh" :size="14" /> 重新获取
+                  </button>
+                </div>
+              </div>
+              <div class="qr-side">
+                <p class="qr-state" :class="qrState">
+                  <span class="bulb" />
+                  {{ STATUS_TEXT[qrState] ?? qrState }}
+                </p>
+                <p v-if="qrMessage && qrState !== 'confirmed'" class="muted small">
+                  {{ qrMessage }}
+                </p>
+                <p v-if="qrState === 'waiting' || qrState === 'scanned'" class="muted small">
+                  {{
+                    props.source === 'qq'
+                      ? '用 QQ、微信或 QQ 音乐 App 扫描，并在手机上确认'
+                      : '打开网易云音乐 App → 右上角「扫一扫」'
+                  }}
+                </p>
+                <p v-if="remain > 0 && qrState !== 'confirmed'" class="countdown mono">
+                  {{ Math.floor(remain / 60) }}:{{ String(remain % 60).padStart(2, '0') }} 后过期
+                </p>
+                <ol class="steps">
+                  <li>手机扫码</li>
+                  <li>在手机上点「确认登录」</li>
+                  <li>本窗口自动完成登录</li>
+                </ol>
+              </div>
+            </section>
+
+            <!-- Cookie 粘贴 -->
+            <section v-else class="cookie-wrap">
+              <p class="hint">
+                在浏览器打开
+                <button class="link" type="button" @click="openHome">{{ meta.label }}</button>
+                并登录，然后按 F12 → Network → 任选一个请求 → 复制 Request Headers 里的
+                <code>Cookie</code> 整行粘贴到下面。
+              </p>
+              <textarea
+                v-model="cookieInput"
+                class="input cookie-input"
+                rows="4"
+                spellcheck="false"
+                placeholder="MUSIC_U=...; __csrf=... 或 uin=...; qm_keystore=..."
+              />
+              <input
+                v-model="nickname"
+                class="input"
+                type="text"
+                :placeholder="source === 'qq' ? '备注名（可留空，自动识别 QQ 号）' : '备注名（可留空）'"
+              />
+              <p class="muted small">
+                只保存在本机加密保险库；不会上传到任何服务器，也不会被写入日志。
+              </p>
+            </section>
+          </template>
 
           <p v-if="failure" class="err">{{ failure }}</p>
 
@@ -436,6 +444,11 @@ onBeforeUnmount(() => {
 }
 .web-wrap {
   margin: 6px 0 4px;
+}
+.preparing {
+  margin: 18px 0;
+  font-size: 12px;
+  color: var(--text-3);
 }
 .web-side {
   display: grid;

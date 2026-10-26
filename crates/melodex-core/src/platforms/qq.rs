@@ -228,10 +228,7 @@ impl MusicPlatform for QqMusic {
     async fn resolve(&self, variant: &Variant, quality: &'static Quality) -> Result<PlayUrl> {
         let mid = variant.id.as_str();
         // 文件名 = 档位前缀 + mid + mid + 扩展名，例如 F0000039MnYb0qxYhV0039MnYb0qxYhV.flac
-        let files = vec![format!(
-            "{}{mid}{mid}.{}",
-            quality.code, quality.format
-        )];
+        let files = vec![format!("{}{mid}{mid}.{}", quality.code, quality.format)];
         let missing = || Error::unavailable(Source::Qq, Reason::QualityMissing);
         match self.vkey(mid, Some(&files)).await? {
             Some((url, format)) => {

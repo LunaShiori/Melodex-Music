@@ -75,7 +75,11 @@ impl Netease {
             return Ok(None);
         };
         let br = item.br.unwrap_or(0);
-        let kbps = if br > 0 { (br / 1000) as u32 } else { quality.bitrate };
+        let kbps = if br > 0 {
+            (br / 1000) as u32
+        } else {
+            quality.bitrate
+        };
         // 没有会员时服务端不一定报错，而是静默回一个低码率的替身文件。
         // 无损及以上必须是 700kbps 以上，否则当作「这档拿不到」继续降级。
         if quality.level >= QualityLevel::Lossless && kbps < 700 {

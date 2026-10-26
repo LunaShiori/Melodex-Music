@@ -58,12 +58,8 @@ impl AppState {
         }
 
         let registry = Registry::new(net.clone(), creds.clone());
-        let engine = DownloadEngine::new(
-            registry.clone(),
-            settings,
-            Some(dir.join("tasks.json")),
-        )
-        .map_err(|err| err.to_string())?;
+        let engine = DownloadEngine::new(registry.clone(), settings, Some(dir.join("tasks.json")))
+            .map_err(|err| err.to_string())?;
         let aggregator = Aggregator::new(registry.clone());
 
         Ok(Self {
@@ -85,7 +81,10 @@ impl AppState {
     }
 
     fn load_vault(&self) -> Result<VaultData, String> {
-        let guard = self.vault.lock().map_err(|_| "凭据库状态异常".to_string())?;
+        let guard = self
+            .vault
+            .lock()
+            .map_err(|_| "凭据库状态异常".to_string())?;
         let vault = guard
             .as_ref()
             .ok_or_else(|| "凭据库未解锁，请先输入 PIN".to_string())?;
@@ -107,7 +106,10 @@ impl AppState {
         let account = Account::new(cookie, nickname);
         data.set(source.id(), account.clone());
         {
-            let guard = self.vault.lock().map_err(|_| "凭据库状态异常".to_string())?;
+            let guard = self
+                .vault
+                .lock()
+                .map_err(|_| "凭据库状态异常".to_string())?;
             let vault = guard
                 .as_ref()
                 .ok_or_else(|| "凭据库未解锁，请先输入 PIN".to_string())?;
@@ -124,7 +126,9 @@ impl AppState {
             .map(|guard| guard.is_some())
             .unwrap_or(false);
         let accounts = if unlocked {
-            self.load_vault().map(|data| data.infos()).unwrap_or_default()
+            self.load_vault()
+                .map(|data| data.infos())
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -170,7 +174,10 @@ async fn search(
     sources: Vec<String>,
 ) -> Result<AggregatedPage, String> {
     let targets: Vec<Source> = sources.iter().filter_map(|s| Source::from_id(s)).collect();
-    Ok(state.aggregator.search(&keyword, page, limit, &targets).await)
+    Ok(state
+        .aggregator
+        .search(&keyword, page, limit, &targets)
+        .await)
 }
 
 #[tauri::command]
@@ -583,9 +590,7 @@ fn account_clear(state: State<'_, AppState>, source: String) -> Result<VaultStat
                 .vault
                 .lock()
                 .map_err(|_| "凭据库状态异常".to_string())?;
-            let vault = guard
-                .as_ref()
-                .ok_or_else(|| "凭据库未解锁".to_string())?;
+            let vault = guard.as_ref().ok_or_else(|| "凭据库未解锁".to_string())?;
             vault.save(&data).map_err(|err| err.to_string())?;
             true
         } else {

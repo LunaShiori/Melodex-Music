@@ -568,7 +568,10 @@ async fn execute(
             album: task.album.clone(),
             duration_ms: task.duration_ms,
             cover: task.cover.clone(),
-            bitrate: ladder.first().map(|item| item.bitrate).unwrap_or(task.bitrate),
+            bitrate: ladder
+                .first()
+                .map(|item| item.bitrate)
+                .unwrap_or(task.bitrate),
             format: task.format.clone(),
             size: 0,
             fee: Fee::Unknown,

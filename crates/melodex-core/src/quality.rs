@@ -380,7 +380,10 @@ mod tests {
 
     #[test]
     fn parses_ids_and_legacy_bitrates() {
-        assert_eq!(QualityLevel::parse("lossless"), Some(QualityLevel::Lossless));
+        assert_eq!(
+            QualityLevel::parse("lossless"),
+            Some(QualityLevel::Lossless)
+        );
         assert_eq!(QualityLevel::parse("SQ"), Some(QualityLevel::Lossless));
         assert_eq!(QualityLevel::parse("hiRes"), Some(QualityLevel::HiRes));
         assert_eq!(QualityLevel::parse("nope"), None);
