@@ -22,7 +22,14 @@ const player = usePlayerStore()
 const keyword = ref('')
 
 function readPrefs(): { mode: ViewMode; size: CoverSize; sort: SortKey } {
-  const fallback = { mode: 'grid' as ViewMode, size: 'md' as CoverSize, sort: 'recent' as SortKey }
+  // 手机上一列大封面太占屏：窄屏默认小图（两列），桌面仍用中图。
+  // 只是「没存过偏好」时的默认值，用户点过小/中/大之后照他自己的来。
+  const narrow = typeof window !== 'undefined' && window.innerWidth < 520
+  const fallback = {
+    mode: 'grid' as ViewMode,
+    size: (narrow ? 'sm' : 'md') as CoverSize,
+    sort: 'recent' as SortKey,
+  }
   if (typeof localStorage === 'undefined') return fallback
   try {
     const raw = localStorage.getItem(STORE_KEY)
@@ -30,7 +37,7 @@ function readPrefs(): { mode: ViewMode; size: CoverSize; sort: SortKey } {
     const parsed = JSON.parse(raw) as Partial<{ mode: ViewMode; size: CoverSize; sort: SortKey }>
     return {
       mode: parsed.mode === 'list' ? 'list' : 'grid',
-      size: parsed.size === 'sm' || parsed.size === 'lg' ? parsed.size : 'md',
+      size: parsed.size === 'sm' || parsed.size === 'lg' ? parsed.size : fallback.size,
       sort: (['recent', 'title', 'artist', 'size', 'duration'] as SortKey[]).includes(
         parsed.sort as SortKey,
       )

@@ -150,21 +150,23 @@ function goLogin() {
               </span>
               <span v-else-if="task.state === 'failed'" class="err">{{ failText(task) }}</span>
               <span v-else>{{ STATE_TEXT[task.state] }}</span>
+              <!-- 登录提示紧跟在失败原因后面，不再塞进右侧操作区：
+                   手机上操作区是绝对定位的，长文案会被按钮压住。 -->
+              <button
+                v-if="task.state === 'failed' && needsLogin(task)"
+                class="btn btn-sm login-cta"
+                type="button"
+                title="前往设置登录该音源"
+                @click="goLogin()"
+              >
+                <Icon name="user" :size="12" />
+                去登录
+              </button>
             </div>
           </div>
         </div>
 
         <div class="actions">
-          <button
-            v-if="needsLogin(task)"
-            class="btn btn-sm login-cta"
-            type="button"
-            title="前往设置登录该音源"
-            @click="goLogin()"
-          >
-            <Icon name="user" :size="14" />
-            去登录
-          </button>
           <button
             v-if="!isActive(task) && task.state !== 'completed'"
             class="icon-btn"
@@ -425,6 +427,10 @@ function goLogin() {
 .progress-meta {
   font-size: 10.5px;
   color: var(--text-3);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .err {
   color: var(--danger);

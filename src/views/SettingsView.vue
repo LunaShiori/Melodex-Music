@@ -182,6 +182,27 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
+            <p>单任务限速</p>
+            <small>0 = 不限。按每个任务算；想卡总带宽，把上面的并发一起调小</small>
+          </div>
+          <div class="control">
+            <input
+              class="range"
+              type="range"
+              min="0"
+              max="2048"
+              step="128"
+              :value="settings.speedLimitKbps"
+              @input="update({ speedLimitKbps: Number(($event.target as HTMLInputElement).value) })"
+            />
+            <span class="value mono speed-value">
+              {{ settings.speedLimitKbps ? `${settings.speedLimitKbps} KB/s` : '不限' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">
             <p>重复文件</p>
             <small>目标文件已存在时的处理方式</small>
           </div>
@@ -810,6 +831,12 @@ onMounted(async () => {
 }
 .offset-value {
   width: 48px;
+}
+/* 限速值要同时容纳「不限」和「1024 KB/s」，18px 会把字挤成竖排 */
+.speed-value {
+  width: 88px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* 歌词字号预览：直接拿真实字号渲染一句，调完就看见效果 */

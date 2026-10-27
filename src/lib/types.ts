@@ -228,6 +228,8 @@ export interface Settings {
   namingTemplate: string
   artistSeparator: string
   concurrency: number
+  /** 单任务下载限速（KB/s），0 表示不限 */
+  speedLimitKbps: number
   writeTags: boolean
   embedCover: boolean
   saveLyric: boolean

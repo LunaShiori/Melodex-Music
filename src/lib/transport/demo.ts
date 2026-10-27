@@ -234,6 +234,7 @@ const DEFAULT_SETTINGS: Settings = {
   namingTemplate: '{artist} - {title}',
   artistSeparator: ' / ',
   concurrency: 3,
+  speedLimitKbps: 0,
   writeTags: true,
   embedCover: true,
   saveLyric: true,
