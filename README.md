@@ -169,12 +169,14 @@
 | 设置 → 账号：三源登录状态与保存的 Cookie 键 | 网易云扫码登录：二维码 + 实时状态 |
 | ![Cookie 导入](docs/screenshots/desktop-login-cookie.png) | ![更新](docs/screenshots/desktop-update.png) |
 | QQ 音乐：粘贴 Cookie 导入（附取法说明） | 更新弹窗：版本说明 + 按平台排序的安装包 |
+| ![我的歌单](docs/screenshots/desktop-playlists.png) | ![歌单详情](docs/screenshots/desktop-playlist-detail.png) |
+| 我的歌单：账号歌单，三种浏览方式 | 歌单内：搜索 + 免费 / 会员 / 无损筛选 |
 
 | Android | | | |
 | --- | --- | --- | --- |
 | ![移动搜索](docs/screenshots/mobile-search.png) | ![移动下载](docs/screenshots/mobile-downloads.png) | ![移动曲库](docs/screenshots/mobile-library.png) | ![移动设置](docs/screenshots/mobile-settings.png) |
-| ![移动账号](docs/screenshots/mobile-accounts.png) | | | |
-| 移动端账号：同一套登录与加密逻辑 | | | |
+| ![移动歌单](docs/screenshots/mobile-playlists.png) | ![移动账号](docs/screenshots/mobile-accounts.png) | | |
+| 移动歌单：视图切换与平台筛选 | 移动端账号：同一套登录与加密逻辑 | | |
 
 ### 主题与外观
 
