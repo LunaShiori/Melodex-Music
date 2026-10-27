@@ -129,27 +129,37 @@ open-source
 上传一张 1280×640 的图，内容建议：
 
 - 左侧：`docs/screenshots/desktop-search.png` 的搜索结果区截图（能一眼看出是多源结果）
-- 右侧：产品名 Melodex + 一句 `多源音乐聚合搜索与下载 · Windows / Android`
+- 右侧：产品名 Melodex Music + 一句 `多源音乐聚合搜索、播放与歌词 · Windows / Android`
 - 底色用品牌紫 `#6b5bf0` 的深色渐变
 
 这张图会出现在 Twitter / 微信 / Telegram 分享卡片里，是「别人愿意点进来」的关键。
 
 ## 5. Release 的标题与摘要（让搜「Melodex 下载」的人落到这里）
 
-标题：`Melodex 0.1.0 · Windows 安装包 + Android APK`
+标题：`Melodex Music 0.1.0 · Windows 安装包 + Android APK`（`release.yml` 里已按这个格式自动生成）
 
 摘要首段固定写清「是什么 + 装哪个文件 + 怎么升级」，例如：
 
 ```
 多源音乐聚合搜索与下载器，本次为首个可安装版本。
-Windows 用户下载 Melodex_0.1.0_x64-setup.exe 双击安装；
-Android 用户下载 app-universal-release.apk（允许「安装未知来源应用」）。
+Windows 用户下载 MelodexMusic_0.1.0_x64-setup.exe 双击安装；
+Android 用户下载 MelodexMusic_0.1.0_universal.apk（允许「安装未知来源应用」）。
 装好后再发新版，应用内「设置 → 关于 → 检查更新」会自动提示。
 ```
 
-## 6. 如果想让搜索命中率再高一档（可选）
+## 6. 仓库改名记录（v1.3.0 已完成）
 
-GitHub 的仓库名权重高于简介。当前仓库名 `melodex` 是纯品牌词，搜「音乐下载器」时不会命中。
-若愿意承担改名的代价（`update.rs` 里的 `DEFAULT_FEED`、`Cargo.toml` 的 `repository`、README 链接都要跟着改，
-旧链接会 301 到新地址），可以改成 `melodex-music-downloader`。品牌词 + 品类词的组合通常能带来
-数倍的自然搜索流量——这是有意的取舍，不是必须。
+GitHub 的仓库名权重高于简介。原来叫 `melodex`，是纯品牌词，搜「音乐播放器」「音乐下载器」都不会命中。
+v1.3.0 改成了 `Melodex-Music`：
+
+- **为什么带连字符**：GitHub 仓库名不允许空格，`Melodex-Music` 会被分词成 `melodex` + `music` 两个词，
+  搜索命中率高于连写的 `MelodexMusic`。
+- **改了什么**：`Cargo.toml` / `package.json` 的 `repository` 与 `homepage`、
+  `crates/melodex-core/src/update.rs` 的 `DEFAULT_FEED`、README 里的克隆地址与本页所有 curl 示例。
+- **没改什么**：`identifier`（`app.melodex`）与 `Cargo.toml` 包名。前者决定用户数据目录与 Android 包名，
+  改了等于换一个应用；后者只是构建产物名，与可发现性无关。
+- **旧链接**：GitHub 会给旧仓库名留 301 跳转，历史下载链接与 `git clone` 旧地址都还能用，
+  但本地 `git remote` 建议执行一次
+  `git remote set-url origin git@github.com:LunaShiori/Melodex-Music.git`。
+- **改名方式**：网页 `Settings → General → Repository name`，或跑 `scripts/setup-github-meta.sh`
+  （第一步就是改名的幂等操作，需要带 `Administration: RW` 的令牌）。
