@@ -191,9 +191,35 @@ jobs:
       - name: 列出待发布文件
         run: ls -lh dist-artifacts
 
-      - name: 生成发布说明（文件清单按实际产物生成，避免写死名称）
+      # Release 页面要能直接看到「这一版改了什么」，不能只有安装说明。
+      # 更新内容统一维护在 CHANGELOG.md，这里按 tag 把对应段落抽出来。
+      - name: 提取本版本更新内容
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # 每个版本以 "## v1.2.3" 开头，取到下一个 "## " 之前；### 子标题不算
+          awk -v head="## v${version}" '
+            index($0, head) == 1 { hit = 1; next }
+            hit && /^## / { exit }
+            hit { print }
+          ' CHANGELOG.md > version-notes.md
+          if [ -s version-notes.md ]; then
+            echo "已提取 v${version} 的更新内容：$(wc -l < version-notes.md) 行"
+            head -n 5 version-notes.md
+          else
+            echo "::warning::CHANGELOG.md 里没有 v${version} 段落，发布说明将只含安装信息"
+          fi
+
+      - name: 生成发布说明（更新内容 + 安装方式 + 实际产物清单）
         run: |
           {
+            if [ -s version-notes.md ]; then
+              echo "## 本次更新"
+              echo
+              cat version-notes.md
+              echo
+              echo "---"
+              echo
+            fi
             cat .github/release-body.md
             echo
             echo "### 本次构建产物"
@@ -204,7 +230,10 @@ jobs:
               [ -f "$f" ] || continue
               printf '| `%s` | %s |\n' "$(basename "$f")" "$(du -h "$f" | cut -f1)"
             done
+            echo
+            echo "完整更新历史见 [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)。"
           } > release-body.md
+          echo "--- 发布说明预览 ---"
           cat release-body.md
 
       - uses: softprops/action-gh-release@v2
@@ -213,7 +242,9 @@ jobs:
           name: Melodex ${{ github.ref_name }} · Windows 安装包 + Android APK
           draft: false
           prerelease: false
-          generate_release_notes: true
+          # 自己拼好的说明已经包含更新内容；关掉自动 notes，
+          # 否则会追加一长串 commit 标题，把真正的更新说明淹掉。
+          generate_release_notes: false
           body_path: release-body.md
           files: dist-artifacts/*
           fail_on_unmatched_files: true
