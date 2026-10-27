@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import Icon from './Icon.vue'
+import ScrollText from './ScrollText.vue'
 import { coverOf } from '@/lib/artwork'
 import { onCoverError } from '@/lib/cover'
 import { formatDuration } from '@/lib/format'
 import { SOURCE_META } from '@/lib/types'
+import { useLyricStore } from '@/stores/lyric'
 import { usePlayerStore } from '@/stores/player'
 
 const player = usePlayerStore()
+const lyric = useLyricStore()
 const bar = ref<HTMLElement | null>(null)
 const scrubbing = ref(false)
 
@@ -18,6 +21,26 @@ const cover = computed(() =>
 const sourceMeta = computed(() =>
   player.variant ? SOURCE_META[player.variant.source] : null,
 )
+
+/**
+ * 没进歌词详情页时，播放条上要能看见「现在唱到哪句」。
+ * 桌面端横排，歌词挂在歌名右边；手机上宽度不够，放到第二行（原来是歌手名）。
+ */
+const isNarrow = ref(false)
+function syncWidth() {
+  isNarrow.value = window.matchMedia('(max-width: 860px)').matches
+}
+onMounted(() => {
+  syncWidth()
+  window.addEventListener('resize', syncWidth)
+})
+onUnmounted(() => window.removeEventListener('resize', syncWidth))
+
+/** 详情页开着、没在播、或者这首压根没歌词时都不显示 */
+const barLyric = computed(() => {
+  if (!lyric.showInBar || player.detailOpen) return ''
+  return player.currentLyric
+})
 
 function seekFromEvent(event: PointerEvent) {
   if (!bar.value || !player.duration) return
@@ -39,10 +62,10 @@ function startScrub(event: PointerEvent) {
   window.addEventListener('pointerup', up)
 }
 
-/** 手机端点播放条 → 全屏播放页；桌面端播放条本身已经够用 */
-function openSheet() {
+/** 点封面 / 播放条信息区 → 歌词详情页。两端同一个入口 */
+function openDetail() {
   if (!player.current) return
-  if (window.matchMedia('(max-width: 860px)').matches) player.expanded = true
+  player.detailOpen = true
 }
 </script>
 
@@ -64,24 +87,44 @@ function openSheet() {
       <div class="mobile-fill" :style="{ width: `${player.progress * 100}%` }" />
     </div>
 
-    <div class="now" @click="openSheet">
-      <div class="thumb">
+    <div class="now" @click="openDetail">
+      <div class="thumb" :title="player.current ? '打开歌词详情' : ''">
         <img v-if="cover" :src="cover" alt="" @error="onCoverError($event, player.current?.fingerprint ?? 'melodex')" />
         <span v-else class="placeholder"><Icon name="disc" :size="20" /></span>
         <span v-if="player.playing" class="eq" aria-hidden="true">
           <i /><i /><i />
         </span>
+        <span class="thumb-hint" aria-hidden="true"><Icon name="lyric" :size="14" /></span>
       </div>
       <div class="meta">
-        <p class="title">{{ player.current?.title ?? '未在播放' }}</p>
+        <p class="title-row">
+          <span class="title">{{ player.current?.title ?? '未在播放' }}</span>
+          <Transition v-if="!isNarrow" name="lyric-swap" mode="out-in">
+            <span v-if="barLyric" :key="player.activeLyricIndex" class="bar-lyric">
+              <ScrollText :text="barLyric" />
+            </span>
+          </Transition>
+        </p>
         <p class="sub">
-          <template v-if="player.current">
-            {{ player.current.artists.join(' / ') || '未知歌手' }}
+          <Transition v-if="isNarrow" name="lyric-swap" mode="out-in">
+            <span v-if="barLyric" :key="player.activeLyricIndex" class="sub-lyric">
+              <ScrollText :text="barLyric" />
+            </span>
+            <template v-else>
+              <span :key="'meta'">
+                {{ player.current ? player.current.artists.join(' / ') || '未知歌手' : '从搜索结果里点一下播放' }}
+                <span v-if="sourceMeta" class="src" :style="{ color: sourceMeta.color }">
+                  · {{ sourceMeta.short }}
+                </span>
+              </span>
+            </template>
+          </Transition>
+          <template v-else>
+            {{ player.current ? player.current.artists.join(' / ') || '未知歌手' : '从搜索结果里点一下播放' }}
             <span v-if="sourceMeta" class="src" :style="{ color: sourceMeta.color }">
               · {{ sourceMeta.short }}
             </span>
           </template>
-          <template v-else>从搜索结果里点一下播放</template>
         </p>
       </div>
     </div>
@@ -122,9 +165,10 @@ function openSheet() {
     <div class="right">
       <button
         class="icon-btn"
-        :class="{ 'is-active': player.lyricOpen }"
-        title="歌词"
-        @click="player.lyricOpen = !player.lyricOpen"
+        :class="{ 'is-active': player.detailOpen }"
+        title="歌词详情"
+        :disabled="!player.current"
+        @click="openDetail"
       >
         <Icon name="lyric" :size="17" />
       </button>
@@ -170,7 +214,7 @@ function openSheet() {
   flex: 0 0 auto;
   height: var(--player);
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(320px, 1.4fr) minmax(160px, 1fr);
+  grid-template-columns: minmax(220px, 1.1fr) minmax(320px, 1.4fr) minmax(160px, 1fr);
   align-items: center;
   gap: 18px;
   padding: 0 18px;
@@ -223,6 +267,7 @@ function openSheet() {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  cursor: pointer;
 }
 
 .thumb {
@@ -240,6 +285,24 @@ function openSheet() {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 220ms var(--ease);
+}
+.now:hover .thumb img {
+  transform: scale(1.06);
+}
+/* 悬停时给个「点我进歌词」的暗示 */
+.thumb-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  transition: opacity 180ms var(--ease);
+}
+.now:hover .thumb-hint {
+  opacity: 1;
 }
 .placeholder {
   display: grid;
@@ -288,14 +351,49 @@ function openSheet() {
 
 .meta {
   min-width: 0;
+  flex: 1;
+}
+.title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
 }
 .title {
-  margin: 0;
+  /* 不许被歌词挤扁：先用内容宽度，超过 58% 才省略 */
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 58%;
   font-size: 13.5px;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 歌名右边那句当前歌词：压暗、跑马灯，和歌名区分开 */
+.bar-lyric {
+  position: relative;
+  /* 必须是 flex 而不是 inline：里面的滚动文本是块级，行内父元素会被它撑成两行 */
+  display: flex;
+  align-items: baseline;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-3);
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 88%, transparent);
+}
+.bar-lyric::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 3px;
+  height: 3px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 2px;
+  opacity: 0.7;
 }
 .sub {
   margin: 2px 0 0;
@@ -305,8 +403,28 @@ function openSheet() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.sub-lyric {
+  display: block;
+  color: var(--text-2);
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 86%, transparent);
+}
 .src {
   font-weight: 500;
+}
+
+/* 歌词换行时轻微上滑淡入，不打断视线 */
+.lyric-swap-enter-active,
+.lyric-swap-leave-active {
+  transition: opacity 220ms var(--ease), transform 220ms var(--ease);
+}
+.lyric-swap-enter-from {
+  opacity: 0;
+  transform: translateY(5px);
+}
+.lyric-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
 }
 
 .center {
@@ -382,29 +500,31 @@ function openSheet() {
   cursor: pointer;
   touch-action: none;
 }
+/* 轨道用「文字色混一点底」，浅色主题下才是可见的灰，而不是和卡片同色的白 */
 .bar::before {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 5px;
   border-radius: var(--r-full);
-  background: var(--surface-3);
+  background: color-mix(in srgb, var(--text) 22%, transparent);
 }
 .fill {
   position: absolute;
   left: 0;
-  height: 4px;
+  height: 5px;
   border-radius: var(--r-full);
   background: linear-gradient(90deg, var(--accent), var(--accent-soft));
 }
 .knob {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: var(--surface);
   border: 2px solid var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
   transform: translateX(-50%);
   opacity: 0;
   transition: opacity var(--dur) var(--ease);
@@ -427,18 +547,29 @@ function openSheet() {
 }
 .slider {
   width: 76px;
-  height: 4px;
+  height: 5px;
   appearance: none;
   border-radius: var(--r-full);
-  background: var(--surface-3);
+  /* 同进度条：浅色主题下不能再拿 surface-3 当轨道，那样几乎看不见 */
+  background: color-mix(in srgb, var(--text) 22%, transparent);
   outline: none;
 }
 .slider::-webkit-slider-thumb {
   appearance: none;
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: var(--text);
+  box-shadow: 0 0 0 2px var(--surface);
+  cursor: pointer;
+}
+.slider::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--surface);
   cursor: pointer;
 }
 
@@ -482,10 +613,14 @@ function openSheet() {
     border-radius: 11px;
   }
   .title {
+    max-width: 100%;
     font-size: 13px;
   }
   .sub {
     font-size: 11px;
+  }
+  .thumb-hint {
+    display: none;
   }
 
   .mobile-controls {
@@ -536,7 +671,7 @@ function openSheet() {
     bottom: 3px;
     height: 2px;
     border-radius: 2px;
-    background: color-mix(in srgb, var(--text) 12%, transparent);
+    background: color-mix(in srgb, var(--text) 20%, transparent);
     overflow: hidden;
   }
   .mobile-fill {

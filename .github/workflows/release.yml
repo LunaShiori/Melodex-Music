@@ -128,6 +128,11 @@ jobs:
       - name: 生成 Android 工程
         run: npm run tauri android init
 
+      # init 生成的工程只带 Tauri 官方默认图标（黄青色图案），
+      # 构建时不会自动搬运 src-tauri/icons/android，必须显式覆盖进去。
+      - name: 同步启动图标
+        run: python3 scripts/android-icons.py
+
       # Android 7 起不允许把 file:// 交给别的应用，安装自己下载的 APK 必须有
       # FileProvider + REQUEST_INSTALL_PACKAGES 权限，这两样 gen/android 里没有。
       # 脚本会 fail-fast：注入不完整就让构建挂掉，别发一个安装按钮点不动的包。

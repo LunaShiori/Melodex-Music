@@ -5,6 +5,7 @@ import { activeLineIndex, mergeTranslation, parseLrc, type LrcLine } from '@/lib
 import { transport } from '@/lib/transport'
 import type { FailReason, PlayUrl, SourceId, Track, Variant } from '@/lib/types'
 import { bestVariant } from '@/lib/track'
+import { useLyricStore } from './lyric'
 
 /** 播放失败的完整说明。内核给得出来就用内核的，给不出来就按媒体错误码兜底。 */
 export interface PlayerError {
@@ -65,11 +66,8 @@ export const usePlayerStore = defineStore('player', () => {
   const duration = ref(0)
   const volume = ref(0.8)
   const lyricLines = ref<LrcLine[]>([])
-  const lyricOpen = ref(false)
-  /** 全屏沉浸式歌词页是否打开 */
-  const fullLyric = ref(false)
-  /** 手机端的全屏播放页是否展开 */
-  const expanded = ref(false)
+  /** 歌词详情页（手机的全屏播放页 / 桌面的歌词详情）是否打开——两端共用一个入口 */
+  const detailOpen = ref(false)
   /** 正在取链接 / 起播（按钮转圈） */
   const loading = ref(false)
   const error = ref<PlayerError | null>(null)
@@ -82,8 +80,69 @@ export const usePlayerStore = defineStore('player', () => {
   const isDemo = transport.mode === 'demo'
   let ticker: ReturnType<typeof setInterval> | null = null
 
+  const lyric = useLyricStore()
+
   const progress = computed(() => (duration.value ? position.value / duration.value : 0))
-  const activeLyricIndex = computed(() => activeLineIndex(lyricLines.value, position.value))
+  /**
+   * 当前唱到第几行。`offsetMs` 是用户手动对齐的偏移：
+   * 正值表示「歌词整体出现得更晚」，所以拿播放位置减去它再查表。
+   */
+  const activeLyricIndex = computed(() =>
+    activeLineIndex(lyricLines.value, position.value - lyric.offsetMs),
+  )
+  /** 当前这一行的文本，给播放条上的跑马灯用 */
+  const currentLyric = computed(() => {
+    const index = activeLyricIndex.value
+    if (index < 0) return ''
+    return lyricLines.value[index]?.text?.trim() ?? ''
+  })
+
+  /**
+   * 失败提示不能「一有错误就弹」。
+   *
+   * 手机上切歌/换源的一瞬间，WebView 会先抛一次短命的 MEDIA_ERR（解码器还没就绪），
+   * 几十毫秒后自己就好了。旧代码直接把 `error` 写进去，界面上就是
+   * 「点播放先闪一个红色小窗，然后才正常播」。现在分成两级：
+   * - `armError`：观察到错误，先压 450ms，期间恢复正常就当没发生
+   * - `showError`：调用方已经确认这是最终失败（重试也用完了），立刻展示
+   */
+  const broken = ref(false)
+  let pendingError: PlayerError | null = null
+  let errorTimer: ReturnType<typeof setTimeout> | null = null
+
+  function cancelErrorTimer() {
+    if (errorTimer) {
+      clearTimeout(errorTimer)
+      errorTimer = null
+    }
+  }
+
+  function showError(next: PlayerError) {
+    cancelErrorTimer()
+    pendingError = null
+    error.value = next
+    broken.value = true
+  }
+
+  function armError(next: PlayerError) {
+    pendingError = next
+    if (errorTimer) return
+    errorTimer = setTimeout(() => {
+      errorTimer = null
+      if (pendingError) {
+        error.value = pendingError
+        pendingError = null
+        broken.value = true
+      }
+    }, 450)
+  }
+
+  function clearError() {
+    cancelErrorTimer()
+    pendingError = null
+    error.value = null
+    broken.value = false
+  }
 
   if (audio) {
     audio.volume = volume.value
@@ -99,6 +158,15 @@ export const usePlayerStore = defineStore('player', () => {
     audio.addEventListener('playing', () => {
       playing.value = true
       loading.value = false
+      // 已经开始出声说明刚才那个错误是短命的，撤回提示
+      clearError()
+    })
+    audio.addEventListener('canplay', () => {
+      // 解码器就绪 = 刚才那个错误已经自愈，把还没弹出来的提示直接撤掉
+      if (!broken.value) {
+        cancelErrorTimer()
+        pendingError = null
+      }
     })
     audio.addEventListener('waiting', () => {
       if (playing.value) loading.value = true
@@ -117,12 +185,13 @@ export const usePlayerStore = defineStore('player', () => {
       const target = variant.value?.source ?? 'netease'
       playing.value = false
       loading.value = false
+      // 先「观望」再展示：换源瞬间的假错误不能弹窗
       if (code === 2) {
-        error.value = mediaError('linkRejected', '音频请求失败或被服务器中断', target)
+        armError(mediaError('linkRejected', '音频请求失败或被服务器中断', target))
       } else if (code === 3 || code === 4) {
-        error.value = mediaError('qualityMissing', '当前播放器无法解码这个音频格式', target)
+        armError(mediaError('qualityMissing', '当前播放器无法解码这个音频格式', target))
       } else {
-        error.value = mediaError('unknown', '音频加载失败，可能链接已过期', target)
+        armError(mediaError('unknown', '音频加载失败，可能链接已过期', target))
       }
     })
   }
@@ -163,7 +232,7 @@ export const usePlayerStore = defineStore('player', () => {
     try {
       await audio.play()
       playing.value = true
-      error.value = null
+      clearError()
       return true
     } catch (err) {
       // 源被 WebView 拒绝时，换补了 Referer 的代理地址再试一次
@@ -172,7 +241,7 @@ export const usePlayerStore = defineStore('player', () => {
         triedProxy = true
         return attach({ ...source, url: source.proxyUrl }, target)
       }
-      error.value = mediaError('linkRejected', detail, target.source)
+      showError(mediaError('linkRejected', detail, target.source))
       return false
     }
   }
@@ -183,7 +252,7 @@ export const usePlayerStore = defineStore('player', () => {
     variant.value = target
     duration.value = track.durationMs || 0
     position.value = 0
-    error.value = null
+    clearError()
     loading.value = true
     triedProxy = false
     void loadLyric(target)
@@ -202,7 +271,7 @@ export const usePlayerStore = defineStore('player', () => {
       const resolved = await transport.resolve(target, 'exquisite')
       await attach(resolved, target)
     } catch (err) {
-      error.value = toPlayerError(err, target.source)
+      showError(toPlayerError(err, target.source))
       playing.value = false
     } finally {
       loading.value = false
@@ -215,7 +284,7 @@ export const usePlayerStore = defineStore('player', () => {
     variant.value = track.variants[0] ?? null
     duration.value = track.durationMs || 0
     position.value = 0
-    error.value = null
+    clearError()
     loading.value = true
     // 本地文件本身不带歌词，但仍然知道它来自哪个平台的哪首歌，
     // 所以照样去源站拉一次——否则从曲库起播时歌词区会一直是上一首的残留。
@@ -238,7 +307,7 @@ export const usePlayerStore = defineStore('player', () => {
       await audio.play()
       playing.value = true
     } catch (err) {
-      error.value = mediaError('unknown', err instanceof Error ? err.message : String(err), 'netease')
+      showError(mediaError('unknown', err instanceof Error ? err.message : String(err), 'netease'))
     } finally {
       loading.value = false
     }
@@ -277,7 +346,7 @@ export const usePlayerStore = defineStore('player', () => {
     }
     if (!audio) return
     // 上一次失败过（没有 src，或 src 已被 CDN 拒）就重新取一遍链接
-    if (!audio.src || error.value) {
+    if (!audio.src || broken.value) {
       void playTrack(current.value, variant.value ?? undefined)
       return
     }
@@ -323,13 +392,12 @@ export const usePlayerStore = defineStore('player', () => {
     duration,
     volume,
     lyricLines,
-    lyricOpen,
-    fullLyric,
-    expanded,
+    detailOpen,
     loading,
     error,
     progress,
     activeLyricIndex,
+    currentLyric,
     isDemo,
     playTrack,
     playLocal,

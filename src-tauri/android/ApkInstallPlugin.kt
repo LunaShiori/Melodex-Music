@@ -11,6 +11,7 @@ import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.Plugin
 import java.io.File
+import java.util.zip.ZipFile
 
 @InvokeArg
 class ApkInstallArgs {
@@ -26,9 +27,31 @@ class ApkInstallArgs {
  * 2. 就算把结构拼对，`file://` 从 Android 7 起也会被 StrictMode 拦掉（FileUriExposedException），
  *    必须换成自己 FileProvider 提供的 `content://`，并带上安装器的 MIME 类型，
  *    系统才会理会「这是一个 APK，去装它」。
+ *
+ * 拉起安装器之前先自己把包验一遍：文件不完整、下到的是代理的错误页时，
+ * 系统只会甩一句「解析软件包时出现问题」，用户完全不知道该怎么办。
+ * 这里提前拦下并说清原因，前端才好给「重新下载」的入口。
  */
 @TauriPlugin
 class ApkInstallPlugin(private val activity: Activity) : Plugin(activity) {
+  /** 4 字节的 ZIP 本地文件头魔数；APK 本质就是个 ZIP */
+  private val zipMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
+
+  private fun looksLikeApk(file: File): Boolean {
+    if (file.length() < 1024) return false
+    val head = ByteArray(4)
+    file.inputStream().use { stream ->
+      if (stream.read(head) != 4) return false
+    }
+    if (!head.contentEquals(zipMagic)) return false
+    // 能当 ZIP 打开、且里面有 AndroidManifest.xml，才算一个可解析的安装包
+    return try {
+      ZipFile(file).use { zip -> zip.getEntry("AndroidManifest.xml") != null }
+    } catch (ex: Exception) {
+      false
+    }
+  }
+
   @Command
   fun install(invoke: Invoke) {
     try {
@@ -37,6 +60,12 @@ class ApkInstallPlugin(private val activity: Activity) : Plugin(activity) {
       val file = File(path)
       if (!file.exists()) {
         throw IllegalArgumentException("安装包不存在，请重新下载")
+      }
+      if (!looksLikeApk(file)) {
+        val mb = file.length() / 1024.0 / 1024.0
+        throw IllegalArgumentException(
+          "安装包不完整（%.1f MB），系统无法解析。请点「重新下载」再试一次".format(mb)
+        )
       }
       val authority = "${activity.packageName}.apkprovider"
       val uri = FileProvider.getUriForFile(activity, authority, file)

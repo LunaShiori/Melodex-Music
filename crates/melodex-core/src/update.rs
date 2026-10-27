@@ -267,13 +267,67 @@ fn build_candidate_urls(original: &str) -> Vec<String> {
     urls
 }
 
+/// 解析 `Content-Range: bytes 100-999/1000`，返回 `(start, end, total)`。
+///
+/// 断点续传能不能用，全看这个头对不对得上——只看状态码 206 是不够的：
+/// 不少加速代理会把 `Range` 请求原样当整份文件回，还贴一个 206 的状态，
+/// 这时若直接把响应体追加到 `.part` 后面，拼出来的文件**大小对、内容错**，
+/// 系统安装器打开就是「解析软件包时出现问题」。
+#[cfg_attr(not(feature = "net"), allow(dead_code))]
+fn parse_content_range(value: &str) -> Option<(u64, u64, Option<u64>)> {
+    let rest = value.trim().strip_prefix("bytes")?.trim();
+    let (range, total) = rest.split_once('/')?;
+    let (start, end) = range.split_once('-')?;
+    let start: u64 = start.trim().parse().ok()?;
+    let end: u64 = end.trim().parse().ok()?;
+    let total = if total.trim() == "*" {
+        None
+    } else {
+        Some(total.trim().parse().ok()?)
+    };
+    Some((start, end, total))
+}
+
+/// 安装包得是个真的 ZIP（APK 就是 ZIP）。
+///
+/// 下载链路再稳，也可能被某个代理塞回一张 HTML 错误页；那种文件大小可能刚好
+/// 对得上，交给系统安装器只会得到一句「无法解析包」。这里落地前自己先验一眼。
+#[cfg_attr(not(feature = "net"), allow(dead_code))]
+fn looks_like_zip(path: &std::path::Path) -> bool {
+    use std::io::{Read, Seek, SeekFrom};
+
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return false;
+    };
+
+    let mut head = [0u8; 4];
+    if file.read_exact(&mut head).is_err() || &head != b"PK\x03\x04" {
+        return false;
+    }
+
+    // 中央目录结尾（EOCD）在文件末尾最多 64KB + 22 字节之内
+    let tail_len = (meta.len()).min(66 * 1024);
+    if tail_len < 22 || file.seek(SeekFrom::Start(meta.len() - tail_len)).is_err() {
+        return false;
+    }
+    let mut tail = Vec::with_capacity(tail_len as usize);
+    if file.read_to_end(&mut tail).is_err() {
+        return false;
+    }
+    tail.windows(4).any(|window| window == b"PK\x05\x06")
+}
+
 /// 把安装包下载到 `dir`，边下边回报进度，落地前做完整性校验。
 ///
-/// 两层健壮性：
-/// 1. **断点续传**：先写 `.part`，中断后重试用 `Range` 接着下，服务端不支持
-///    （返回 200）则自动从头写；断点越界（416）则清掉临时文件重来。
+/// 三层健壮性：
+/// 1. **断点续传**：先写 `.part`，中断后重试用 `Range` 接着下。服务端不支持
+///    （返回 200）则自动从头写；断点越界（416）或 `Content-Range` 对不上则清掉重来。
 /// 2. **加速代理兜底**：直连失败或连接被重置时，自动换 GitHub 加速 CDN 源，
 ///    逐个尝试直到有一个能下。`.part` 已下字节跨源复用。
+/// 3. **落地校验**：字节数必须和内容长度/清单大小完全一致，`.apk`/`.zip` 还要过 ZIP 头尾检查。
 ///
 /// `expected_size` 来自发布清单；服务端给了 `Content-Length` 时以它为准。
 #[cfg(feature = "net")]
@@ -302,101 +356,141 @@ pub async fn download_asset(
 
     // 逐个候选源尝试；`.part` 已下载的字节跨源保留，换源后从断点继续
     for candidate in &candidates {
-        let existing = tokio::fs::metadata(&part)
-            .await
-            .map(|meta| meta.len())
-            .unwrap_or(0);
+        // 同一个源最多试两次：第一次带 Range 续传，续传区间对不上就整份重下
+        for _attempt in 0..2 {
+            let existing = tokio::fs::metadata(&part)
+                .await
+                .map(|meta| meta.len())
+                .unwrap_or(0);
 
-        let mut request = net.client().get(candidate);
-        if existing > 0 {
-            request = request.header("Range", format!("bytes={existing}-"));
-        }
-        let response = match request.send().await {
-            Ok(resp) => resp,
-            Err(err) => {
-                // 连接被重置/超时是直连 GitHub 的典型失败，换下一个源
-                last_err = Some(format!("{candidate}：{err}"));
-                continue;
+            let mut request = net.client().get(candidate);
+            if existing > 0 {
+                request = request.header("Range", format!("bytes={existing}-"));
             }
-        };
-        let status = response.status();
-
-        // 断点越界：临时文件比远端还大，清掉重来（同一源即可，不必换）
-        if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
-            let _ = tokio::fs::remove_file(&part).await;
-            last_err = Some("断点位置越界，已清理临时文件".to_string());
-            continue;
-        }
-        if !status.is_success() {
-            last_err = Some(format!("{candidate}：HTTP {status}"));
-            continue;
-        }
-
-        let resumed = status == reqwest::StatusCode::PARTIAL_CONTENT;
-        let body_len = response.content_length().unwrap_or(0);
-        let total = if resumed {
-            existing + body_len
-        } else {
-            body_len
-        };
-        // 服务端没给 Content-Length 时用清单里的期望大小兜底
-        let total = if total > 0 { total } else { expected_size };
-        let mut done = if resumed { existing } else { 0 };
-
-        let mut file = if resumed {
-            tokio::fs::OpenOptions::new()
-                .append(true)
-                .open(&part)
-                .await?
-        } else {
-            tokio::fs::File::create(&part).await?
-        };
-
-        let mut stream = response.bytes_stream();
-        // 断流原因先记在局部，等文件句柄收尾后再决定「换源续传」还是「报完整」。
-        // 直接在循环里写 `last_err` 的话，后面 `done == 0` 分支一定会把它覆盖掉，
-        // 真实的断流原因（比如连接被重置）就丢了。
-        let mut interrupted: Option<String> = None;
-        while let Some(chunk) = stream.next().await {
-            let chunk = match chunk {
-                Ok(chunk) => chunk,
+            let response = match request.send().await {
+                Ok(resp) => resp,
                 Err(err) => {
-                    interrupted = Some(err.to_string());
+                    // 连接被重置/超时是直连 GitHub 的典型失败，换下一个源
+                    last_err = Some(format!("{candidate}：{err}"));
                     break;
                 }
             };
-            file.write_all(&chunk).await?;
-            done += chunk.len() as u64;
-            on_progress(done, total);
-        }
-        file.flush().await?;
-        file.sync_all().await.ok();
-        drop(file);
+            let status = response.status();
 
-        // 中途断流：已写入的字节留在 `.part` 里，换下一个源续传
-        if let Some(err) = interrupted {
-            last_err = Some(format!("{candidate}：下载中断（{err}）"));
-            continue;
-        }
+            // 断点越界：临时文件比远端还大，清掉后同一源从头再来
+            if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+                let _ = tokio::fs::remove_file(&part).await;
+                last_err = Some("断点位置越界，已清理临时文件".to_string());
+                continue;
+            }
+            if !status.is_success() {
+                last_err = Some(format!("{candidate}：HTTP {status}"));
+                break;
+            }
 
-        // 判断这一源是否完整下完；不完整则换下一个源继续
-        if done == 0 {
-            let _ = tokio::fs::remove_file(&part).await;
-            last_err = Some(format!("{candidate}：下载到空内容"));
-            continue;
-        }
-        if total > 0 && done < total {
-            // 不删 `.part`，保留断点交给下一个源续传
-            last_err = Some(format!("{candidate}：数据不完整（{done}/{total} 字节）"));
-            continue;
-        }
+            let resumed = status == reqwest::StatusCode::PARTIAL_CONTENT;
+            if resumed {
+                let header = response
+                    .headers()
+                    .get(reqwest::header::CONTENT_RANGE)
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or_default()
+                    .to_string();
+                let start = parse_content_range(&header).map(|(start, _, _)| start);
+                if start != Some(existing) {
+                    // 服务端给的起点和我们手里的字节数对不上：拼上去必然错位
+                    let _ = tokio::fs::remove_file(&part).await;
+                    last_err = Some(format!(
+                        "{candidate}：续传区间不对（请求 {existing} 起，返回 {}），改为整份重下",
+                        start.map(|v| v.to_string()).unwrap_or_else(|| "未知".into())
+                    ));
+                    continue;
+                }
+            }
 
-        // 下完了：落地改名
-        if tokio::fs::try_exists(&target).await.unwrap_or(false) {
-            let _ = tokio::fs::remove_file(&target).await;
+            let body_len = response.content_length().unwrap_or(0);
+            let total = if resumed {
+                existing + body_len
+            } else {
+                body_len
+            };
+            // 服务端没给 Content-Length 时用清单里的期望大小兜底
+            let total = if total > 0 { total } else { expected_size };
+            let mut done = if resumed { existing } else { 0 };
+
+            let mut file = if resumed {
+                tokio::fs::OpenOptions::new()
+                    .append(true)
+                    .open(&part)
+                    .await?
+            } else {
+                tokio::fs::File::create(&part).await?
+            };
+
+            let mut stream = response.bytes_stream();
+            // 断流原因先记在局部，等文件句柄收尾后再决定「换源续传」还是「报完整」。
+            // 直接在循环里写 `last_err` 的话，后面 `done == 0` 分支一定会把它覆盖掉，
+            // 真实的断流原因（比如连接被重置）就丢了。
+            let mut interrupted: Option<String> = None;
+            while let Some(chunk) = stream.next().await {
+                let chunk = match chunk {
+                    Ok(chunk) => chunk,
+                    Err(err) => {
+                        interrupted = Some(err.to_string());
+                        break;
+                    }
+                };
+                file.write_all(&chunk).await?;
+                done += chunk.len() as u64;
+                on_progress(done, total);
+            }
+            file.flush().await?;
+            file.sync_all().await.ok();
+            drop(file);
+
+            // 中途断流：已写入的字节留在 `.part` 里，换下一个源续传
+            if let Some(err) = interrupted {
+                last_err = Some(format!("{candidate}：下载中断（{err}）"));
+                break;
+            }
+
+            if done == 0 {
+                let _ = tokio::fs::remove_file(&part).await;
+                last_err = Some(format!("{candidate}：下载到空内容"));
+                break;
+            }
+            // 字节数必须**正好**对上：少了是断流，多了说明拼接错位
+            if total > 0 && done != total {
+                last_err = Some(format!("{candidate}：数据不完整（{done}/{total} 字节）"));
+                if done > total {
+                    // 多了只能是拼错位，留着这个 `.part` 会一直错下去
+                    let _ = tokio::fs::remove_file(&part).await;
+                    break;
+                }
+                break;
+            }
+            if expected_size > 0 && done != expected_size {
+                let _ = tokio::fs::remove_file(&part).await;
+                last_err = Some(format!(
+                    "{candidate}：大小与发布清单不一致（{done}/{expected_size} 字节）"
+                ));
+                break;
+            }
+            // 安装包得是能解析的 ZIP，否则交给系统安装器也只会报「无法解析包」
+            let name = target.to_string_lossy().to_ascii_lowercase();
+            if (name.ends_with(".apk") || name.ends_with(".zip")) && !looks_like_zip(&part) {
+                let _ = tokio::fs::remove_file(&part).await;
+                last_err = Some(format!("{candidate}：下载到的不是有效安装包，已丢弃"));
+                break;
+            }
+
+            // 下完了：落地改名
+            if tokio::fs::try_exists(&target).await.unwrap_or(false) {
+                let _ = tokio::fs::remove_file(&target).await;
+            }
+            tokio::fs::rename(&part, &target).await?;
+            return Ok(target);
         }
-        tokio::fs::rename(&part, &target).await?;
-        return Ok(target);
     }
 
     let detail = last_err.unwrap_or_else(|| "所有源均不可用".to_string());
@@ -518,6 +612,37 @@ mod tests {
         assert_eq!(urls.len(), 1 + ACCELERATE_PREFIXES.len());
         assert_eq!(urls[1], format!("https://mirror.ghproxy.com/{original}"));
         assert!(urls.iter().all(|u| u.contains(original)));
+    }
+
+    #[test]
+    fn parses_content_range_header() {
+        assert_eq!(parse_content_range("bytes 100-999/1000"), Some((100, 999, Some(1000))));
+        assert_eq!(parse_content_range("bytes 0-0/1234"), Some((0, 0, Some(1234))));
+        assert_eq!(parse_content_range("bytes 5-9/*"), Some((5, 9, None)));
+        assert_eq!(parse_content_range(""), None);
+        assert_eq!(parse_content_range("items 1-2/3"), None);
+    }
+
+    #[test]
+    fn zip_probe_rejects_html_and_accepts_zip() {
+        let dir = std::env::temp_dir().join("melodex-zip-probe");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let html = dir.join("fake.apk");
+        std::fs::write(&html, b"<html>404 not found</html>").unwrap();
+        assert!(!looks_like_zip(&html));
+
+        // 最小的合法空 ZIP：本地头 + 中央目录 + EOCD
+        let mut zip = Vec::new();
+        zip.extend_from_slice(b"PK\x05\x06");
+        zip.extend_from_slice(&[0u8; 18]);
+        let mut head = b"PK\x03\x04".to_vec();
+        head.extend_from_slice(&zip);
+        let ok = dir.join("ok.apk");
+        std::fs::write(&ok, &head).unwrap();
+        assert!(looks_like_zip(&ok));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

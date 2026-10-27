@@ -3,9 +3,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 
 import PlayerBar from '@/components/PlayerBar.vue'
-import LyricPanel from '@/components/LyricPanel.vue'
-import FullLyric from '@/components/FullLyric.vue'
-import NowPlaying from '@/components/NowPlaying.vue'
+import LyricView from '@/components/LyricView.vue'
 import OnboardingDialog from '@/components/OnboardingDialog.vue'
 import SideBar from '@/components/SideBar.vue'
 import TabBar from '@/components/TabBar.vue'
@@ -66,10 +64,8 @@ onUnmounted(() => {
       </main>
     </div>
     <PlayerBar />
-    <LyricPanel />
-    <FullLyric />
     <TabBar />
-    <NowPlaying />
+    <LyricView />
     <OnboardingDialog />
     <UpdateNotice />
     <ToastStack />
