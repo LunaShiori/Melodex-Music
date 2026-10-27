@@ -400,7 +400,8 @@ pub async fn download_asset(
                 if start != Some(existing) {
                     // 服务端给的起点和我们手里的字节数对不上：拼上去必然错位
                     let _ = tokio::fs::remove_file(&part).await;
-                    last_err = Some(format!(
+                    last_err =
+                        Some(format!(
                         "{candidate}：续传区间不对（请求 {existing} 起，返回 {}），改为整份重下",
                         start.map(|v| v.to_string()).unwrap_or_else(|| "未知".into())
                     ));
@@ -616,8 +617,14 @@ mod tests {
 
     #[test]
     fn parses_content_range_header() {
-        assert_eq!(parse_content_range("bytes 100-999/1000"), Some((100, 999, Some(1000))));
-        assert_eq!(parse_content_range("bytes 0-0/1234"), Some((0, 0, Some(1234))));
+        assert_eq!(
+            parse_content_range("bytes 100-999/1000"),
+            Some((100, 999, Some(1000)))
+        );
+        assert_eq!(
+            parse_content_range("bytes 0-0/1234"),
+            Some((0, 0, Some(1234)))
+        );
         assert_eq!(parse_content_range("bytes 5-9/*"), Some((5, 9, None)));
         assert_eq!(parse_content_range(""), None);
         assert_eq!(parse_content_range("items 1-2/3"), None);
