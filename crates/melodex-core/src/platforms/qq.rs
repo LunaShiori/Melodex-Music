@@ -441,34 +441,42 @@ impl MusicPlatform for QqMusic {
             .and_then(|v| v.as_array())
             .cloned()
             .unwrap_or_default();
-        Ok(list
-            .iter()
-            .filter_map(|item| {
-                let id = text_of(item, &["dissid", "dirId", "tid"])?;
-                let name = text_of(item, &["dissname", "dirName", "title"]).unwrap_or_default();
-                if name.is_empty() {
-                    return None;
-                }
-                Some(PlaylistSummary {
-                    source: Source::Qq,
-                    id,
-                    name,
-                    cover: text_of(item, &["logo", "picurl", "cover"]),
-                    track_count: item
-                        .get("song_cnt")
-                        .or_else(|| item.get("songnum"))
-                        .and_then(|v| v.as_u64())
-                        .or_else(|| {
-                            item.get("song_cnt")
-                                .and_then(|v| v.as_str())
-                                .and_then(|text| text.parse().ok())
-                        })
-                        .unwrap_or(0),
-                    creator: text_of(item, &["nickname", "nick", "creator"]),
-                })
-            })
-            .collect())
+        Ok(list.iter().filter_map(playlist_of).collect())
     }
+}
+
+/// 把 `GetPlaylistByUin` 里的一条记录翻成歌单摘要。
+///
+/// 这个接口的字段名和详情接口完全对不上，坑最多，单独拆出来好写测试：
+/// - `tid` 才是歌单 id（详情接口要的 `disstid`），`dirId` 是「我的音乐」里的分类位
+///   （「我喜欢」固定 201，普通歌单 1/2/3…），拿它去查详情一定查不到；
+/// - 名字叫 `dirName`（不是 `dissname`），封面叫 `picUrl` / `bigpicUrl`（不是 `logo`）；
+/// - 曲目数是 `songNum`（不是 `song_cnt`）。
+fn playlist_of(item: &serde_json::Value) -> Option<PlaylistSummary> {
+    let id = text_of(item, &["tid", "dissid", "dirId"])?;
+    let name = text_of(item, &["dirName", "dissname", "title"]).unwrap_or_default();
+    if name.is_empty() {
+        return None;
+    }
+    Some(PlaylistSummary {
+        source: Source::Qq,
+        id,
+        name,
+        cover: text_of(
+            item,
+            &[
+                "picUrl",
+                "bigpicUrl",
+                "logo",
+                "picurl",
+                "cover",
+                "albumPicUrl",
+            ],
+        )
+        .filter(|url| !url.is_empty()),
+        track_count: num_of(item, &["songNum", "song_cnt", "songnum"]),
+        creator: text_of(item, &["nickname", "nick", "creator"]).filter(|nick| !nick.is_empty()),
+    })
 }
 
 /// 从 JSON 对象里按候选字段名取字符串（数字也接受），QQ 各接口字段名不统一。
@@ -487,6 +495,32 @@ fn text_of(value: &serde_json::Value, keys: &[&str]) -> Option<String> {
         }
     }
     None
+}
+
+/// 取数字字段（数字或数字字符串都认），QQ 同一个计数在不同接口里有两种类型。
+fn num_of(value: &serde_json::Value, keys: &[&str]) -> u64 {
+    for key in keys {
+        let Some(found) = value.get(*key) else {
+            continue;
+        };
+        match found {
+            serde_json::Value::Number(number) => {
+                if let Some(n) = number.as_u64() {
+                    return n;
+                }
+                if let Some(f) = number.as_f64() {
+                    return f.max(0.0) as u64;
+                }
+            }
+            serde_json::Value::String(text) => {
+                if let Ok(n) = text.trim().parse::<u64>() {
+                    return n;
+                }
+            }
+            _ => {}
+        }
+    }
+    0
 }
 
 struct MidUrl {
@@ -744,5 +778,52 @@ mod tests {
             Some("默认收藏")
         );
         assert_eq!(text_of(&item, &["nope"]), None);
+    }
+
+    #[test]
+    fn playlist_of_takes_tid_not_dir_id() {
+        // 真实响应长这样：tid 才是歌单 id，dirId=201 是「我喜欢」的分类位。
+        // 早先拿 dirId 当 id 传下去，详情接口回 -100007，界面表现就是「点进去没歌」。
+        let item = serde_json::json!({
+            "dirId": 201,
+            "dirName": "我喜欢",
+            "tid": 4098564305i64,
+            "songNum": 1150,
+            "picUrl": "http://y.gtimg.cn/mediastyle/y/img/cover_love_300.jpg",
+            "bigpicUrl": "http://y.gtimg.cn/mediastyle/y/img/cover_love_300.jpg",
+            "nick": "",
+        });
+        let summary = playlist_of(&item).expect("应当解析出歌单");
+        assert_eq!(summary.id, "4098564305");
+        assert_eq!(summary.name, "我喜欢");
+        assert_eq!(summary.track_count, 1150);
+        assert_eq!(
+            summary.cover.as_deref(),
+            Some("http://y.gtimg.cn/mediastyle/y/img/cover_love_300.jpg")
+        );
+        // 空字符串要当没有，否则界面会显示一片空白而不是平台名
+        assert_eq!(summary.creator, None);
+    }
+
+    #[test]
+    fn playlist_of_falls_back_for_older_shapes() {
+        // 老版本接口给的是 dissid / dissname / logo / song_cnt（字符串数字）
+        let item = serde_json::json!({
+            "dissid": 7108054068i64,
+            "dissname": "默认收藏",
+            "logo": "https://y.qq.com/a.jpg",
+            "song_cnt": "87",
+        });
+        let summary = playlist_of(&item).expect("应当解析出歌单");
+        assert_eq!(summary.id, "7108054068");
+        assert_eq!(summary.name, "默认收藏");
+        assert_eq!(summary.track_count, 87);
+        assert_eq!(summary.cover.as_deref(), Some("https://y.qq.com/a.jpg"));
+    }
+
+    #[test]
+    fn playlist_of_skips_nameless_items() {
+        let item = serde_json::json!({ "tid": 1, "dirName": "" });
+        assert!(playlist_of(&item).is_none());
     }
 }

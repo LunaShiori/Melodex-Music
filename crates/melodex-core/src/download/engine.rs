@@ -579,6 +579,8 @@ async fn execute(
             // 会自己去歌曲详情里补真实值，比把搜索结果的 mid 一路传下来更可靠
             // （歌单接口干脆不给 media_mid）。
             media_mid: None,
+            // 下载链路不关心热度，占位即可
+            popularity: 0,
         };
         for item in ladder {
             if cancel.load(Ordering::Relaxed) {

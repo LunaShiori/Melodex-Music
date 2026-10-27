@@ -519,7 +519,7 @@ onMounted(async () => {
         <h2>关于</h2>
         <div class="about-grid">
           <div>
-            <p class="k">Melodex</p>
+            <p class="k">Melodex Music</p>
             <p class="v muted">v{{ version }} · Apache-2.0</p>
           </div>
           <div>
@@ -531,6 +531,11 @@ onMounted(async () => {
             <p class="v muted">仅用于学习与研究，请遵守各音源版权规定</p>
           </div>
         </div>
+
+        <p class="capabilities">
+          一个应用里完成「搜 → 试听 → 下载 → 整理」：三平台聚合搜索、逐行滚动歌词（含双语翻译）、
+          热门/时长/音源数排序与置顶原唱、账号歌单读取、批量下载与断点续传、ID3 标签与封面内嵌。
+        </p>
 
         <div class="update-row">
           <div>
@@ -552,7 +557,7 @@ onMounted(async () => {
         </div>
 
         <p class="disclaimer">
-          Melodex 不提供任何音乐内容，所有音频均来自第三方平台公开接口；请确保你对下载的内容拥有合法使用权。
+          Melodex Music 不提供任何音乐内容，所有音频均来自第三方平台公开接口；请确保你对下载的内容拥有合法使用权。
         </p>
       </section>
     </template>
@@ -915,6 +920,16 @@ onMounted(async () => {
   font-size: 11px;
   line-height: 1.6;
   color: var(--text-3);
+}
+.capabilities {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--text-2);
 }
 
 @media (max-width: 860px) {

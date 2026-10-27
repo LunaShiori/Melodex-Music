@@ -40,6 +40,9 @@ const PATHS: Record<string, string[]> = {
   disc: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z', 'M12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z'],
   lyric: ['M5 6h9', 'M5 11h14', 'M5 16h7', 'M17 13v6'],
   filter: ['M4 6h16', 'M7 12h10', 'M10 18h4'],
+  grid: ['M4 4h7v7H4V4Z', 'M13 4h7v7h-7V4Z', 'M4 13h7v7H4v-7Z', 'M13 13h7v7h-7v-7Z'],
+  compact: ['M4 5h5v5H4V5Z', 'M9.5 5h5v5h-5V5Z', 'M15 5h5v5h-5V5Z', 'M4 12h5v5H4v-5Z', 'M9.5 12h5v5h-5v-5Z', 'M15 12h5v5h-5v-5Z'],
+  rowlist: ['M4 6h16', 'M4 11h16', 'M4 16h16', 'M4 21h10'],
 }
 </script>
 

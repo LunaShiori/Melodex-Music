@@ -60,6 +60,8 @@ export interface Variant {
   format: string
   size: number
   fee: Fee
+  /** 平台给的人气值（网易云 0–100，其它源可能没有 → 0） */
+  popularity?: number
 }
 
 export interface Track {
@@ -73,6 +75,8 @@ export interface Track {
   format: string
   fee: Fee
   variants: Variant[]
+  /** 各音源人气值里的最大值，仅用于「按热度排序」 */
+  popularity?: number
 }
 
 export interface SourceReport {

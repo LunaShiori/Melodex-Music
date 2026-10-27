@@ -17,9 +17,9 @@ set -euo pipefail
 REPO="LunaShiori/melodex"
 API="https://api.github.com/repos/${REPO}"
 
-DESCRIPTION='Melodex｜多源音乐聚合搜索与下载器（Windows + Android）。一个关键词同时搜网易云音乐、QQ音乐、酷我音乐，按「标题+歌手+时长」指纹合并同一首歌并标注每个音源是否可播；支持断点续传、音质自动降级、ID3v2.3 标签与歌词内嵌、启动检查更新。Rust + Tauri 2 + Vue 3 开源，Apache-2.0。music downloader / music aggregator'
+DESCRIPTION='Melodex Music｜多源音乐聚合搜索、播放与歌词（Windows + Android）。一个关键词同时搜网易云音乐、QQ音乐、酷我音乐，按「标题+歌手+时长」指纹合并同一首歌并标注每个音源是否可播；内置播放器与逐行歌词（含双语翻译），支持账号歌单、置顶原唱、断点续传、音质自动降级、ID3v2.3 标签与歌词内嵌。Rust + Tauri 2 + Vue 3，Apache-2.0。music player / lyrics / music downloader / music aggregator'
 
-TOPICS='["music","music-downloader","music-search","music-aggregator","netease-cloud-music","qqmusic","kuwo","tauri","tauri-app","rust","vue3","typescript","android","windows","cross-platform","desktop-app","id3v2","lrc-lyrics","resumable-download","open-source"]'
+TOPICS='["music","music-player","lyrics","music-downloader","music-search","music-aggregator","music-library","netease-cloud-music","qqmusic","kuwo","lrc-lyrics","id3v2","tauri","tauri-app","rust","vue3","typescript","android","windows","open-source"]'
 
 # 把响应体 + HTTP 码一起返回，方便判断是权限问题还是参数问题
 req() {

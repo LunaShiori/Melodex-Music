@@ -327,6 +327,9 @@ struct RawSong {
     duration: u64,
     #[serde(default)]
     fee: i32,
+    /// 热度，0–100 的浮点数；`cloudsearch` 叫 `pop`，老接口叫 `popularity`
+    #[serde(default, alias = "popularity")]
+    pop: f64,
 }
 
 impl RawSong {
@@ -341,6 +344,7 @@ impl RawSong {
         variant.bitrate = 0;
         variant.size = 0;
         variant.format = "mp3".into();
+        variant.popularity = self.pop.clamp(0.0, 1000.0) as u32;
         variant
     }
 }

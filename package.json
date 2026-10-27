@@ -1,9 +1,9 @@
 {
   "name": "melodex",
   "private": true,
-  "version": "1.1.2",
+  "version": "1.2.0",
   "type": "module",
-  "description": "Melodex · 多源音乐聚合搜索与下载",
+  "description": "Melodex Music · 多源音乐聚合搜索、播放与歌词",
   "keywords": [
     "music",
     "music-downloader",
@@ -15,7 +15,10 @@
     "rust",
     "vue3",
     "android",
-    "windows"
+    "windows",
+    "lyrics",
+    "music-player",
+    "music-library"
   ],
   "homepage": "https://github.com/LunaShiori/melodex",
   "repository": {

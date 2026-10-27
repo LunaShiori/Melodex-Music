@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Melodex",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "identifier": "app.melodex",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Melodex",
+        "title": "Melodex Music",
         "width": 1180,
         "height": 780,
         "minWidth": 880,
@@ -25,13 +25,18 @@
       "csp": "default-src 'self'; img-src 'self' https: http: asset: data: blob:; media-src 'self' https: http: asset: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' https: http: ipc: http://ipc.localhost",
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": [
+      "nsis",
+      "msi"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -39,11 +44,14 @@
       "icons/icon.png",
       "icons/icon.ico"
     ],
-    "shortDescription": "多源音乐聚合搜索与下载",
-    "longDescription": "Melodex 把网易云、QQ 音乐、酷我的搜索结果合并成一份列表，统一试听、批量下载与标签写入。",
+    "shortDescription": "多源音乐聚合搜索、播放与歌词",
+    "longDescription": "Melodex Music 把网易云、QQ 音乐、酷我的搜索结果合并成一份列表，内置播放器与逐行歌词，支持账号歌单读取、批量下载与标签写入。",
     "windows": {
       "nsis": {
-        "languages": ["SimpChinese", "English"]
+        "languages": [
+          "SimpChinese",
+          "English"
+        ]
       }
     }
   }

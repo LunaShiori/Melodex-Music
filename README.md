@@ -1,11 +1,15 @@
-# Melodex
+# Melodex Music
 
-**多源音乐聚合搜索与下载 · Windows 桌面端 + Android 手机端**
+**多源音乐聚合搜索 · 内置播放器与逐行歌词 · 批量下载 —— Windows 桌面端 + Android 手机端**
 
-一次输入，同时检索网易云音乐、QQ 音乐、酷我音乐，把同一首歌的三份结果合并成一条，
-统一试听、批量下载、自动写标签。桌面端用 Rust 引擎跑本地下载，手机端共用同一套核心与界面。
+一次输入，同时检索网易云音乐、QQ 音乐、酷我音乐，把同一首歌的三份结果合并成一条：
+点开就在应用里播、歌词逐行跟着走，要留存就批量下载，落盘时自动写 ID3 标签与封面。
+桌面端用 Rust 引擎下载，手机端共用同一套核心与界面。
 
-<sub>关键词：多源音乐聚合搜索 · 音乐下载器 · 网易云音乐下载 · QQ音乐下载 · 酷我音乐 · 批量下载 · 断点续传 · 320kbps 与无损 · ID3 标签 · 歌词内嵌 · 在线更新 · Tauri 应用 · Windows 桌面端 · Android 应用 · `music downloader` · `music aggregator`</sub>
+<sub>应用正式名称 **Melodex Music**（仓库地址仍是 `melodex`，改名会让历史下载链接全部失效）；
+界面上「MUSIC」用一个独立小方框与 Melodex 区分，中文场景仍可简称 Melodex。</sub>
+
+<sub>关键词：多源音乐聚合搜索 · 在线音乐播放器 · 歌词显示 · 滚动歌词 · 多源音乐下载器 · 网易云音乐 · QQ音乐 · 酷我音乐 · 账号歌单 · 批量下载 · 断点续传 · 320kbps 与无损 · ID3 标签 · 歌词内嵌 · 在线更新 · Tauri 应用 · Windows 桌面端 · Android 应用 · `music player` · `lyrics` · `music downloader` · `music aggregator`</sub>
 
 <!-- 徽章：仓库地址替换成你自己的即可 -->
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -47,9 +51,10 @@
 想下一首老歌，你得挨个平台试：这家没有版权、那家只有 128k、第三家给了链接却是试听片段。
 **Melodex 把这个过程收敛成一次操作**：
 
-| 传统做法 | Melodex |
+| 传统做法 | Melodex Music |
 | --- | --- |
 | 逐个 App 搜索、比对是不是同一首 | 一次并发检索三家，同一首歌自动合并为一行 |
+| 想先听一下，得下完再用别的播放器打开 | 列表里直接播，逐行歌词同步高亮，满意再下 |
 | 这家的链接失效了，复制歌名去下一家再搜 | 行内的来源标签直接切换，一首歌三条取流通道 |
 | 下到一半断了，从头再来 | HTTP Range 断点续传，`.part` 临时文件 |
 | 想要 320k 结果给了 128k，得自己降级重试 | 音质降级链自动尝试，逐级回退并在界面标注实际音质 |
@@ -64,11 +69,15 @@
 
 - 三源并发检索（可单独开关音源），单源 9 秒超时，慢的源不会拖垮整次搜索
 - 跨源同曲合并：标题归一化 + 首位歌手 + 时长分桶（3 秒粒度）生成指纹
-- 相关性重排：完全匹配 > 前缀匹配 > 包含匹配，热门度与音质参与加权
+- 相关性重排：完全匹配 > 前缀匹配 > 包含匹配，热门度与音质参与加权；翻唱 / 现场 / 伴奏版本自动降权
+- **置顶原唱**：标题带「原唱」的版本一键提到最前，和排序方式是**两个独立开关**，可以叠加；
+  打开后置顶区内部仍按你选的排序走。翻唱 / 现场等版本会打上小标签，一眼能分辨
+- **排序方式**：默认（平台相关度）/ 热度（各源人气值取最大）/ 时长 / 音源数（可下平台多的在前），
+  选择记在本地，下次打开还是上次那套
 - 逐源结果报告：`网易云 3 · QQ 4 · 酷我 3`，某个源超时/失败单独标红，不影响其它源
 - 分页加载、结果骨架屏、空态热词、`Ctrl/⌘ + K` 聚焦搜索框
 
-**试听**
+**播放与歌词**
 
 - 底部常驻播放器：封面、进度拖拽、音量、上一首/下一首、播放队列
 - 歌词抽屉：随播放高亮当前行，支持双语歌词（原文 + 翻译），点歌词行跳转
@@ -108,16 +117,24 @@
 **歌单**
 
 - 「我的歌单」页分平台展示当前登录账号的歌单（网易云 / QQ 音乐），显示封面、曲目数、创建者
+- **三种浏览方式**：大封面网格 / 小图标网格 / 列表，切换结果记在本地，移动端同样可切
+- **歌单名搜索**：账号里歌单一多，直接按名字过滤；匹配数与总数一起显示
 - 点进歌单即可看到曲目列表，单首下载或「全部下载」一次性入队
+- **歌单内搜索与筛选**：按歌名 / 歌手 / 专辑过滤，再按 **全部 / 免费 / 会员 / 无损** 收窄；
+  筛选后「下载筛选结果」只下筛出来的那些
+- 上千首的大歌单分批渲染（一次 80 首，可继续展开），不会一次塞进 DOM
 - 未登录的平台给出登录引导，单个平台失败不会让整页空白
 
 **界面**
 
 - 深/浅双主题 + 6 套强调色（紫罗兰 / 靛蓝 / 青碧 / 玫红 / 琥珀 / 翠绿），CSS 变量设计系统，
   选中态、进度条、顶部氛围光都跟着主题色走
+- **四套界面风格**：经典 / 液态玻璃 / 极光科技 / 极简，与明暗、强调色三维正交（见下）
+- **首次安装 5 步引导**：欢迎 → 登录音源 → 搜索 → 下载 → 小技巧；设置里的「调试模式」可随时重放
 - 桌面端侧栏导航，≤860px 自动切为底部标签栏；触屏设备显示常驻播放徽标
 - 手机端底部标签栏做成悬浮的**液态玻璃**胶囊，选中项有滑动胶囊背景；搜索框吸顶毛玻璃
-- 程序化生成封面（无图时按曲目指纹生成渐变唱片），不请求第三方图床
+- 手机端适配：刘海/状态栏安全区、软键盘弹出时自动收起底栏与播放条、去掉 WebView 点击高亮
+- 程序化生成封面（无图时按曲目指纹生成渐变唱片），封面加载失败也会回落到程序化图，不留空白
 
 **账号与登录**
 
@@ -512,10 +529,17 @@ pub trait MusicPlatform: Send + Sync {
 
 | 音源 | 搜索 | 取流 | 歌词 | 账号歌单 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| 网易云音乐 | ✅ | ✅ | ✅ | ✅ | 公开 web 接口，取流带 `br` 参数 |
+| 网易云音乐 | ✅ | ✅ | ✅ | ✅ | 公开 web 接口，取流带 `br` 参数；`cloudsearch` 顺带给 `pop` 热度 |
 | QQ 音乐 | ✅ | ✅ | ✅ | ✅ | `musicu.fcg` 取 vkey，一次递多个候选文件名；详情接口补 `vs` / `media_mid` |
 | 酷我音乐 | ✅ | ✅ | — | — | 搜索返回单引号 JSON，内置宽松解析器；歌词接口需要 CSRF 票据，暂缺 |
 | 酷狗音乐 | ❌ | ❌ | ❌ | — | 接口要求签名（`err_code 30020`），未实现 |
+
+QQ 歌单这一块有两个容易踩的字段坑，记在这里省得再查一遍：
+
+- **歌单 id 是 `tid`，不是 `dirId`**。`GetPlaylistByUin` 返回里 `dirId` 是「我的音乐」里的分类位
+  （「我喜欢」固定 201，普通歌单 1/2/3…），拿它当 `disstid` 去查详情一定空手而归——
+  表现就是「歌单列表能看见，点进去一首歌都没有」。
+- **封面是 `picUrl` / `bigpicUrl`，曲目数是 `songNum`**，与详情接口的 `logo` / `songnum` 完全不同名。
 
 设计上的取舍：**不内置任何账号、cookie 或逐流破解**。需要登录态的音源由使用者在自己的环境里提供凭据
 （`CredStore` 已预留按音源注入 cookie 的位置），代码层面只处理公开接口。
@@ -739,8 +763,9 @@ melodex/
 ├── src/                          # Vue 3 + TypeScript 界面
 │   ├── components/               # SideBar · TabBar · PlayerBar · NowPlaying · FullLyric · TrackRow …
 │   ├── views/                    # Search · Downloads · Library · Playlists · Settings
-│   ├── stores/                   # search · tasks · player · settings · update（Pinia）
+│   ├── stores/                   # search · tasks · player · settings · update · onboarding（Pinia）
 │   ├── lib/transport/            # Transport 抽象：tauri / demo 两套实现
+│   ├── lib/origin.ts             # 「原唱 / 翻唱」判定（置顶原唱与标签共用）
 │   └── styles/main.css           # 设计令牌 · 双主题 · 强调色
 ├── scripts/                      # 图标生成 · 第三方许可清单 · Android 签名补丁与 APK 校验
 ├── docs/screenshots/             # README 用截图
@@ -754,19 +779,24 @@ melodex/
 
 **已知限制**
 
-- 酷狗因签名校验未接入；QQ 音乐歌单接口未实现。
+- 酷狗因签名校验未接入。
 - 音源接口属于「公开但非承诺稳定」的 web 接口，平台改动可能导致某个源失效——聚合层会把失败隔离成
   `SourceReport`，界面上仍可用其它源，但需要跟进修复适配器。
 - 移动端尚未接入 MediaStore / SAF，下载文件落在应用专属目录；卸载应用会一并清理。
 - 高音质（无损 / Hi-Res）依赖账号权限，无权限时自动降级到可取的档位。
+- 「热度」排序只有网易云提供人气值（`pop`），QQ / 酷我的条目按 0 处理，会排在同分之后。
+- 「原唱」判定按标题文本（`原唱 / 原版 / 原曲`）加翻唱词标记，不是平台的权威字段——
+  QQ 与酷我没有类似 `originCoverType` 的接口，宁可漏判也不误判。
 
 **路线图**
 
-- [ ] 酷狗适配（签名算法）与 QQ 歌单
+- [ ] 酷狗适配（签名算法）
+- [ ] 从标题猜测更多版本标记，接网易云 `originCoverType` 做权威原唱判定
+- [ ] 歌单整体导出、批量导入
 - [ ] Android SAF / MediaStore 落盘，支持「保存到系统音乐库」
-- [ ] 批量导入歌单、CSV 导出
 - [ ] 代理与限速
 - [ ] macOS / Linux 打包
+- [ ] 界面多语言（当前仅简体中文）
 
 ## 常见问题
 
@@ -778,6 +808,23 @@ melodex/
 
 三点：① 一个关键词同时搜三个源，结果按「标题 + 歌手 + 时长」指纹合并成一条，不用挨个 App 翻；
 ② 每个源单独标注能否播放、码率多少，某个源挂了不影响其它源；③ 桌面端与安卓共用同一套 Rust 核心与界面。
+
+**能在应用里播放并显示歌词吗？**
+
+能。搜索、歌单、曲库里任意一首都直接播：底部播放条常驻，点封面进全屏播放页，
+歌词随播放逐行高亮、当前行自动居中，点某一行就跳到那一句；有翻译的歌词会原文 + 译文一起显示。
+播放走本地回环代理补 `Referer`，所以「能下载却播不出声」的老问题也一并解决了。
+
+**「置顶原唱」是怎么判断的？**
+
+按标题判定：写「原唱 / 原版 / 原曲」的算原唱，写「翻唱 / cover / live / 伴奏 / xx版」的打翻唱标签。
+它和排序方式是**两个独立开关**，可以同时开——先按你选的排序排好，再把原唱整段提到最前。
+
+**QQ 音乐的歌单能列出来，点进去却没有歌？**
+
+v1.2.0 之前有这个问题，已修。原因是 `GetPlaylistByUin` 返回的 `dirId` 是分类位（「我喜欢」固定 201），
+被当成了歌单 id 传给详情接口，必然查不到；现在改用真正的 `tid`。
+如果升级后仍为空，多半是那个歌单本身没有曲目或权限受限。
 
 **下载的是 320kbps 还是无损？**
 
@@ -846,7 +893,7 @@ v0.1.0 存在这个缺陷：入队命令是同步 command，跑在主线程上�
 
 ## 许可证
 
-[Apache License 2.0](LICENSE) © Melodex Contributors
+[Apache License 2.0](LICENSE) © Melodex Music Contributors
 
 - 架构与合规做法参照 [HotDownloader](https://github.com/lerdb/HotDownloader)（Apache-2.0）；本项目未复制其源码，
   仅在工程分层与「LICENSE + NOTICE + THIRD_PARTY_LICENSES」的合规实践上保持一致。
@@ -855,18 +902,23 @@ v0.1.0 存在这个缺陷：入队命令是同步 command，跑在主线程上�
 
 ## English
 
-**Melodex** is a cross-platform music *aggregator*: one query fans out to NetEase Cloud Music,
-QQ Music and Kuwo, then merges the same song from different platforms into a single row with
-per-source download channels. Built as a shared Rust core (`crates/melodex-core`) plus thin shells —
+**Melodex Music** is a cross-platform music *aggregator with a built-in player*: one query fans out to
+NetEase Cloud Music, QQ Music and Kuwo, then merges the same song from different platforms into a single row
+with per-source download channels. Built as a shared Rust core (`crates/melodex-core`) plus thin shells —
 Tauri 2 for Windows desktop and Android, Vue 3 + TypeScript for the UI.
 
-Highlights: cross-source merging by title/artist/duration fingerprint, per-source failure isolation,
-resumable downloads with HTTP Range, automatic bitrate fallback, ID3v2.3 tagging with embedded cover
-and lyrics, a single responsive UI that turns into a mobile layout below 860 px, and a read-only
-online update check against GitHub Releases (no silent self-replacement).
+Highlights: cross-source merging by title/artist/duration fingerprint, **in-app playback with
+line-synced lyrics (bilingual when available)**, per-source failure isolation, resumable downloads
+with HTTP Range, automatic bitrate fallback, ID3v2.3 tagging with embedded cover and lyrics,
+account playlists with in-playlist search / free-VIP-lossless filters and three layout modes,
+sorting by relevance / popularity / duration / source count with an independent "pin original
+recordings" switch, four switchable UI styles (classic / liquid glass / aurora / minimal),
+a first-run guided tour, a single responsive UI that turns into a mobile layout below 860 px,
+and a read-only online update check against GitHub Releases (no silent self-replacement).
 
 Installable builds are produced by CI: push a `v*` tag and the release workflow attaches a Windows
-NSIS installer, an MSI, and a universal Android APK to the GitHub Release.
+NSIS installer, an MSI, and a universal Android APK to the GitHub Release — with the changelog section
+for that version rendered at the top of the release notes.
 
 It ships **no content** and bundles **no credentials**: it only talks to public endpoints you point it at.
 For personal study and engineering research — respect copyright, support the artists.

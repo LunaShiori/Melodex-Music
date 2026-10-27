@@ -1,6 +1,6 @@
 [package]
 name = "melodex-core"
-description = "Melodex 共享核心：多源聚合搜索与下载引擎"
+description = "Melodex Music 共享核心：多源聚合搜索与下载引擎"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

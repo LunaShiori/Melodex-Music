@@ -5,6 +5,7 @@ import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
 import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatDuration } from '@/lib/format'
+import { originLabel } from '@/lib/origin'
 import { SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
 
@@ -26,6 +27,8 @@ const emit = defineEmits<{
 
 const cover = computed(() => coverOf(props.track.cover, props.track.fingerprint))
 const bestBitrate = computed(() => Math.max(...props.track.variants.map((v) => v.bitrate)))
+/** 标题自带「原唱 / 翻唱」说明时给个小标签，扫一眼就知道这条是什么版本 */
+const origin = computed(() => originLabel(props.track))
 const feeLabel = computed(() => {
   if (props.track.fee === 'vip') return '会员'
   if (props.track.fee === 'paid') return '付费'
@@ -86,7 +89,10 @@ function onPlay() {
     </div>
 
     <div class="main">
-      <p class="title" :title="track.title">{{ track.title }}</p>
+      <p class="title" :title="track.title">
+        <span v-if="origin" class="origin-tag" :class="origin === '原唱' ? 'orig' : 'cover'">{{ origin }}</span>
+        {{ track.title }}
+      </p>
       <p class="sub">
         <span class="artist">{{ track.artists.join(' / ') || '未知歌手' }}</span>
         <span v-if="track.album" class="album">· {{ track.album }}</span>
@@ -266,6 +272,27 @@ function onPlay() {
 }
 .row.active .title {
   color: var(--accent);
+}
+.origin-tag {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  vertical-align: 1px;
+  letter-spacing: 0.02em;
+}
+.origin-tag.orig {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.origin-tag.cover {
+  color: var(--text-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
 }
 .sub {
   margin: 1px 0 0;

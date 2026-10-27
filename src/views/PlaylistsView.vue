@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import Icon from '@/components/Icon.vue'
@@ -35,17 +35,83 @@ const opening = ref(false)
 /** 只保留支持账号登录的平台，酷我不提供账号歌单 */
 const ACCOUNT_SOURCES: SourceId[] = ['netease', 'qq']
 
+/* ---------- 列表：歌单名搜索 + 显示方式 ---------- */
+
+type PlaylistView = 'grid' | 'compact' | 'list'
+
+const VIEWS: { id: PlaylistView; label: string; icon: string }[] = [
+  { id: 'grid', label: '大封面', icon: 'grid' },
+  { id: 'compact', label: '小图标', icon: 'compact' },
+  { id: 'list', label: '列表', icon: 'rowlist' },
+]
+
+const VIEW_KEY = 'melodex.playlists.view'
+
+function readView(): PlaylistView {
+  try {
+    const stored = localStorage.getItem(VIEW_KEY)
+    if (stored === 'grid' || stored === 'compact' || stored === 'list') return stored
+  } catch {
+    // 存储被禁就用默认值
+  }
+  return 'grid'
+}
+
+const view = ref<PlaylistView>(readView())
+
+function setView(next: PlaylistView) {
+  view.value = next
+  try {
+    localStorage.setItem(VIEW_KEY, next)
+  } catch {
+    // 只在本次会话生效
+  }
+}
+
+/** 歌单列表的搜索词（按歌单名 / 创建者过滤） */
+const query = ref('')
+
 const groups = computed(() => {
   const wanted = filter.value === 'all' ? ACCOUNT_SOURCES : [filter.value]
-  return wanted.map((source) => ({
-    source,
-    label: SOURCE_META[source].label,
-    loggedIn: Boolean(accounts.accountOf(source)),
-    items: playlists.value.filter((item) => item.source === source),
-  }))
+  const key = query.value.trim().toLowerCase()
+  return wanted.map((source) => {
+    const all = playlists.value.filter((item) => item.source === source)
+    const items = key
+      ? all.filter((item) =>
+          `${item.name} ${item.creator ?? ''}`.toLowerCase().includes(key),
+        )
+      : all
+    return {
+      source,
+      label: SOURCE_META[source].label,
+      loggedIn: Boolean(accounts.accountOf(source)),
+      items,
+      total: all.length,
+    }
+  })
 })
 
 const total = computed(() => playlists.value.length)
+const matchedTotal = computed(() => groups.value.reduce((sum, group) => sum + group.items.length, 0))
+/** 搜了但一条都没有——和「根本没读到歌单」要分开提示 */
+const searching = computed(() => query.value.trim().length > 0 && matchedTotal.value === 0)
+
+/* ---------- 详情：歌单内搜索 + 分类筛选 ---------- */
+
+type FeeFilter = 'all' | 'free' | 'vip' | 'lossless'
+
+const FEE_FILTERS: { id: FeeFilter; label: string }[] = [
+  { id: 'all', label: '全部' },
+  { id: 'free', label: '免费' },
+  { id: 'vip', label: '会员' },
+  { id: 'lossless', label: '无损' },
+]
+
+const trackQuery = ref('')
+const feeFilter = ref<FeeFilter>('all')
+/** 大歌单一次渲染上千行会卡，分批放开 */
+const PAGE = 80
+const limit = ref(PAGE)
 
 function toTrack(variant: Variant): Track {
   return {
@@ -62,7 +128,42 @@ function toTrack(variant: Variant): Track {
   }
 }
 
-const tracks = computed(() => (opened.value?.items ?? []).map(toTrack))
+const allTracks = computed(() => (opened.value?.items ?? []).map(toTrack))
+
+function isLossless(track: Track): boolean {
+  return track.variants.some(
+    (v) => v.format === 'flac' || v.format === 'ape' || v.bitrate >= 900,
+  )
+}
+
+const filteredTracks = computed(() => {
+  const key = trackQuery.value.trim().toLowerCase()
+  return allTracks.value.filter((track) => {
+    if (key) {
+      const haystack = `${track.title} ${track.artists.join(' ')} ${track.album}`.toLowerCase()
+      if (!haystack.includes(key)) return false
+    }
+    switch (feeFilter.value) {
+      case 'free':
+        return track.fee === 'free'
+      case 'vip':
+        return track.fee === 'vip' || track.fee === 'paid'
+      case 'lossless':
+        return isLossless(track)
+      default:
+        return true
+    }
+  })
+})
+
+/** 真正渲染的那一段 */
+const shownTracks = computed(() => filteredTracks.value.slice(0, limit.value))
+const hasMore = computed(() => filteredTracks.value.length > shownTracks.value.length)
+
+// 换歌单 / 改条件时回到第一批
+watch([trackQuery, feeFilter, opened], () => {
+  limit.value = PAGE
+})
 
 async function load() {
   loading.value = true
@@ -86,6 +187,9 @@ async function open(item: PlaylistSummary) {
       return
     }
     opened.value = detail
+    trackQuery.value = ''
+    feeFilter.value = 'all'
+    limit.value = PAGE
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   } finally {
@@ -98,8 +202,8 @@ function back() {
 }
 
 function downloadAll() {
-  if (!tracks.value.length) return
-  void tasks.enqueue(tracks.value)
+  if (!filteredTracks.value.length) return
+  void tasks.enqueue(filteredTracks.value)
 }
 
 function downloadOne(track: Track) {
@@ -107,8 +211,9 @@ function downloadOne(track: Track) {
 }
 
 function playTrack(track: Track) {
-  const index = tracks.value.findIndex((item) => item.fingerprint === track.fingerprint)
-  void player.playList(tracks.value, index < 0 ? 0 : index)
+  const list = filteredTracks.value
+  const index = list.findIndex((item) => item.fingerprint === track.fingerprint)
+  void player.playList(list, index < 0 ? 0 : index)
 }
 
 onMounted(async () => {
@@ -126,6 +231,9 @@ onMounted(async () => {
         <p class="muted">
           <template v-if="opened">
             来自 {{ SOURCE_META[opened.source].label }} · 共 {{ opened.items.length }} 首
+            <template v-if="filteredTracks.length !== opened.items.length">
+              · 筛出 {{ filteredTracks.length }} 首
+            </template>
           </template>
           <template v-else>
             读取各平台当前登录账号的歌单，点进去就能直接下载
@@ -142,11 +250,11 @@ onMounted(async () => {
           <button
             class="btn btn-primary"
             type="button"
-            :disabled="!tracks.length"
+            :disabled="!filteredTracks.length"
             @click="downloadAll"
           >
             <Icon name="download" :size="14" />
-            全部下载
+            下载{{ feeFilter === 'all' && !trackQuery.trim() ? '全部' : '筛选结果' }}
           </button>
         </template>
         <template v-else>
@@ -165,6 +273,18 @@ onMounted(async () => {
               {{ option.label }}
             </button>
           </div>
+          <div class="view-switch" role="group" aria-label="显示方式">
+            <button
+              v-for="mode in VIEWS"
+              :key="mode.id"
+              type="button"
+              :class="{ on: view === mode.id }"
+              :title="mode.label"
+              @click="setView(mode.id)"
+            >
+              <Icon :name="mode.icon" :size="14" />
+            </button>
+          </div>
           <button class="icon-btn" type="button" title="刷新" @click="load">
             <Icon name="refresh" :size="15" :class="{ spin: loading }" />
           </button>
@@ -179,9 +299,31 @@ onMounted(async () => {
 
     <!-- 歌单详情 -->
     <template v-if="opened">
-      <section v-if="tracks.length" class="list">
+      <div class="detail-bar">
+        <div class="field">
+          <Icon name="search" :size="15" />
+          <input v-model="trackQuery" type="search" placeholder="在这个歌单里搜歌名、歌手或专辑" />
+          <button v-if="trackQuery" type="button" class="clear" @click="trackQuery = ''">
+            <Icon name="close" :size="13" />
+          </button>
+        </div>
+        <div class="chips">
+          <button
+            v-for="chip in FEE_FILTERS"
+            :key="chip.id"
+            type="button"
+            class="chip chip-btn"
+            :class="{ 'is-on': feeFilter === chip.id }"
+            @click="feeFilter = chip.id"
+          >
+            {{ chip.label }}
+          </button>
+        </div>
+      </div>
+
+      <section v-if="shownTracks.length" class="list">
         <TrackRow
-          v-for="(track, index) in tracks"
+          v-for="(track, index) in shownTracks"
           :key="track.fingerprint"
           :track="track"
           :index="index"
@@ -190,16 +332,42 @@ onMounted(async () => {
           @play="playTrack"
           @download="downloadOne"
         />
+        <div class="more">
+          <button v-if="hasMore" class="btn" type="button" @click="limit += PAGE">
+            再显示 {{ Math.min(PAGE, filteredTracks.length - shownTracks.length) }} 首（剩
+            {{ filteredTracks.length - shownTracks.length }}）
+          </button>
+          <p v-else class="muted end">已到末尾</p>
+        </div>
       </section>
       <section v-else class="empty">
         <div class="empty-art"><Icon name="music" :size="26" /></div>
-        <h3>这个歌单是空的</h3>
-        <p class="muted">换一个歌单试试，或者去搜索页找歌。</p>
+        <h3>{{ allTracks.length ? '没有符合条件的歌' : '这个歌单是空的' }}</h3>
+        <p class="muted">
+          {{
+            allTracks.length
+              ? '换个关键词，或把筛选切回「全部」。'
+              : '换一个歌单试试，或者去搜索页找歌。'
+          }}
+        </p>
       </section>
     </template>
 
     <!-- 歌单列表 -->
     <template v-else>
+      <div class="list-bar">
+        <div class="field">
+          <Icon name="search" :size="15" />
+          <input v-model="query" type="search" placeholder="搜索歌单名" />
+          <button v-if="query" type="button" class="clear" @click="query = ''">
+            <Icon name="close" :size="13" />
+          </button>
+        </div>
+        <span class="muted small">
+          {{ query.trim() ? `匹配 ${matchedTotal} / ${total} 个` : `${total} 个歌单` }}
+        </span>
+      </div>
+
       <section v-for="group in groups" :key="group.source" class="group">
         <div class="group-head">
           <h2>
@@ -211,24 +379,82 @@ onMounted(async () => {
           </span>
         </div>
 
-        <div v-if="group.items.length" class="grid">
-          <article
-            v-for="item in group.items"
-            :key="`${item.source}-${item.id}`"
-            class="pl-card"
-            @click="open(item)"
-          >
-            <div class="cover">
-              <img :src="coverOf(item.cover, item.id)" alt="" loading="lazy" @error="onCoverError($event, item.id)" />
-              <span class="badge mono">{{ item.trackCount }}</span>
-            </div>
-            <p class="name" :title="item.name">{{ item.name }}</p>
-            <p class="sub">{{ item.creator || SOURCE_META[item.source].label }}</p>
-          </article>
-        </div>
+        <template v-if="group.items.length">
+          <!-- 大封面 -->
+          <div v-if="view === 'grid'" class="grid">
+            <article
+              v-for="item in group.items"
+              :key="`${item.source}-${item.id}`"
+              class="pl-card"
+              @click="open(item)"
+            >
+              <div class="cover">
+                <img
+                  :src="coverOf(item.cover, item.id)"
+                  alt=""
+                  loading="lazy"
+                  @error="onCoverError($event, item.id)"
+                />
+                <span class="badge mono">{{ item.trackCount }}</span>
+              </div>
+              <p class="name" :title="item.name">{{ item.name }}</p>
+              <p class="sub">{{ item.creator || SOURCE_META[item.source].label }}</p>
+            </article>
+          </div>
+
+          <!-- 小图标 -->
+          <div v-else-if="view === 'compact'" class="grid compact">
+            <article
+              v-for="item in group.items"
+              :key="`${item.source}-${item.id}`"
+              class="pl-card"
+              @click="open(item)"
+            >
+              <div class="cover">
+                <img
+                  :src="coverOf(item.cover, item.id)"
+                  alt=""
+                  loading="lazy"
+                  @error="onCoverError($event, item.id)"
+                />
+                <span class="badge mono">{{ item.trackCount }}</span>
+              </div>
+              <p class="name" :title="item.name">{{ item.name }}</p>
+            </article>
+          </div>
+
+          <!-- 列表 -->
+          <div v-else class="pl-rows">
+            <article
+              v-for="item in group.items"
+              :key="`${item.source}-${item.id}`"
+              class="pl-row"
+              @click="open(item)"
+            >
+              <div class="thumb">
+                <img
+                  :src="coverOf(item.cover, item.id)"
+                  alt=""
+                  loading="lazy"
+                  @error="onCoverError($event, item.id)"
+                />
+              </div>
+              <div class="row-main">
+                <p class="name" :title="item.name">{{ item.name }}</p>
+                <p class="sub">
+                  {{ item.creator || SOURCE_META[item.source].label }} · {{ item.trackCount }} 首
+                </p>
+              </div>
+              <Icon name="chevron" :size="15" class="row-arrow" />
+            </article>
+          </div>
+        </template>
 
         <p v-else class="hint">
-          <template v-if="!group.loggedIn">
+          <template v-if="group.total && query.trim()">
+            这一组没有匹配「{{ query.trim() }}」的歌单。
+          </template>
+          <template v-else-if="!group.loggedIn">
             还没有登录{{ group.label }}。
             <RouterLink to="/settings">去登录</RouterLink>
             后即可看到账号里的歌单。
@@ -249,6 +475,12 @@ onMounted(async () => {
         <RouterLink to="/settings" class="btn btn-primary" style="margin-top: 16px">
           去登录
         </RouterLink>
+      </section>
+
+      <section v-else-if="searching" class="empty">
+        <div class="empty-art"><Icon name="search" :size="26" /></div>
+        <h3>没有匹配的歌单</h3>
+        <p class="muted">换个关键词试试，或清空搜索框。</p>
       </section>
     </template>
   </div>
@@ -282,6 +514,91 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 显示方式切换：图标比文字省地方，窄屏也放得下 */
+.view-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.view-switch button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--text-3);
+  transition: all var(--dur) var(--ease);
+}
+.view-switch button:hover {
+  color: var(--text);
+}
+.view-switch button.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 搜索框：列表页和详情页共用 */
+.field,
+.list-bar,
+.detail-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.list-bar,
+.detail-bar {
+  margin: 0 0 16px;
+  flex-wrap: wrap;
+}
+.field {
+  flex: 1 1 260px;
+  min-width: 200px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-3);
+  transition: border-color var(--dur) var(--ease);
+}
+.field:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+}
+.field input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  outline: none;
+}
+.field input::-webkit-search-cancel-button {
+  display: none;
+}
+.field .clear {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: var(--text-3);
+  background: var(--surface-2);
+}
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.small {
+  font-size: 11.5px;
 }
 
 .alert {
@@ -321,14 +638,24 @@ onMounted(async () => {
   border-radius: 50%;
   flex: 0 0 auto;
 }
-.small {
-  font-size: 11.5px;
-}
 
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
   gap: 14px;
+}
+.grid.compact {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+.grid.compact .cover {
+  border-radius: 10px;
+}
+.grid.compact .name {
+  margin-top: 6px;
+  font-size: 11.5px;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 .pl-card {
@@ -366,6 +693,13 @@ onMounted(async () => {
   font-size: 10px;
   text-align: center;
 }
+.grid.compact .badge {
+  right: 5px;
+  bottom: 5px;
+  min-width: 18px;
+  padding: 1px 4px;
+  font-size: 9px;
+}
 .name {
   margin: 8px 2px 0;
   font-size: 12.5px;
@@ -384,6 +718,54 @@ onMounted(async () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 列表式：一行一个歌单 */
+.pl-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+.pl-row:hover {
+  background: var(--hover);
+}
+.thumb {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.row-main {
+  min-width: 0;
+  flex: 1;
+}
+.row-main .name {
+  margin: 0;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+.row-arrow {
+  color: var(--text-3);
+  transform: rotate(-90deg);
+  flex: 0 0 auto;
 }
 
 .hint {
@@ -406,6 +788,15 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.more {
+  display: flex;
+  justify-content: center;
+  padding: 18px 0 4px;
+}
+.end {
+  font-size: 12px;
+  margin: 0;
 }
 
 .empty {
@@ -457,6 +848,20 @@ onMounted(async () => {
   .grid {
     grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
     gap: 10px;
+  }
+  .grid.compact {
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 8px;
+  }
+  .head-actions {
+    width: 100%;
+  }
+  .detail-bar,
+  .list-bar {
+    gap: 8px;
+  }
+  .field {
+    flex: 1 1 100%;
   }
 }
 </style>

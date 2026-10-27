@@ -33,8 +33,8 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
     <header class="brand">
       <span class="mark" :class="{ spinning: player.playing }"><BrandMark :size="26" /></span>
       <span class="brand-text">
-        <strong>Melodex</strong>
-        <small>多源音乐聚合</small>
+        <strong>Melodex<i class="music-tag">MUSIC</i></strong>
+        <small>多源音乐聚合 · 播放与歌词</small>
       </span>
     </header>
 
@@ -130,9 +130,26 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
   line-height: 1.2;
 }
 .brand-text strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+
+/* 「MUSIC」用小方框跟 Melodex 分开：既保留原名，又让名字里带 music 更显眼 */
+.music-tag {
+  font-style: normal;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: color-mix(in srgb, var(--accent) 92%, #fff);
+  border: 1px solid color-mix(in srgb, var(--accent) 52%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  transform: translateY(0.5px);
 }
 .brand-text small {
   font-size: 11px;

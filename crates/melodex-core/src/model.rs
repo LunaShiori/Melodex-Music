@@ -95,6 +95,10 @@ pub struct Variant {
     /// 媒体文件 mid（QQ 音乐取链接用，区别于歌曲 mid）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub media_mid: Option<String>,
+    /// 平台给的热度（网易云 `pop` 为 0–100，其它音源可能没有，缺省 0）。
+    /// 只用于「按热度排序」，不参与任何业务判断。
+    #[serde(default)]
+    pub popularity: u32,
 }
 
 impl Variant {
@@ -112,6 +116,7 @@ impl Variant {
             size: 0,
             fee: Fee::Unknown,
             media_mid: None,
+            popularity: 0,
         }
     }
 
@@ -135,6 +140,9 @@ pub struct Track {
     pub format: String,
     pub fee: Fee,
     pub variants: Vec<Variant>,
+    /// 各音源热度里的最大值，仅用于「按热度排序」
+    #[serde(default)]
+    pub popularity: u32,
 }
 
 impl Track {
@@ -150,6 +158,7 @@ impl Track {
             bitrate: v.bitrate,
             format: v.format.clone(),
             fee: v.fee,
+            popularity: v.popularity,
             variants: vec![v],
         }
     }
@@ -170,6 +179,8 @@ impl Track {
             self.format = v.format.clone();
         }
         self.fee = merge_fee(self.fee, v.fee);
+        // 热度取各源最大值：只要有一个源给得出人气，这条就该参与热度排序
+        self.popularity = self.popularity.max(v.popularity);
         // 同一音源重复出现时保留音质更高的那条
         if let Some(existing) = self
             .variants
