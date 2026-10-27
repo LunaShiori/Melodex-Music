@@ -116,7 +116,9 @@ function onKeydown(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
-  inputEl.value?.focus()
+  // 桌面端进来就能直接打字；手机端不自动聚焦——一进页面就弹输入法，
+  // 会把底部导航和播放条一起顶掉，还得手动收回去，很难受。
+  if (window.matchMedia('(min-width: 861px)').matches) inputEl.value?.focus()
   // 支持 #/search?q=关键词 直接带参搜索
   const initial = route.query.q
   if (typeof initial === 'string' && initial.trim()) {
@@ -314,7 +316,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 <style scoped>
 .view {
-  padding: 26px 26px 40px;
+  padding: var(--view-pad);
   max-width: 1180px;
   margin: 0 auto;
   position: relative;
@@ -643,7 +645,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 @media (max-width: 860px) {
   .view {
-    padding: 18px 14px 28px;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px
+      calc(env(safe-area-inset-bottom, 0px) + 28px);
   }
   .head {
     align-items: flex-start;

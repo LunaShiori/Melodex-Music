@@ -35,6 +35,18 @@
 
   --sidebar: 236px;
   --player: 84px;
+
+  /* 页面内边距。顶部要躲开手机状态栏/刘海：viewport-fit=cover 之后
+     env(safe-area-inset-top) 才有值，桌面端算出来是 0，不影响原有布局。 */
+  --view-pad: calc(env(safe-area-inset-top, 0px) + 26px) 26px
+    calc(env(safe-area-inset-bottom, 0px) + 40px);
+}
+
+@media (max-width: 860px) {
+  :root {
+    --view-pad: calc(env(safe-area-inset-top, 0px) + 14px) 16px
+      calc(env(safe-area-inset-bottom, 0px) + 24px);
+  }
 }
 
 [data-theme='light'] {
@@ -77,6 +89,9 @@
 
 * {
   box-sizing: border-box;
+  /* 手机 WebView 默认给可点元素加一层半透明高亮（安卓是蓝/灰色块），
+     点一下「闪一下」很出戏。交给我们自己的过渡动画来表达按下态。 */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -335,6 +350,174 @@ a {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* 软键盘弹出：底部导航与播放条被压住，点了也没用，直接让位给输入框。
+   标记由 App.vue 根据 visualViewport 的高度变化设置。 */
+html[data-kb='1'] .tabbar,
+html[data-kb='1'] .player {
+  display: none;
+}
+
+/* ============================================================
+   界面风格预设
+   ------------------------------------------------------------
+   与「明暗主题」「强调色」三者正交：换风格不动配色，换主题不动质感。
+   `classic` 不写任何覆盖 —— 老用户升级后看到的界面和以前完全一样。
+   这些块刻意放在文件末尾，让它覆盖前面的 body::before 等基础规则。
+   ============================================================ */
+
+/* ---- 液态玻璃：大圆角 + 半透明 + 毛玻璃 + 边缘高光 ---- */
+[data-style='glass'] {
+  --r-xs: 10px;
+  --r-sm: 13px;
+  --r-md: 18px;
+  --r-lg: 26px;
+  --r-xl: 36px;
+}
+
+[data-style='glass'][data-theme='light'] {
+  --bg: #eef1f9;
+  --bg-deep: #e2e8f5;
+  --surface: rgba(255, 255, 255, 0.62);
+  --surface-2: rgba(255, 255, 255, 0.46);
+  --surface-3: rgba(255, 255, 255, 0.82);
+  --line: rgba(24, 32, 56, 0.07);
+  --line-strong: rgba(24, 32, 56, 0.13);
+  --glass: rgba(255, 255, 255, 0.52);
+  --hover: rgba(24, 32, 56, 0.045);
+  --shadow-md: 0 18px 48px -26px rgba(24, 40, 90, 0.45);
+  --shadow-lg: 0 40px 90px -44px rgba(24, 40, 90, 0.5);
+}
+
+[data-style='glass'][data-theme='dark'] {
+  --bg: #080a12;
+  --bg-deep: #04060c;
+  --surface: rgba(28, 32, 48, 0.56);
+  --surface-2: rgba(36, 42, 62, 0.5);
+  --surface-3: rgba(46, 54, 78, 0.64);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --glass: rgba(20, 24, 38, 0.55);
+  --shadow-md: 0 20px 55px -26px rgba(0, 0, 0, 0.78);
+  --shadow-lg: 0 44px 100px -44px rgba(0, 0, 0, 0.9);
+}
+
+/* 大容器才吃得起模糊，小控件全上会明显掉帧 */
+[data-style='glass'] .panel,
+[data-style='glass'] .player,
+[data-style='glass'] .sidebar,
+[data-style='glass'] .tabbar .glass {
+  backdrop-filter: blur(26px) saturate(1.8);
+  -webkit-backdrop-filter: blur(26px) saturate(1.8);
+}
+
+[data-style='glass'] .panel {
+  border-color: var(--line-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), var(--shadow-md);
+}
+
+[data-style='glass'] body::before {
+  opacity: 0.85;
+}
+
+/* ---- 极光科技：深空底 + 霓虹描边 + 网格光晕 ---- */
+[data-style='aurora'][data-theme='dark'] {
+  --bg: #04060e;
+  --bg-deep: #010208;
+  --surface: rgba(10, 16, 30, 0.78);
+  --surface-2: rgba(16, 24, 42, 0.72);
+  --surface-3: rgba(24, 34, 56, 0.8);
+  --line: rgba(96, 165, 250, 0.14);
+  --line-strong: color-mix(in srgb, var(--accent) 36%, transparent);
+  --glass: rgba(8, 14, 26, 0.72);
+  --shadow-md: 0 16px 44px -24px rgba(0, 0, 0, 0.92);
+  --shadow-lg: 0 36px 84px -40px rgba(0, 0, 0, 1);
+}
+
+[data-style='aurora'][data-theme='light'] {
+  --bg: #f2f5fd;
+  --bg-deep: #e8eefb;
+  --surface: #ffffff;
+  --surface-2: #f3f6fd;
+  --surface-3: #e9eefb;
+  --line: rgba(56, 96, 180, 0.13);
+  --line-strong: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+[data-style='aurora'] body::before {
+  opacity: 0.8;
+  background:
+    radial-gradient(46% 36% at 12% -8%, color-mix(in srgb, var(--accent) 32%, transparent), transparent 70%),
+    radial-gradient(42% 32% at 86% -4%, color-mix(in srgb, var(--accent-2) 28%, transparent), transparent 68%);
+}
+
+/* 细网格衬底：科技感主要来自这层，顶部浓、下方淡出 */
+[data-style='aurora'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--accent) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 9%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 44px 44px;
+  mask-image: radial-gradient(72% 62% at 50% 0%, #000, transparent 78%);
+  opacity: 0.6;
+}
+
+[data-style='aurora'] .panel {
+  border-color: var(--line-strong);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 16%, transparent),
+    var(--shadow-md);
+}
+
+/* ---- 极简：去阴影去渐变，细线高对比 ---- */
+[data-style='minimal'] {
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 13px;
+  --r-xl: 18px;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+}
+
+[data-style='minimal'][data-theme='light'] {
+  --bg: #ffffff;
+  --bg-deep: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f6f6f7;
+  --surface-3: #efeff1;
+  --line: rgba(0, 0, 0, 0.09);
+  --line-strong: rgba(0, 0, 0, 0.18);
+}
+
+[data-style='minimal'][data-theme='dark'] {
+  --bg: #0c0c0e;
+  --bg-deep: #08080a;
+  --surface: #131316;
+  --surface-2: #17171b;
+  --surface-3: #1e1e23;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.2);
+}
+
+[data-style='minimal'] body::before {
+  display: none;
+}
+
+[data-style='minimal'] .segmented button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

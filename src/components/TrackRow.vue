@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatDuration } from '@/lib/format'
 import { SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
@@ -74,7 +75,7 @@ function onPlay() {
     </span>
 
     <div class="cover" @click.stop="onPlay">
-      <img :src="cover" alt="" loading="lazy" />
+      <img :src="cover" alt="" loading="lazy" @error="onCoverError($event, track.fingerprint)" />
       <button class="cover-play" type="button" :title="playing && active ? '暂停' : '播放'">
         <Icon
           :name="playing && active ? 'pause' : 'play'"

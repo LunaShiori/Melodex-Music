@@ -44,6 +44,21 @@ export function proceduralCover(seed: string): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
+/**
+ * 把封面地址规整成能直接加载的形式。
+ *
+ * QQ 的老接口（歌单详情 `logo`）会回 `http://y.gtimg.cn/...`。移动端 WebView
+ * 和打包后的桌面端页面运行在 https 安全上下文里，http 图片会被当成混合内容
+ * 直接拦掉，`<img>` 一片空白——看起来像「封面读不出来」。统一升级成 https。
+ */
+export function normalizeCover(url: string): string {
+  if (url.startsWith('http://')) return `https://${url.slice(7)}`
+  return url
+}
+
 export function coverOf(cover: string | null | undefined, seed: string): string {
-  return cover && cover.startsWith('http') ? cover : proceduralCover(seed || 'melodex')
+  if (cover && /^https?:\/\//.test(cover)) return normalizeCover(cover)
+  // 有些接口给的是协议无关地址（//host/a.jpg），补上 https 才能加载
+  if (cover && cover.startsWith('//')) return `https:${cover}`
+  return proceduralCover(seed || 'melodex')
 }

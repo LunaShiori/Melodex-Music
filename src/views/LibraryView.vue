@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 
 import Icon from '@/components/Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatBytes, formatDuration } from '@/lib/format'
 import { transport } from '@/lib/transport'
 import { SOURCE_META } from '@/lib/types'
@@ -208,7 +209,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
     <section v-if="items.length && mode === 'grid'" class="grid" :style="{ '--min': gridMin }">
       <article v-for="task in items" :key="task.id" class="card">
         <div class="cover" @click="play(task)">
-          <img :src="coverOf(task.cover, task.id)" alt="" loading="lazy" />
+          <img :src="coverOf(task.cover, task.id)" alt="" loading="lazy" @error="onCoverError($event, task.id)" />
           <button class="play" type="button" title="播放">
             <Icon name="play" :size="16" :filled="true" />
           </button>
@@ -257,7 +258,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
         @dblclick="play(task)"
       >
         <div class="row-main">
-          <img class="thumb" :src="coverOf(task.cover, task.id)" alt="" loading="lazy" />
+          <img class="thumb" :src="coverOf(task.cover, task.id)" alt="" loading="lazy" @error="onCoverError($event, task.id)" />
           <div class="row-text">
             <p class="title" :title="task.title">{{ task.title }}</p>
             <p class="sub">{{ task.artists.join(' / ') || '未知歌手' }}</p>
@@ -302,7 +303,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
 
 <style scoped>
 .view {
-  padding: 26px 26px 40px;
+  padding: var(--view-pad);
   max-width: 1180px;
   margin: 0 auto;
 }
@@ -561,7 +562,8 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
 
 @media (max-width: 860px) {
   .view {
-    padding: 18px 14px 26px;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px
+      calc(env(safe-area-inset-bottom, 0px) + 26px);
   }
   .grid {
     gap: 10px;

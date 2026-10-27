@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { onCoverError } from '@/lib/cover'
 import { formatDuration } from '@/lib/format'
 import { SOURCE_META } from '@/lib/types'
 import { usePlayerStore } from '@/stores/player'
@@ -101,7 +102,7 @@ watch(
       </header>
 
       <div class="art">
-        <img v-if="cover" :src="cover" :alt="track?.title ?? ''" />
+        <img v-if="cover" :src="cover" :alt="track?.title ?? ''" @error="onCoverError($event, track?.fingerprint ?? 'melodex')" />
         <span v-else class="art-fallback"><Icon name="disc" :size="42" /></span>
         <span v-if="player.loading" class="art-loading"><span class="spin" /></span>
       </div>

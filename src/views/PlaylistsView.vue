@@ -5,6 +5,7 @@ import { RouterLink } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import TrackRow from '@/components/TrackRow.vue'
 import { coverOf } from '@/lib/artwork'
+import { onCoverError } from '@/lib/cover'
 import { transport } from '@/lib/transport'
 import { SOURCE_META } from '@/lib/types'
 import type {
@@ -218,7 +219,7 @@ onMounted(async () => {
             @click="open(item)"
           >
             <div class="cover">
-              <img :src="coverOf(item.cover, item.id)" alt="" loading="lazy" />
+              <img :src="coverOf(item.cover, item.id)" alt="" loading="lazy" @error="onCoverError($event, item.id)" />
               <span class="badge mono">{{ item.trackCount }}</span>
             </div>
             <p class="name" :title="item.name">{{ item.name }}</p>
@@ -255,7 +256,7 @@ onMounted(async () => {
 
 <style scoped>
 .view {
-  padding: 26px 26px 40px;
+  padding: var(--view-pad);
   max-width: 1180px;
   margin: 0 auto;
 }
@@ -450,7 +451,8 @@ onMounted(async () => {
 
 @media (max-width: 860px) {
   .view {
-    padding: 18px 14px 26px;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px
+      calc(env(safe-area-inset-bottom, 0px) + 26px);
   }
   .grid {
     grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));

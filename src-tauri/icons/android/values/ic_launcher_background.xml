@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!--
+    Android 8+ 自适应图标的背景层。
+    tauri icon 默认给 #FFFFFF，暗色图标压在纯白上会露出一圈白框；
+    这里换成图标的深空底色，前景（发光均衡器）直接浮在暗底上。
+  -->
+  <color name="ic_launcher_background">#0B0F1E</color>
+</resources>

@@ -35,7 +35,7 @@ const activeIndex = computed(() => {
         :class="{ active: activeIndex === index }"
       >
         <span class="icon">
-          <Icon :name="item.icon" :size="19" />
+          <Icon :name="item.icon" :size="20" />
           <i v-if="item.name === 'downloads' && tasks.counts.active" class="badge mono">
             {{ tasks.counts.active }}
           </i>
@@ -55,7 +55,7 @@ const activeIndex = computed(() => {
   .tabbar {
     display: block;
     flex: 0 0 auto;
-    padding: 6px 12px calc(env(safe-area-inset-bottom, 0px) + 8px);
+    padding: 8px 14px calc(env(safe-area-inset-bottom, 0px) + 10px);
     background: transparent;
   }
 
@@ -65,8 +65,8 @@ const activeIndex = computed(() => {
     display: grid;
     /* 标签页数量由模板里的 --count 传入，增删导航项不用再改样式 */
     grid-template-columns: repeat(var(--count, 4), 1fr);
-    padding: 5px;
-    border-radius: 24px;
+    padding: 6px;
+    border-radius: 30px;
     background: color-mix(in srgb, var(--surface) 52%, transparent);
     backdrop-filter: blur(26px) saturate(1.9);
     border: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
@@ -92,11 +92,11 @@ const activeIndex = computed(() => {
 
   .pill {
     position: absolute;
-    top: 5px;
-    bottom: 5px;
-    left: 5px;
-    width: calc((100% - 10px) / var(--count, 4));
-    border-radius: 19px;
+    top: 6px;
+    bottom: 6px;
+    left: 6px;
+    width: calc((100% - 12px) / var(--count, 4));
+    border-radius: 24px;
     background: color-mix(in srgb, var(--accent) 16%, transparent);
     border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
     transform: translateX(calc(100% * var(--i)));
@@ -112,10 +112,10 @@ const activeIndex = computed(() => {
     align-items: center;
     justify-content: center;
     gap: 3px;
-    height: 50px;
-    font-size: 10.5px;
+    height: 58px;
+    font-size: 11px;
     color: var(--text-3);
-    border-radius: 19px;
+    border-radius: 24px;
     transition: color 260ms var(--ease);
   }
   .tab.active {

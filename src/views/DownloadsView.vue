@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import Icon from '@/components/Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { onCoverError } from '@/lib/cover'
 import { formatBytes, formatRelative, formatSpeed } from '@/lib/format'
 import { reasonMeta } from '@/lib/reason'
 import { SOURCE_META } from '@/lib/types'
@@ -100,7 +101,7 @@ function goLogin() {
     <section v-if="tasks.visible.length" class="list">
       <article v-for="task in tasks.visible" :key="task.id" class="task" :class="task.state">
         <div class="cover">
-          <img :src="coverOf(task.cover, task.id)" alt="" loading="lazy" />
+          <img :src="coverOf(task.cover, task.id)" alt="" loading="lazy" @error="onCoverError($event, task.id)" />
         </div>
 
         <div class="body">
@@ -218,7 +219,7 @@ function goLogin() {
 
 <style scoped>
 .view {
-  padding: 26px 26px 40px;
+  padding: var(--view-pad);
   max-width: 1060px;
   margin: 0 auto;
 }
@@ -464,7 +465,8 @@ function goLogin() {
 
 @media (max-width: 860px) {
   .view {
-    padding: 18px 14px 26px;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px
+      calc(env(safe-area-inset-bottom, 0px) + 26px);
   }
   .stats {
     gap: 16px;

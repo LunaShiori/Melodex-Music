@@ -9,11 +9,14 @@ import { ACCENTS } from '@/lib/theme'
 import { transport } from '@/lib/transport'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import type { PlatformQuality, QualityLevel, Settings, SourceId } from '@/lib/types'
+import { UI_STYLES } from '@/lib/ui-style'
+import { useOnboardingStore } from '@/stores/onboarding'
 import { useSettingsStore } from '@/stores/settings'
 import { useUpdateStore } from '@/stores/update'
 
 const store = useSettingsStore()
 const updateStore = useUpdateStore()
+const onboarding = useOnboardingStore()
 const defaultDir = ref('')
 const saving = ref(false)
 const version = __APP_VERSION__
@@ -422,6 +425,30 @@ onMounted(async () => {
             </button>
           </div>
         </div>
+
+        <div class="row">
+          <div class="label">
+            <p>界面风格</p>
+            <small>换质感不改配色，与明暗主题、主题色互不影响</small>
+          </div>
+          <div class="control style-row">
+            <button
+              v-for="item in UI_STYLES"
+              :key="item.id"
+              class="style-card"
+              :class="{ on: store.uiStyle === item.id }"
+              type="button"
+              :title="item.desc"
+              @click="store.setUiStyle(item.id)"
+            >
+              <span
+                class="style-swatch"
+                :style="{ '--sw-a': item.preview[0], '--sw-b': item.preview[1] }"
+              />
+              <span class="style-name">{{ item.label }}</span>
+            </button>
+          </div>
+        </div>
       </section>
 
       <section class="card">
@@ -440,6 +467,52 @@ onMounted(async () => {
             />
           </div>
         </div>
+      </section>
+
+      <section class="card">
+        <h2>调试</h2>
+        <div class="row">
+          <div class="label">
+            <p>调试模式</p>
+            <small>开发调试用：打开后可以重放新手引导、查看界面状态</small>
+          </div>
+          <div class="control">
+            <button
+              class="switch"
+              type="button"
+              role="switch"
+              :aria-checked="store.debugMode"
+              :class="{ on: store.debugMode }"
+              @click="store.setDebugMode(!store.debugMode)"
+            />
+          </div>
+        </div>
+
+        <template v-if="store.debugMode">
+          <div class="row">
+            <div class="label">
+              <p>新手引导</p>
+              <small>重放首装引导：欢迎 → 登录 → 搜索 → 下载</small>
+            </div>
+            <div class="control">
+              <button class="btn btn-sm" type="button" @click="onboarding.replay()">
+                <Icon name="play" :size="13" />
+                重放引导
+              </button>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="label">
+              <p>界面状态</p>
+              <small>排查样式 / 环境问题时看这里</small>
+            </div>
+            <div class="control debug-chips">
+              <span class="chip mono">风格 {{ store.uiStyle }}</span>
+              <span class="chip mono">{{ transport.mode }}</span>
+            </div>
+          </div>
+        </template>
       </section>
 
       <section class="card about">
@@ -484,11 +557,12 @@ onMounted(async () => {
       </section>
     </template>
   </div>
+
 </template>
 
 <style scoped>
 .view {
-  padding: 26px 26px 48px;
+  padding: var(--view-pad);
   max-width: 860px;
   margin: 0 auto;
 }
@@ -748,6 +822,52 @@ onMounted(async () => {
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--sw);
 }
 
+/* 界面风格：用一小块渐变预览代替纯文字，选之前就能看出质感差别 */
+.style-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.style-card {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 7px 7px 6px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.style-card:hover {
+  border-color: var(--line-strong);
+}
+.style-card.on {
+  border-color: var(--accent);
+  background: var(--active);
+}
+.style-swatch {
+  display: block;
+  width: 58px;
+  height: 34px;
+  border-radius: calc(var(--r-sm) - 2px);
+  background: linear-gradient(140deg, var(--sw-a), var(--sw-b));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+.style-name {
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.style-card.on .style-name {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.debug-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .preview-row .preview {
   font-size: 12px;
   color: var(--text);
@@ -799,7 +919,8 @@ onMounted(async () => {
 
 @media (max-width: 860px) {
   .view {
-    padding: 18px 14px 30px;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px
+      calc(env(safe-area-inset-bottom, 0px) + 30px);
   }
   .row {
     flex-direction: column;

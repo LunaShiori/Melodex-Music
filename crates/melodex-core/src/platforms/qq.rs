@@ -375,7 +375,13 @@ impl MusicPlatform for QqMusic {
             "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg\
              ?type=1&json=1&utf8=1&onlysong=0&disstid={id}&format=json&g_tk=5381"
         );
-        let headers = [("Referer", REFERER), ("Origin", REFERER)];
+        // 关键：自建 / 收藏歌单只有在带登录态时才返回 `songlist`，
+        // 匿名请求回的是空数组——表现就是「歌单列表能列出来，点进去一首歌都没有」。
+        let cookie = self.creds.cookie(Source::Qq).unwrap_or_default();
+        let mut headers = self.headers();
+        if !cookie.is_empty() {
+            headers.push(("Cookie", cookie.as_str()));
+        }
         let raw: RawCdList = self.net.json(&url, &headers).await?;
         let Some(detail) = raw.cdlist.and_then(|list| list.into_iter().next()) else {
             return Ok(None);
@@ -573,6 +579,9 @@ struct RawSong {
     /// 媒体文件 mid（取下载链接用，区别于 songmid）
     #[serde(default)]
     media_mid: Option<String>,
+    /// 同一件事的另一种字段名：歌单详情接口只给 `strMediaMid`，不给 `media_mid`
+    #[serde(default, rename = "strMediaMid")]
+    str_media_mid: Option<String>,
     #[serde(default)]
     pay: Option<RawPay>,
 }
@@ -631,7 +640,12 @@ impl RawSong {
         // 取链接用的 media_mid。**缺失时不要用 songmid 顶替**：
         // 两者的含义不同，顶替会让无损档一路 101404；留 None 交给 resolve
         // 去歌曲详情里补真实值。
-        variant.media_mid = self.media_mid.filter(|mid| !mid.is_empty());
+        //
+        // 歌单详情接口用的是 `strMediaMid` 这个名字，两个都认，能省掉一次详情请求。
+        variant.media_mid = self
+            .media_mid
+            .or(self.str_media_mid)
+            .filter(|mid| !mid.is_empty());
         if self.sizeflac > 0 {
             variant.bitrate = 999;
             variant.format = "flac".into();

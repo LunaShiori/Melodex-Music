@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 
 import PlayerBar from '@/components/PlayerBar.vue'
 import LyricPanel from '@/components/LyricPanel.vue'
 import FullLyric from '@/components/FullLyric.vue'
 import NowPlaying from '@/components/NowPlaying.vue'
+import OnboardingDialog from '@/components/OnboardingDialog.vue'
 import SideBar from '@/components/SideBar.vue'
 import TabBar from '@/components/TabBar.vue'
 import ToastStack from '@/components/ToastStack.vue'
 import UpdateNotice from '@/components/UpdateNotice.vue'
 import { transport } from '@/lib/transport'
+import { useOnboardingStore } from '@/stores/onboarding'
 import { useSettingsStore } from '@/stores/settings'
 import { useTasksStore } from '@/stores/tasks'
 import { useUpdateStore } from '@/stores/update'
@@ -18,11 +20,35 @@ import { useUpdateStore } from '@/stores/update'
 const settings = useSettingsStore()
 const tasks = useTasksStore()
 const update = useUpdateStore()
+const onboarding = useOnboardingStore()
+
+/**
+ * 移动端软键盘弹出时，可视高度会明显小于窗口高度。
+ * 这时底部导航和播放条正好被键盘压住（点了也没用），
+ * 干脆让位给输入框——用一个 html 上的标记让 CSS 去收起它们。
+ */
+function syncKeyboard(): void {
+  const viewport = window.visualViewport
+  if (!viewport) return
+  const covered = window.innerHeight - viewport.height
+  document.documentElement.dataset.kb = covered > 140 ? '1' : '0'
+}
 
 onMounted(async () => {
   await Promise.all([settings.load(), tasks.init()])
   // 启动后静默检查一次更新：失败不打扰用户，仅在真正有新版本时提示
   if (transport.mode === 'tauri') void update.check({ silent: true })
+
+  window.visualViewport?.addEventListener('resize', syncKeyboard)
+  window.visualViewport?.addEventListener('scroll', syncKeyboard)
+
+  // 首装引导：等首屏渲染完再弹，别和启动加载抢帧（只看一次，之后可在设置里重放）
+  window.setTimeout(() => onboarding.maybeShowFirstRun(), 700)
+})
+
+onUnmounted(() => {
+  window.visualViewport?.removeEventListener('resize', syncKeyboard)
+  window.visualViewport?.removeEventListener('scroll', syncKeyboard)
 })
 </script>
 
@@ -43,6 +69,7 @@ onMounted(async () => {
     <FullLyric />
     <TabBar />
     <NowPlaying />
+    <OnboardingDialog />
     <UpdateNotice />
     <ToastStack />
   </div>

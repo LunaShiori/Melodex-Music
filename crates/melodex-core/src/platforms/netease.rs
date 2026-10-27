@@ -239,7 +239,13 @@ impl MusicPlatform for Netease {
 
     async fn playlist(&self, id: &str) -> Result<Option<PlaylistDetail>> {
         let url = format!("{ORIGIN}/api/v6/playlist/detail?id={id}");
-        let raw: RawPlaylist = self.net.json(&url, &self.headers()).await?;
+        // 自己的私密 / 收藏歌单要带登录态才给 tracks，匿名只有公开歌单能读。
+        let cookie = self.cookie_header().unwrap_or_default();
+        let mut headers = self.headers();
+        if !cookie.is_empty() {
+            headers.push(("Cookie", cookie.as_str()));
+        }
+        let raw: RawPlaylist = self.net.json(&url, &headers).await?;
         let Some(playlist) = raw.playlist else {
             return Ok(None);
         };

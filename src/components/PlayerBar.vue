@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { onCoverError } from '@/lib/cover'
 import { formatDuration } from '@/lib/format'
 import { SOURCE_META } from '@/lib/types'
 import { usePlayerStore } from '@/stores/player'
@@ -65,7 +66,7 @@ function openSheet() {
 
     <div class="now" @click="openSheet">
       <div class="thumb">
-        <img v-if="cover" :src="cover" alt="" />
+        <img v-if="cover" :src="cover" alt="" @error="onCoverError($event, player.current?.fingerprint ?? 'melodex')" />
         <span v-else class="placeholder"><Icon name="disc" :size="20" /></span>
         <span v-if="player.playing" class="eq" aria-hidden="true">
           <i /><i /><i />
@@ -456,10 +457,11 @@ function openSheet() {
 @media (max-width: 860px) {
   .player {
     height: auto;
-    margin: 0 10px 8px;
+    /* 左右缩进跟底部导航条对齐（14px），两块卡片看起来是一套的 */
+    margin: 0 14px 8px;
     padding: 9px 12px;
     border: 1px solid var(--line);
-    border-radius: 20px;
+    border-radius: 24px;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     background: color-mix(in srgb, var(--surface) 62%, transparent);

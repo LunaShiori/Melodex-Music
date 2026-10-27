@@ -3,11 +3,22 @@ import { computed, ref } from 'vue'
 
 import { accentOf } from '@/lib/theme'
 import { transport } from '@/lib/transport'
+import {
+  readDebugMode,
+  readUiStyle,
+  writeDebugMode,
+  writeUiStyle,
+  type UiStyleId,
+} from '@/lib/ui-style'
 import type { Settings } from '@/lib/types'
 
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<Settings | null>(null)
   const loaded = ref(false)
+  /** 界面风格：纯外观偏好，存 localStorage，不进设置文件 */
+  const uiStyle = ref<UiStyleId>(readUiStyle())
+  /** 调试模式：设置页里手动打开，用于重放引导 / 查看内部状态 */
+  const debugMode = ref(readDebugMode())
   const systemDark = ref(
     typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches,
   )
@@ -17,6 +28,11 @@ export const useSettingsStore = defineStore('settings', () => {
     if (mode === 'system') return systemDark.value ? 'dark' : 'light'
     return mode
   })
+
+  function applyUiStyle() {
+    if (typeof document === 'undefined') return
+    document.documentElement.dataset.style = uiStyle.value
+  }
 
   function applyTheme() {
     if (typeof document === 'undefined') return
@@ -28,6 +44,18 @@ export const useSettingsStore = defineStore('settings', () => {
     root.style.setProperty('--accent', accent.accent)
     root.style.setProperty('--accent-soft', accent.soft)
     root.style.setProperty('--accent-ink', accent.ink)
+    applyUiStyle()
+  }
+
+  function setUiStyle(next: UiStyleId) {
+    uiStyle.value = next
+    writeUiStyle(next)
+    applyUiStyle()
+  }
+
+  function setDebugMode(on: boolean) {
+    debugMode.value = on
+    writeDebugMode(on)
   }
 
   async function load() {
@@ -59,5 +87,17 @@ export const useSettingsStore = defineStore('settings', () => {
       })
   }
 
-  return { settings, loaded, resolvedTheme, load, save, toggleTheme, applyTheme }
+  return {
+    settings,
+    loaded,
+    resolvedTheme,
+    uiStyle,
+    debugMode,
+    load,
+    save,
+    toggleTheme,
+    applyTheme,
+    setUiStyle,
+    setDebugMode,
+  }
 })
