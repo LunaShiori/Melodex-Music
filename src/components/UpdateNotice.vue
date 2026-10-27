@@ -5,7 +5,7 @@ import Icon from './Icon.vue'
 import { formatBytes } from '@/lib/format'
 import { renderMarkdown } from '@/lib/markdown'
 import { transport } from '@/lib/transport'
-import { useUpdateStore } from '@/stores/update'
+import { IS_ANDROID, useUpdateStore } from '@/stores/update'
 
 const update = useUpdateStore()
 const open = ref(false)
@@ -58,9 +58,10 @@ const primaryLabel = computed(() => {
         ? `下载中 ${update.percent}%`
         : `下载中 ${formatBytes(update.downloaded)}`
     case 'ready':
-      return '立即安装并重启'
+      // 安卓不会「装完自动重启」，拉起的是系统安装界面
+      return IS_ANDROID ? '开始安装' : '立即安装并重启'
     case 'installing':
-      return '正在退出…'
+      return IS_ANDROID ? '正在调起安装程序…' : '正在退出…'
     default:
       return '立即更新'
   }
@@ -156,10 +157,15 @@ async function openUrl(url: string) {
 
           <!-- 下载完成 -->
           <p v-else-if="update.stage === 'ready'" class="ready small">
-            安装包已下载完成，点「立即安装并重启」即可完成升级。
+            {{
+              IS_ANDROID
+                ? '安装包已下载完成。点「开始安装」会弹出系统安装界面；首次可能需要允许「安装未知应用」。'
+                : '安装包已下载完成，点「立即安装并重启」即可完成升级。'
+            }}
           </p>
           <p v-else-if="update.stage === 'installing'" class="ready small">
-            正在启动安装程序，Melodex 即将退出，安装完成后会自动重新打开。
+            <template v-if="IS_ANDROID">正在调起系统安装程序…</template>
+            <template v-else>正在启动安装程序，Melodex 即将退出，安装完成后会自动重新打开。</template>
           </p>
 
           <p v-if="update.installError || failed" class="err">

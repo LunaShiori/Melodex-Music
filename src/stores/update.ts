@@ -7,6 +7,9 @@ import type { UpdateInfo } from '@/lib/types'
 /** 在线更新走到哪一步 */
 export type UpdateStage = 'idle' | 'downloading' | 'ready' | 'installing'
 
+/** 安卓的安装是「拉起系统安装器」而不是「装完自动重启」，界面上要区别对待 */
+export const IS_ANDROID = /Android/i.test(navigator.userAgent)
+
 /**
  * 在线更新。
  *
@@ -92,6 +95,10 @@ export const useUpdateStore = defineStore('update', () => {
     installError.value = ''
     try {
       await transport.updateInstall(readyPath.value)
+      // Windows 上进程马上就要退出，这句不会执行到；安卓只是把系统安装器叫起来，
+      // 用户随时可能返回应用——状态必须放回 ready，否则会一直卡在「正在退出…」
+      // 且所有按钮都被 disabled。
+      if (IS_ANDROID) stage.value = 'ready'
     } catch (err) {
       installError.value = err instanceof Error ? err.message : String(err)
       stage.value = 'ready'
