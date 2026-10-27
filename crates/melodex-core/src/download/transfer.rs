@@ -28,6 +28,8 @@ pub struct TransferResult {
 /// - 每个 chunk 检查一次取消/暂停标志，保证响应及时；
 /// - `decrypt_key` 非空时，写入前对每个 chunk 做 QMCv2 流式解密（`.mflac`/`.mgg`）；
 /// - `speed_limit_bps` 非 0 时按单任务限速，每个 chunk 后补 sleep（见 [`throttle_delay`]）。
+// 参数都是下载一股脑要的东西，硬拆成结构体反而每次调用都要多写一行；8 个参数在这个位置是可读的。
+#[allow(clippy::too_many_arguments)]
 pub async fn download(
     client: &reqwest::Client,
     url: &str,
