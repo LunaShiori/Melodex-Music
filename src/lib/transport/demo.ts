@@ -555,30 +555,30 @@ export function createDemoTransport(): Transport {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))
       return {
-        current: '1.1.2',
+        current: '1.3.0',
         latest: 'v0.6.1',
         available: true,
         notes:
           '新增\n· 酷狗音源适配\n· 下载队列并发数热调整\n\n修复\n· 移动端深色主题下封面边框对比度\n· 断点续传在代理环境下的 416 处理',
-        pageUrl: 'https://github.com/LunaShiori/melodex/releases/latest',
+        pageUrl: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
         publishedAt: '2026-10-01T08:00:00Z',
         assets: [
           {
-            name: 'Melodex_0.6.1_x64-setup.exe',
+            name: 'MelodexMusic_0.6.1_x64-setup.exe',
             size: 4_612_345,
-            url: 'https://github.com/LunaShiori/melodex/releases/latest',
+            url: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
             kind: 'nsis',
           },
           {
-            name: 'Melodex_0.6.1_x64_en-US.msi',
+            name: 'MelodexMusic_0.6.1_x64_en-US.msi',
             size: 5_180_224,
-            url: 'https://github.com/LunaShiori/melodex/releases/latest',
+            url: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
             kind: 'msi',
           },
           {
-            name: 'Melodex_0.6.1_universal.apk',
+            name: 'MelodexMusic_0.6.1_universal.apk',
             size: 9_812_006,
-            url: 'https://github.com/LunaShiori/melodex/releases/latest',
+            url: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
             kind: 'apk',
           },
         ],

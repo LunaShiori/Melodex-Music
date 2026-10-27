@@ -1,7 +1,7 @@
 {
   "name": "melodex",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.3.0",
   "type": "module",
   "description": "Melodex Music · 多源音乐聚合搜索、播放与歌词",
   "keywords": [
@@ -20,10 +20,10 @@
     "music-player",
     "music-library"
   ],
-  "homepage": "https://github.com/LunaShiori/melodex",
+  "homepage": "https://github.com/LunaShiori/Melodex-Music",
   "repository": {
     "type": "git",
-    "url": "https://github.com/LunaShiori/melodex.git"
+    "url": "https://github.com/LunaShiori/Melodex-Music.git"
   },
   "license": "Apache-2.0",
   "scripts": {

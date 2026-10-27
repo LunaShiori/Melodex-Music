@@ -4,13 +4,13 @@ members = ["crates/melodex-core", "crates/vendor/umc_utils", "crates/vendor/umc_
 exclude = ["src-tauri"]
 
 [workspace.package]
-version = "1.2.0"
+version = "1.3.0"
 edition = "2021"
 rust-version = "1.77"
 license = "Apache-2.0"
 authors = ["Melodex Contributors"]
-repository = "https://github.com/LunaShiori/melodex"
-homepage = "https://github.com/LunaShiori/melodex"
+repository = "https://github.com/LunaShiori/Melodex-Music"
+homepage = "https://github.com/LunaShiori/Melodex-Music"
 
 [profile.release]
 lto = "thin"

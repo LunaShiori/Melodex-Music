@@ -16,7 +16,8 @@ use crate::error::{Error, Result};
 
 /// 默认发布源：GitHub Releases 的 latest。
 /// 换成你自己的仓库即可；也可以在运行时通过 `MELODEX_UPDATE_FEED` 环境变量覆盖。
-pub const DEFAULT_FEED: &str = "https://api.github.com/repos/LunaShiori/melodex/releases/latest";
+pub const DEFAULT_FEED: &str =
+    "https://api.github.com/repos/LunaShiori/Melodex-Music/releases/latest";
 
 /// 运行时可覆盖的清单地址。
 pub fn feed_url() -> String {
@@ -425,7 +426,7 @@ mod tests {
         let body = r#"{
             "tag_name": "v0.2.0",
             "body": "更新内容\n- 修复断点续传",
-            "html_url": "https://github.com/LunaShiori/melodex/releases/tag/v0.2.0",
+            "html_url": "https://github.com/LunaShiori/Melodex-Music/releases/tag/v0.2.0",
             "published_at": "2026-01-01T00:00:00Z",
             "assets": [
                 {"name": "Melodex_0.2.0_x64-setup.exe", "size": 4500000, "browser_download_url": "https://example.com/a.exe"},
@@ -508,7 +509,8 @@ mod tests {
 
     #[test]
     fn github_url_gets_acceleration_mirrors() {
-        let original = "https://github.com/LunaShiori/melodex/releases/download/v1.0.0/setup.exe";
+        let original =
+            "https://github.com/LunaShiori/Melodex-Music/releases/download/v1.0.0/setup.exe";
         let urls = build_candidate_urls(original);
         // 直连排最前
         assert_eq!(urls[0], original);

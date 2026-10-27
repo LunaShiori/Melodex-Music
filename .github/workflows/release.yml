@@ -52,6 +52,13 @@ jobs:
           New-Item -ItemType Directory -Force -Path out | Out-Null
           Get-ChildItem -Recurse -Path src-tauri/target/release/bundle -Include *.exe,*.msi |
             Copy-Item -Destination out
+          # productName 改成了「Melodex Music」，打包器会照着它命名安装包，
+          # 文件名里带空格在下载链接里会变成 %20，命令行安装也要加引号，很别扭。
+          # 这里只改文件名，安装后「应用和功能」里显示的名字仍然是 Melodex Music。
+          Get-ChildItem out -File | ForEach-Object {
+            $new = $_.Name -replace '^Melodex( Music)?_', 'MelodexMusic_'
+            if ($new -ne $_.Name) { Rename-Item $_.FullName $new }
+          }
           Get-ChildItem out
 
       - uses: actions/upload-artifact@v4
@@ -159,14 +166,14 @@ jobs:
         run: |
           mkdir -p out
           # Gradle 产出的名字固定叫 app-universal-release.apk，下载到本地后无法区分版本，
-          # 这里统一重命名为 Melodex_<版本>_universal.apk。
+          # 这里统一重命名为 MelodexMusic_<版本>_universal.apk。
           version="${GITHUB_REF_NAME#v}"
           apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -n 1)
           if [ -z "$apk" ]; then
             echo "未找到 APK 产物" >&2
             exit 1
           fi
-          cp "$apk" "out/Melodex_${version}_universal.apk"
+          cp "$apk" "out/MelodexMusic_${version}_universal.apk"
           ls -lh out
           python3 scripts/check-apk.py out/*.apk
 
@@ -239,7 +246,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Melodex ${{ github.ref_name }} · Windows 安装包 + Android APK
+          name: Melodex Music ${{ github.ref_name }} · Windows 安装包 + Android APK
           draft: false
           prerelease: false
           # 自己拼好的说明已经包含更新内容；关掉自动 notes，

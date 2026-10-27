@@ -6,7 +6,7 @@
 点开就在应用里播、歌词逐行跟着走，要留存就批量下载，落盘时自动写 ID3 标签与封面。
 桌面端用 Rust 引擎下载，手机端共用同一套核心与界面。
 
-<sub>应用正式名称 **Melodex Music**（仓库地址仍是 `melodex`，改名会让历史下载链接全部失效）；
+<sub>应用名称 **Melodex Music**，仓库地址 `Melodex-Music`（GitHub 仓库名不允许空格，故用连字符）；
 界面上「MUSIC」用一个独立小方框与 Melodex 区分，中文场景仍可简称 Melodex。</sub>
 
 <sub>关键词：多源音乐聚合搜索 · 在线音乐播放器 · 歌词显示 · 滚动歌词 · 多源音乐下载器 · 网易云音乐 · QQ音乐 · 酷我音乐 · 账号歌单 · 批量下载 · 断点续传 · 320kbps 与无损 · ID3 标签 · 歌词内嵌 · 在线更新 · Tauri 应用 · Windows 桌面端 · Android 应用 · `music player` · `lyrics` · `music downloader` · `music aggregator`</sub>
@@ -401,7 +401,7 @@ stores/update.ts ──► UpdateNotice.vue（左下角提示条 + 更新弹窗�
 | 版本号 | `package.json`、`src-tauri/tauri.conf.json`、`Cargo.toml` 三处保持一致 |
 | 换成静默自动更新 | 接 `tauri-plugin-updater` + 在 CI 里注入签名密钥；现有 `check_update` 可继续复用 |
 
-> Fork 到自己的账号后，记得把 `LunaShiori/melodex` 换成你的仓库地址（`Cargo.toml` 的 `repository`、`update.rs` 的 `DEFAULT_FEED`、`demo.ts` 里的演示链接），
+> Fork 到自己的账号后，记得把 `LunaShiori/Melodex-Music` 换成你的仓库地址（`Cargo.toml` 的 `repository`、`update.rs` 的 `DEFAULT_FEED`、`demo.ts` 里的演示链接），
 > 否则「检查更新」会去查原作者的发布页。
 
 <p align="center">
@@ -561,12 +561,18 @@ QQ 歌单这一块有两个容易踩的字段坑，记在这里省得再查一�
 - **「打开文件夹」**在移动端没有对应语义，command 返回明确错误，界面降级为提示，引导去「本地曲库」播放。
 - **播放本地文件**走 Tauri asset 协议，移动端与桌面端同一套 `convertFileSrc`。
 
+> **从 1.2.x 升级到 1.3.0（Windows）**：1.3.0 把 `productName` 从 `Melodex` 改成了 `Melodex Music`，
+> 而 NSIS 正是用 `productName` 当安装目录名与卸载项名，所以安装器认不出旧版，会装成两个并存的应用。
+> 请先在「已安装的应用」里卸载旧的 Melodex 再装新版。
+> 登录凭据与设置都在 `%APPDATA%\app.melodex`（目录名由 `identifier` 决定，没动过），卸载旧版不会丢。
+> Android 端包名同样来自 `identifier`，签名未变，可直接覆盖安装。
+
 ## 快速开始
 
 ```bash
 # 0) 依赖：Node 18+、Rust 1.77+（Windows 还需 VS Build Tools 的 C++ 组件）
-git clone https://github.com/LunaShiori/melodex.git
-cd melodex
+git clone https://github.com/LunaShiori/Melodex-Music.git
+cd Melodex-Music
 
 # 1) 装前端依赖
 npm install
@@ -596,8 +602,8 @@ npm run tauri build
 
 | 文件 | 路径 |
 | --- | --- |
-| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/Melodex_<version>_x64-setup.exe` |
-| MSI 安装包 | `src-tauri/target/release/bundle/msi/Melodex_<version>_x64_en-US.msi` |
+| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/Melodex Music_<version>_x64-setup.exe` |
+| MSI 安装包 | `src-tauri/target/release/bundle/msi/Melodex Music_<version>_x64_en-US.msi` |
 | 免安装可执行 | `src-tauri/target/release/melodex.exe` |
 
 ## 构建 Android APK
@@ -689,15 +695,19 @@ git push origin v0.1.1
 
 | 平台 | 文件 | 说明 |
 | --- | --- | --- |
-| Windows 10/11 x64 | `Melodex_<version>_x64-setup.exe` | NSIS 安装包，双击即装（含开始菜单与卸载项） |
-| Windows 10/11 x64 | `Melodex_<version>_x64_en-US.msi` | MSI，适合企业分发 / 静默安装 |
-| Android 8.0+ | `app-universal-release.apk` | 通用 APK，覆盖 arm64 / armv7 / x86_64 |
+| Windows 10/11 x64 | `MelodexMusic_<version>_x64-setup.exe` | NSIS 安装包，双击即装（含开始菜单与卸载项） |
+| Windows 10/11 x64 | `MelodexMusic_<version>_x64_en-US.msi` | MSI，适合企业分发 / 静默安装 |
+| Android 8.0+ | `MelodexMusic_<version>_universal.apk` | 通用 APK，覆盖 arm64 / armv7 / x86_64 |
 
-两点注意：
+三点注意：
 
-1. **安装包必须挂在 Release 资产里**（不是只放在 Actions 的 artifact 里）——应用内的「检查更新」读的是
+1. **别随手改 `productName` / `identifier`**：`productName` 决定安装目录与卸载项名，
+   改了就装成两个并存的应用（1.3.0 改名时已付出过一次这个代价）；
+   `identifier` 决定用户数据目录与 Android 包名，改了等于换一个应用、老数据读不到。
+   只改显示文案不需要动这两个字段。
+2. **安装包必须挂在 Release 资产里**（不是只放在 Actions 的 artifact 里）——应用内的「检查更新」读的是
    `releases/latest` 返回的 `assets[]`，artifact 没过期就会随 retention 消失。
-2. **Android 签名**：Android 要求「同一应用必须同一签名」才能覆盖安装，所以 CI 默认使用仓库里公开的
+3. **Android 签名**：Android 要求「同一应用必须同一签名」才能覆盖安装，所以 CI 默认使用仓库里公开的
    `src-tauri/ci-signing/melodex-ci.p12`（口令 `melodex-ci`）。它只保证历次 Release 能装、能升级，
    不代表任何安全承诺。要换成自己的密钥，在仓库 Settings → Secrets 里加三个值即可，流水线会自动优先使用：
 

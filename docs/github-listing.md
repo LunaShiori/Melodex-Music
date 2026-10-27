@@ -45,19 +45,19 @@ bash scripts/setup-github-meta.sh
 ```bash
 export GH_TOKEN=ghp_你的令牌
 
-curl -sS -X PATCH https://api.github.com/repos/LunaShiori/melodex \
+curl -sS -X PATCH https://api.github.com/repos/LunaShiori/Melodex-Music \
   -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
   -d '{"description":"Melodex Music｜多源音乐聚合搜索、播放与歌词（Windows + Android）…"}'
 
-curl -sS -X PUT https://api.github.com/repos/LunaShiori/melodex/topics \
+curl -sS -X PUT https://api.github.com/repos/LunaShiori/Melodex-Music/topics \
   -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
   -d '{"names":["music","music-player","lyrics","music-downloader","music-search","music-aggregator","music-library","netease-cloud-music","qqmusic","kuwo","lrc-lyrics","id3v2","tauri","tauri-app","rust","vue3","typescript","android","windows","open-source"]}'
 
 # 先把 v0.1.0 的 release id 查出来，再改
 RID=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
-  https://api.github.com/repos/LunaShiori/melodex/releases/tags/v0.1.0 \
+  https://api.github.com/repos/LunaShiori/Melodex-Music/releases/tags/v0.1.0 \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-curl -sS -X PATCH "https://api.github.com/repos/LunaShiori/melodex/releases/$RID" \
+curl -sS -X PATCH "https://api.github.com/repos/LunaShiori/Melodex-Music/releases/$RID" \
   -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
   -d '{"prerelease":true}'
 ```

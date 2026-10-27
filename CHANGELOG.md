@@ -3,6 +3,42 @@
 本项目的版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)，
 安装包命名与 `Cargo.toml` / `tauri.conf.json` 的 `version` 保持一致。
 
+## v1.3.0
+
+品牌收口：GitHub 仓库改名 **Melodex-Music**，安装包与「应用和功能」里的显示名改成
+**Melodex Music**。没有功能改动，但 Windows 用户需要先卸载一次旧版（原因见下）。
+
+### ⚠️ 升级须知（Windows）
+
+这一版把 `productName` 从 `Melodex` 改成了 `Melodex Music`。Tauri 的 NSIS 安装器用
+`productName` 作为安装目录名和卸载注册表项名，所以它**认不出**旧版，会装成两个并存的应用。
+
+- 升级方式：先在「设置 → 应用 → 已安装的应用」里卸载旧的 **Melodex**，再装新版；
+  也可以直接装新版，确认能用之后再手动删掉旧的那份。
+- **数据不受影响**：登录凭据、设置、下载记录都在 `%APPDATA%\app.melodex`，
+  目录名来自 `identifier`（仍是 `app.melodex`），卸载旧版不会清掉。
+- Android 不受影响：包名同样来自 `identifier`，签名也没变，可以直接覆盖安装。
+
+### 改 · 仓库与产品名
+
+- 仓库地址：`LunaShiori/melodex` → `LunaShiori/Melodex-Music`。
+  GitHub 会把旧地址 301 跳到新地址，历史链接不会断；但本地 `git remote` 要改一次：
+  `git remote set-url origin git@github.com:LunaShiori/Melodex-Music.git`。
+- `productName`：`Melodex` → `Melodex Music`。窗口标题、「应用和功能」显示名、
+  开始菜单快捷方式、安装目录都跟着变。
+- 安装包文件名统一去掉空格，改成 `MelodexMusic_<version>_x64-setup.exe` /
+  `MelodexMusic_<version>_x64_en-US.msi` / `MelodexMusic_<version>_universal.apk`，
+  下载链接里不再出现 `%20`。
+- `Cargo.toml` / `package.json` 的 `repository`、`homepage`，内核里的更新检查地址
+  `DEFAULT_FEED`，以及 README、仓库元信息脚本一并指向新仓库。
+- 有意保持不变：`identifier`（`app.melodex`）、`Cargo.toml` 里的包名、可执行文件名
+  `melodex.exe`。前两个动一个就会丢用户数据、Android 端变成另一个应用，第三个没必要动。
+
+### 修 · 演示数据的版本号停在 1.1.2
+
+浏览器演示模式下「检查更新」弹窗显示的当前版本还是 `1.1.2`，与实际版本对不上；
+现在跟随发版一起更新，演示产物的文件名也同步成新命名。
+
 ## v1.2.0
 
 修掉「QQ 歌单点进去没歌」这个真 bug，搜索加了置顶原唱与排序，歌单页补齐搜索/筛选/三种浏览方式，
