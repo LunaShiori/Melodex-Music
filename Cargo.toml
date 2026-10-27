@@ -4,7 +4,7 @@ members = ["crates/melodex-core", "crates/vendor/umc_utils", "crates/vendor/umc_
 exclude = ["src-tauri"]
 
 [workspace.package]
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 rust-version = "1.77"
 license = "Apache-2.0"
