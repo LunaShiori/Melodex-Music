@@ -1,12 +1,17 @@
 /**
  * 「原唱 / 翻唱」识别。
  *
- * 各平台都没有一个可靠的统一字段：网易云有 `originCoverType`，QQ 和酷我没有，
- * 但用户看到的其实是**标题里的自述**——「晴天（原唱：周杰伦）」「起风了 cover 版」。
- * 所以这里按标题文本判定，口径和用户看到的一致：标题里写着「原唱」的就算原唱标注。
+ * 分两层，谁更可信用谁：
  *
- * 只用于列表排序和打标，不参与任何下载/解析逻辑——判断错了顶多顺序不好看。
+ * 1. **平台标注**——网易云的搜索接口每条都带 `originCoverType`（1 = 原唱，2 = 翻唱），
+ *    这是平台自己的判定，比猜标题准得多。0 和 3 都当「没标」，实测 3 里混着翻唱。
+ * 2. **标题文本**——QQ、酷我没有对应字段，只能看标题里的自述：
+ *    「晴天（原唱：周杰伦）」「起风了 cover 版」。
+ *
+ * 只用于列表打标和「置顶原唱」，不参与任何下载/解析逻辑——判断错了顶多顺序不好看。
  */
+
+import type { OriginMark, Track } from './types'
 
 /** 标题自带「这就是原唱 / 原版」的说明 */
 const ORIGINAL_PATTERN = /原唱|原版|原曲|原声/
@@ -18,10 +23,8 @@ const COVER_PATTERN =
 export type OriginKind = 'original' | 'cover' | 'unknown'
 
 /**
- * 判定一首歌是原唱标注、翻唱版本，还是看不出来。
- *
- * 顺序很重要：「原唱」优先——「晴天（原唱：周杰伦）Cover 版」这种标题两种词都有，
- * 用户关心的仍然是不是原唱。
+ * 只看文本的判定，顺序很重要：「原唱」优先——
+ * 「晴天（原唱：周杰伦）Cover 版」这种标题两种词都有，用户关心的仍然是不是原唱。
  */
 export function originOf(input: { title: string; album?: string | null }): OriginKind {
   const text = `${input.title} ${input.album ?? ''}`
@@ -35,9 +38,37 @@ export function isOriginal(input: { title: string; album?: string | null }): boo
   return originOf(input) === 'original'
 }
 
+/**
+ * 一首歌（合并后的条目）的版本口径。
+ *
+ * 只要有一个音源被平台标成原唱就算原唱——同一条记录在「原唱源」上的判定最权威；
+ * 各源都没标才退回标题文本。
+ */
+export function trackOrigin(track: {
+  title: string
+  album?: string | null
+  variants?: { origin?: OriginMark | null }[]
+}): OriginKind {
+  const marks = (track.variants ?? [])
+    .map((variant) => variant.origin)
+    .filter((mark): mark is OriginMark => mark === 'original' || mark === 'cover')
+  if (marks.includes('original')) return 'original'
+  if (marks.includes('cover')) return 'cover'
+  return originOf(track)
+}
+
+/** 是否算「原唱」——置顶原唱就是按这个合集筛的 */
+export function isTrackOriginal(track: Track): boolean {
+  return trackOrigin(track) === 'original'
+}
+
 /** 标题里能看出的版本说明，用于列表上的小标签；看不出来就返回空串 */
-export function originLabel(input: { title: string; album?: string | null }): string {
-  const kind = originOf(input)
+export function originLabel(track: {
+  title: string
+  album?: string | null
+  variants?: { origin?: OriginMark | null }[]
+}): string {
+  const kind = trackOrigin(track)
   if (kind === 'original') return '原唱'
   if (kind === 'cover') return '翻唱'
   return ''

@@ -62,7 +62,12 @@ export interface Variant {
   fee: Fee
   /** 平台给的人气值（网易云 0–100，其它源可能没有 → 0） */
   popularity?: number
+  /** 平台标注的原唱/翻唱（目前只有网易云给），没有就是 undefined */
+  origin?: OriginMark | null
 }
+
+/** 平台侧的原唱 / 翻唱标注 */
+export type OriginMark = 'original' | 'cover'
 
 export interface Track {
   fingerprint: string

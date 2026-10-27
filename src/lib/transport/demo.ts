@@ -83,6 +83,8 @@ interface Seed {
   durationMs: number
   fee: Variant['fee']
   sources: SourceId[]
+  /** 模拟平台标注（网易云给 originCoverType，QQ/酷我没有） */
+  origin?: Variant['origin']
 }
 
 const CATALOG: Seed[] = [
@@ -98,6 +100,11 @@ const CATALOG: Seed[] = [
   { title: '这世界那么多人', artists: ['莫文蔚'], album: '这世界那么多人', durationMs: 285_000, fee: 'free', sources: ['netease', 'qq'] },
   { title: 'Lemon', artists: ['米津玄師'], album: 'Lemon', durationMs: 255_000, fee: 'free', sources: ['netease', 'qq', 'kuwo'] },
   { title: '夜空中最亮的星', artists: ['逃跑计划'], album: '世界', durationMs: 252_000, fee: 'free', sources: ['netease', 'kuwo'] },
+  // 下面三条专门用来演示「原唱 / 翻唱」标签：一条翻唱、一条标题自称原唱但平台判定是翻唱、
+  // 一条长标题的原唱（窄屏下应该省略号收尾，不能把标签挤到下一行）
+  { title: '晴天（DJ热播版）', artists: ['DJ阿罗'], album: '晴天（DJ热播版）', durationMs: 214_000, fee: 'free', sources: ['netease'], origin: 'cover' },
+  { title: '晴天（原唱：周杰伦）', artists: ['RyaVocal'], album: '晴天', durationMs: 268_000, fee: 'free', sources: ['netease'], origin: 'cover' },
+  { title: '光年之外（原唱：邓紫棋 电影《太空旅客》主题曲）', artists: ['邓紫棋'], album: '光年之外', durationMs: 241_000, fee: 'free', sources: ['qq'], origin: 'original' },
 ]
 
 const BITRATE: Record<SourceId, number[]> = {
@@ -119,6 +126,7 @@ function buildVariants(seed: Seed, index: number): Variant[] {
     format: source === 'qq' ? 'm4a' : 'mp3',
     size: Math.round((seed.durationMs / 1000) * (BITRATE[source][0] / 8) * 1000),
     fee: seed.fee,
+    origin: source === 'netease' ? (seed.origin ?? null) : null,
   }))
 }
 
@@ -555,8 +563,8 @@ export function createDemoTransport(): Transport {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))
       return {
-        current: '1.3.1',
-        latest: 'v0.6.1',
+        current: '1.4.0',
+        latest: 'v1.4.1',
         available: true,
         // 故意写成带标题/加粗/列表/链接的 Markdown：更新弹窗要能正确渲染，
         // 走查时一眼就能看出渲染器有没有退化
@@ -577,19 +585,19 @@ export function createDemoTransport(): Transport {
         publishedAt: '2026-10-01T08:00:00Z',
         assets: [
           {
-            name: 'MelodexMusic_0.6.1_x64-setup.exe',
+            name: 'MelodexMusic_1.4.1_x64-setup.exe',
             size: 4_612_345,
             url: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
             kind: 'nsis',
           },
           {
-            name: 'MelodexMusic_0.6.1_x64_en-US.msi',
+            name: 'MelodexMusic_1.4.1_x64_en-US.msi',
             size: 5_180_224,
             url: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
             kind: 'msi',
           },
           {
-            name: 'MelodexMusic_0.6.1_universal.apk',
+            name: 'MelodexMusic_1.4.1_universal.apk',
             size: 9_812_006,
             url: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
             kind: 'apk',

@@ -77,6 +77,17 @@ impl Fee {
     }
 }
 
+/// 平台自己给出的「原唱 / 翻唱」判定。
+///
+/// 目前只有网易云在搜索结果里带 `originCoverType`（1 = 原唱，2 = 翻唱），
+/// QQ 与酷我没有对应字段。拿不到就不填，前端再退回标题文本判断。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Origin {
+    Original,
+    Cover,
+}
+
 /// 某个音源上的一条具体记录，是「能被下载的最小单位」。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,6 +103,9 @@ pub struct Variant {
     pub format: String,
     pub size: u64,
     pub fee: Fee,
+    /// 平台标注的原唱/翻唱；平台没给就是 None（绝大多数音源都是 None）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<Origin>,
     /// 媒体文件 mid（QQ 音乐取链接用，区别于歌曲 mid）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub media_mid: Option<String>,
@@ -115,6 +129,7 @@ impl Variant {
             format: "mp3".into(),
             size: 0,
             fee: Fee::Unknown,
+            origin: None,
             media_mid: None,
             popularity: 0,
         }

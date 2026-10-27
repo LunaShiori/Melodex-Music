@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import { isOriginal } from '@/lib/origin'
+import { isTrackOriginal } from '@/lib/origin'
 import { transport } from '@/lib/transport'
 import type { AggregatedPage, SourceId, SourceReport, Track } from '@/lib/types'
 
@@ -59,7 +59,7 @@ export const useSearchStore = defineStore('search', () => {
 
   const hasMore = computed(() => tracks.value.length > 0 && tracks.value.length >= page.value * PAGE_SIZE)
 
-  const originalCount = computed(() => tracks.value.filter((track) => isOriginal(track)).length)
+  const originalCount = computed(() => tracks.value.filter((track) => isTrackOriginal(track)).length)
 
   /**
    * 真正用于渲染的顺序。
@@ -85,7 +85,7 @@ export const useSearchStore = defineStore('search', () => {
     if (!pinOriginal.value) return list
     const head: Track[] = []
     const tail: Track[] = []
-    for (const track of list) (isOriginal(track) ? head : tail).push(track)
+    for (const track of list) (isTrackOriginal(track) ? head : tail).push(track)
     return [...head, ...tail]
   })
 

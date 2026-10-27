@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::error::{Error, Reason, Result};
 use crate::model::{
-    Fee, Lyric, PlayUrl, PlaylistDetail, PlaylistSummary, SearchPage, Source, Variant,
+    Fee, Lyric, Origin, PlayUrl, PlaylistDetail, PlaylistSummary, SearchPage, Source, Variant,
 };
 use crate::net::Net;
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
@@ -330,6 +330,9 @@ struct RawSong {
     /// 热度，0–100 的浮点数；`cloudsearch` 叫 `pop`，老接口叫 `popularity`
     #[serde(default, alias = "popularity")]
     pop: f64,
+    /// 1 = 原唱，2 = 翻唱，0/3 = 平台自己也没标（实测 3 里混着翻唱，不能当原唱）
+    #[serde(default, rename = "originCoverType")]
+    origin_cover_type: i32,
 }
 
 impl RawSong {
@@ -345,6 +348,11 @@ impl RawSong {
         variant.size = 0;
         variant.format = "mp3".into();
         variant.popularity = self.pop.clamp(0.0, 1000.0) as u32;
+        variant.origin = match self.origin_cover_type {
+            1 => Some(Origin::Original),
+            2 => Some(Origin::Cover),
+            _ => None,
+        };
         variant
     }
 }
