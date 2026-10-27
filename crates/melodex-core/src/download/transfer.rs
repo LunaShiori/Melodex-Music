@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use futures_util::StreamExt;
 use tokio::io::AsyncWriteExt;
@@ -25,7 +26,8 @@ pub struct TransferResult {
 /// - 先写 `.part` 临时文件，成功后再改名，避免半成品被当成成品；
 /// - 已有 `.part` 时用 `Range` 续传，若服务端不支持（返回 200）则自动从头写；
 /// - 每个 chunk 检查一次取消/暂停标志，保证响应及时；
-/// - `decrypt_key` 非空时，写入前对每个 chunk 做 QMCv2 流式解密（`.mflac`/`.mgg`）。
+/// - `decrypt_key` 非空时，写入前对每个 chunk 做 QMCv2 流式解密（`.mflac`/`.mgg`）；
+/// - `speed_limit_bps` 非 0 时按单任务限速，每个 chunk 后补 sleep（见 [`throttle_delay`]）。
 pub async fn download(
     client: &reqwest::Client,
     url: &str,
@@ -33,6 +35,7 @@ pub async fn download(
     cancel: &AtomicBool,
     pause: &AtomicBool,
     decrypt_key: Option<&str>,
+    speed_limit_bps: u64,
     mut on_progress: impl FnMut(u64, u64),
 ) -> Result<TransferResult> {
     let existing = tokio::fs::metadata(part)
@@ -86,6 +89,10 @@ pub async fn download(
     };
 
     let mut stream = response.bytes_stream();
+    // 限速只算「本次传输」的字节：续传时 .part 里已有的那部分不算进配额，
+    // 否则一续传就会被判定成严重超速，白白等半天。
+    let rate_base = downloaded;
+    let rate_started = Instant::now();
     while let Some(chunk) = stream.next().await {
         if cancel.load(Ordering::Relaxed) {
             file.flush().await?;
@@ -118,6 +125,15 @@ pub async fn download(
         file.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
         on_progress(downloaded, total);
+
+        // 限速在写盘之后补睡：先让进度条动起来，再按配额压住下一段。
+        if let Some(delay) = throttle_delay(
+            downloaded - rate_base,
+            speed_limit_bps,
+            rate_started.elapsed(),
+        ) {
+            tokio::time::sleep(delay).await;
+        }
     }
     file.flush().await?;
     drop(file);
@@ -136,6 +152,25 @@ pub async fn download(
     })
 }
 
+/// 单任务限速：算「按目标速率还欠多少时间」。
+///
+/// - `limit_bps == 0`：不限速，永远不 sleep；
+/// - 已经落后于配额（网速本来就慢）：返回 `None`，不额外拖慢；
+/// - 单次最多睡 1 秒：暂停/取消最多晚 1 秒被处理；chunk 均匀时，
+///   欠的账会累积到下一轮，平均速率仍收敛到设定值。
+fn throttle_delay(downloaded: u64, limit_bps: u64, elapsed: Duration) -> Option<Duration> {
+    if limit_bps == 0 {
+        return None;
+    }
+    let target = Duration::from_secs_f64(downloaded as f64 / limit_bps as f64);
+    let gap = target.checked_sub(elapsed)?;
+    if gap.is_zero() {
+        None
+    } else {
+        Some(gap.min(Duration::from_secs(1)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,5 +179,30 @@ mod tests {
     fn outcome_flags_are_distinct() {
         assert_ne!(TransferOutcome::Completed, TransferOutcome::Paused);
         assert_ne!(TransferOutcome::Paused, TransferOutcome::Canceled);
+    }
+
+    #[test]
+    fn throttle_is_noop_when_unlimited() {
+        assert_eq!(throttle_delay(10_000, 0, Duration::from_millis(10)), None);
+    }
+
+    #[test]
+    fn throttle_waits_for_the_quota() {
+        // 1000 字节 / 1000 B/s = 目标 1s，已经过了 0.4s → 还差 0.6s
+        let delay = throttle_delay(1_000, 1_000, Duration::from_millis(400)).unwrap();
+        assert!((delay.as_millis() as i64 - 600).abs() <= 2, "got {delay:?}");
+    }
+
+    #[test]
+    fn throttle_does_not_slow_a_slow_connection() {
+        // 只下了 100 字节却已经过了 2s，比配额还慢，不该再等
+        assert_eq!(throttle_delay(100, 1_000, Duration::from_secs(2)), None);
+    }
+
+    #[test]
+    fn throttle_caps_one_sleep() {
+        // 100 字节 @ 10 B/s → 目标 10s，单次最多睡 1s
+        let delay = throttle_delay(100, 10, Duration::ZERO).unwrap();
+        assert_eq!(delay, Duration::from_secs(1));
     }
 }

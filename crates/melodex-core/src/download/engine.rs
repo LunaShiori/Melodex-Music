@@ -677,6 +677,8 @@ async fn execute(
         cancel,
         pause,
         play.ekey.as_deref(),
+        // 限速按 KB/s 配置，核心内部统一用 B/s；0 表示不限速
+        (settings.speed_limit_kbps as u64) * 1024,
         move |downloaded, total| {
             let now = Instant::now();
             if now.duration_since(last_emit) < Duration::from_millis(240) {

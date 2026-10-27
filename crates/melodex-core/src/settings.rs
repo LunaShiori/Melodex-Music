@@ -78,6 +78,12 @@ pub struct Settings {
     pub artist_separator: String,
     /// 同时下载的任务数
     pub concurrency: usize,
+    /// 单任务下载限速（KB/s），0 表示不限速。
+    ///
+    /// 限的是「每个任务」而不是总带宽：并发 3 + 限速 200 时，三个任务各 200 KB/s。
+    /// 想卡总带宽就把并发调小。限速在流式写入的每个 chunk 后按配额补 sleep，
+    /// 所以实际速率会略低于设定值（不会超）。
+    pub speed_limit_kbps: u32,
     /// 是否写入 ID3 标签
     pub write_tags: bool,
     /// 是否内嵌封面
@@ -108,6 +114,7 @@ impl Default for Settings {
             naming_template: "{artist} - {title}".into(),
             artist_separator: " / ".into(),
             concurrency: 3,
+            speed_limit_kbps: 0,
             write_tags: true,
             embed_cover: true,
             save_lyric: true,
@@ -126,6 +133,9 @@ impl Settings {
     /// 收敛非法输入，并执行一次性迁移。
     pub fn sanitized(mut self) -> Self {
         self.concurrency = self.concurrency.clamp(1, 8);
+        // 上限 1 GB/s 只是防手滑输入天文数字（u32 也能塞个 40 亿）。
+        // 0 保留原义：不限速。
+        self.speed_limit_kbps = self.speed_limit_kbps.min(1_048_576);
         if self.schema < CONFIG_SCHEMA {
             // v1 只有裸 bitrate，用户当时选的 999 其实是「能拿多高拿多高」。
             // 注意不能用 `quality == Standard` 判断是否「用户没设过」——容器级
@@ -218,6 +228,33 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(too_few.sanitized().concurrency, 1);
+    }
+
+    #[test]
+    fn speed_limit_defaults_to_unlimited_and_is_clamped() {
+        assert_eq!(Settings::default().speed_limit_kbps, 0);
+
+        let silly = Settings {
+            speed_limit_kbps: u32::MAX,
+            ..Default::default()
+        };
+        assert_eq!(silly.sanitized().speed_limit_kbps, 1_048_576);
+
+        let fine = Settings {
+            speed_limit_kbps: 256,
+            ..Default::default()
+        };
+        assert_eq!(fine.sanitized().speed_limit_kbps, 256);
+    }
+
+    #[test]
+    fn old_settings_without_speed_limit_still_load() {
+        // 旧版本写出来的 settings.json 里没有 speedLimitKbps，
+        // 靠 serde 的容器级 default 补 0（= 不限速），不能因为新增字段把用户配置读挂。
+        let json = r#"{"downloadDir":"","quality":"lossless","concurrency":3}"#;
+        let parsed: Settings = serde_json::from_str(json).expect("旧配置应当能读");
+        assert_eq!(parsed.speed_limit_kbps, 0);
+        assert_eq!(parsed.concurrency, 3);
     }
 
     #[test]
