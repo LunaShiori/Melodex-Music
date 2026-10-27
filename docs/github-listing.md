@@ -28,6 +28,14 @@ bash scripts/setup-github-meta.sh
 
 正常会输出三行 `[OK]`。看到 `[FAIL] ... 403` 就是权限没给够，回到第 4 步重勾。
 
+> **2026-10-27 实测补充**：在 Windows git-bash 下跑这个脚本，`2/4 写入简介` 这步会返回
+> `HTTP 400 Problems parsing JSON`——不是权限问题，是 `curl -d '{"description":"中文…"}'`
+> 把中文按本地代码页传坏了。Topics（纯 ASCII）和 Release 改名都没事。
+> 绕法：把 JSON 用 Python 以 UTF-8 写进文件，再
+> `curl --data-binary @payload.json -H "Content-Type: application/json; charset=utf-8"`。
+> 另外，fine-grained token 只要给到 **Administration: RW + Contents: RW** 就能改简介和 Topics，
+> 不是必须用 classic。
+
 **用完立刻撤销**：<https://github.com/settings/tokens> → 找到 `melodex-repo-meta` → Delete。
 令牌等同于密码，泄漏后别人能以你的身份改仓库。
 
