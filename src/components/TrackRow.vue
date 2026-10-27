@@ -90,8 +90,12 @@ function onPlay() {
 
     <div class="main">
       <p class="title" :title="track.title">
-        <span v-if="origin" class="origin-tag" :class="origin === '原唱' ? 'orig' : 'cover'">{{ origin }}</span>
-        {{ track.title }}
+        <span
+          v-if="origin"
+          class="origin-tag"
+          :class="origin === '原唱' ? 'tag-orig' : 'tag-cover'"
+        >{{ origin }}</span>
+        <span class="title-text">{{ track.title }}</span>
       </p>
       <p class="sub">
         <span class="artist">{{ track.artists.join(' / ') || '未知歌手' }}</span>
@@ -263,9 +267,18 @@ function onPlay() {
   min-width: 0;
 }
 .title {
+  /* 标签和歌名各占一个 flex item：标签永远不会被挤到下一行，
+     窄屏/大字号的手机上也不会出现「标签独占一行、歌名缩到下面」的错位 */
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin: 0;
   font-size: 13.5px;
   font-weight: 500;
+  min-width: 0;
+}
+.title-text {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -274,22 +287,27 @@ function onPlay() {
   color: var(--accent);
 }
 .origin-tag {
-  display: inline-block;
-  margin-right: 5px;
-  padding: 1px 5px;
+  /* 高度写死，不跟着行高/字号放大跑，任何字体环境下都是同一颗小药丸 */
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
   border-radius: 5px;
   font-size: 10px;
   font-weight: 600;
-  line-height: 1.5;
-  vertical-align: 1px;
+  line-height: 1;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
-.origin-tag.orig {
+/* 修饰类名必须和封面图的 .cover 错开：改成 .cover 会让标签吃到封面的 40×40 尺寸，
+   标签被撑成方块、歌名被挤到下一行——这就是之前手机端错位的原因 */
+.origin-tag.tag-orig {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
-.origin-tag.cover {
+.origin-tag.tag-cover {
   color: var(--text-3);
   background: var(--surface-2);
   border: 1px solid var(--line);

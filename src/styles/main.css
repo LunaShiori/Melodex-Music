@@ -100,6 +100,13 @@ body,
   height: 100%;
 }
 
+html {
+  /* 安卓 WebView 会自行放大正文字号（font boosting），
+     一放大就会把固定高度的标签、行高撑变形，这里直接关掉 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
