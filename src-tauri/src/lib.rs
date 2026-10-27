@@ -867,7 +867,9 @@ async fn update_install(app: tauri::AppHandle, path: String) -> Result<(), Strin
         })?;
         handle
             .0
-            .run_mobile_plugin("install", serde_json::json!({ "path": path }))
+            // 显式写 ::<()>：这个泛型是 Kotlin 侧的返回值，推导不出来会退回 never type，
+            // 在 edition 2024 兼容检查下直接报 error（dependency_on_unit_never_type_fallback）
+            .run_mobile_plugin::<()>("install", serde_json::json!({ "path": path }))
             .map_err(|err| format!("无法调起安装程序：{err}"))?;
         Ok(())
     };
