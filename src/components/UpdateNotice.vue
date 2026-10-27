@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 
 import Icon from './Icon.vue'
 import { formatBytes } from '@/lib/format'
+import { renderMarkdown } from '@/lib/markdown'
 import { transport } from '@/lib/transport'
 import { useUpdateStore } from '@/stores/update'
 
@@ -14,6 +15,22 @@ const failed = ref('')
 
 const version = __APP_VERSION__
 const info = computed(() => update.info)
+
+/**
+ * 更新说明是 Markdown（CHANGELOG 原样搬过来），之前塞在 <pre> 里直接显示了
+ * `## 本次更新`、`**Melodex Music**` 这些符号。这里渲染成 HTML。
+ */
+const notesHtml = computed(() =>
+  renderMarkdown(info.value?.notes?.trim() || '本次更新没有附带说明。'),
+)
+
+/** v-html 里的链接点不动：拦下来交给系统浏览器，不要污染 WebView 本身 */
+function onNotesClick(event: MouseEvent) {
+  const anchor = (event.target as HTMLElement | null)?.closest('a[data-href]')
+  if (!anchor) return
+  event.preventDefault()
+  void openUrl(anchor.getAttribute('data-href') ?? '')
+}
 
 const KIND_LABEL: Record<string, string> = {
   nsis: 'Windows 安装包 · exe',
@@ -111,7 +128,7 @@ async function openUrl(url: string) {
         <div class="dialog" role="dialog" aria-modal="true">
           <header class="d-head">
             <div>
-              <h3>Melodex {{ info.latest }}</h3>
+              <h3>Melodex Music {{ info.latest }}</h3>
               <p class="muted">
                 当前版本 v{{ info.current }}
                 <span v-if="info.publishedAt"> · 发布于 {{ info.publishedAt.slice(0, 10) }}</span>
@@ -127,7 +144,7 @@ async function openUrl(url: string) {
             </button>
           </header>
 
-          <pre class="notes">{{ info.notes || '本次更新没有附带说明。' }}</pre>
+          <div class="notes md" @click="onNotesClick" v-html="notesHtml" />
 
           <!-- 下载进度 -->
           <div v-if="update.stage === 'downloading'" class="progress">
@@ -238,15 +255,23 @@ async function openUrl(url: string) {
   position: fixed;
   inset: 0;
   z-index: 80;
-  display: grid;
-  place-items: center;
+  /* 之前是 grid + place-items:center：内容比屏幕高时会把弹窗顶出视口、上下都看不全。
+     改成 flex 居中 + 整体可滚动，矮屏幕上至少能滚到按钮。 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
+  overflow-y: auto;
   background: rgba(8, 8, 14, 0.44);
   backdrop-filter: blur(2px);
 }
 .dialog {
   width: min(520px, 100%);
-  max-height: min(80vh, 660px);
+  /* 关键：不写 min-width 的话，说明里的长链接/长路径会把弹窗横向撑出屏幕 */
+  min-width: 0;
+  max-height: min(86vh, 720px);
+  /* dvh 跟着手机浏览器地址栏伸缩，vh 在移动端会算多 */
+  max-height: min(86dvh, 720px);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -255,6 +280,7 @@ async function openUrl(url: string) {
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
 }
 .d-head {
   display: flex;
@@ -272,17 +298,77 @@ async function openUrl(url: string) {
   font-size: 11.5px;
 }
 .notes {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   margin: 0;
-  padding: 12px;
-  max-height: 200px;
-  overflow: auto;
+  padding: 12px 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* 更新说明里常带长路径与长链接，必须允许在任意位置折断 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
   border-radius: var(--r-sm);
   background: var(--surface-2);
   font-size: 12px;
   line-height: 1.7;
   color: var(--text-2);
-  white-space: pre-wrap;
-  font-family: inherit;
+}
+/* v-html 的内容拿不到 scoped 的 data 属性，只能用 :deep 穿透 */
+.notes :deep(.md-h) {
+  margin: 12px 0 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.notes :deep(.md-h:first-child) {
+  margin-top: 0;
+}
+.notes :deep(.md-p) {
+  margin: 0 0 8px;
+}
+.notes :deep(.md-p:last-child) {
+  margin-bottom: 0;
+}
+.notes :deep(.md-ul),
+.notes :deep(.md-ol) {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+.notes :deep(li) {
+  margin: 2px 0;
+}
+.notes :deep(li::marker) {
+  color: var(--text-3);
+}
+.notes :deep(strong) {
+  font-weight: 600;
+  color: var(--text);
+}
+.notes :deep(code) {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+.notes :deep(a) {
+  color: var(--accent);
+  text-decoration: none;
+}
+.notes :deep(a:hover) {
+  text-decoration: underline;
+}
+.notes :deep(.md-hr) {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px dashed var(--line);
+}
+.notes :deep(.md-quote) {
+  margin: 0 0 8px;
+  padding-left: 8px;
+  border-left: 2px solid var(--line);
+  color: var(--text-3);
 }
 
 .progress {
@@ -335,6 +421,8 @@ async function openUrl(url: string) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
 }
 .assets {
   display: flex;
@@ -389,8 +477,14 @@ async function openUrl(url: string) {
 }
 .err {
   margin: 0;
+  max-height: 110px;
+  padding-right: 4px;
+  overflow-y: auto;
   font-size: 11.5px;
   color: var(--danger);
+  /* 报错原文常带一整条 /data/user/0/... 路径，不折断就会把弹窗撑开 */
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 .small {
   font-size: 11.5px;
@@ -416,6 +510,15 @@ async function openUrl(url: string) {
   }
   .dialog {
     padding: 16px 14px 14px;
+    /* 手机上让弹窗尽量吃满可视区：-24px 给遮罩留一点呼吸 */
+    max-height: calc(100dvh - 24px);
+  }
+  .mask {
+    padding: 12px;
+    align-items: flex-start;
+  }
+  .notes {
+    padding: 10px 12px;
   }
   .d-foot {
     flex-direction: column-reverse;

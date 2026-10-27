@@ -3,6 +3,52 @@
 本项目的版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)，
 安装包命名与 `Cargo.toml` / `tauri.conf.json` 的 `version` 保持一致。
 
+## v1.3.1
+
+全是修手机端的问题：更新弹窗在手机上超出屏幕、说明里的 Markdown 原样显示、
+安卓点「安装」报错、点「在浏览器中打开发布页」没反应。
+
+### 修 · 安卓无法打开安装包
+
+报错是 `Cannot construct instance of 'app.tauri.opener.OpenOptions' … from String value`。
+两个原因叠在一起：
+
+- opener 插件在移动端的 `open_path` 把**路径当裸字符串**发过去，Kotlin 侧要的是 `{ url }` 结构，
+  反序列化直接失败；
+- 就算把结构拼对，`file://` 从 Android 7 起也会被 StrictMode 拦掉（FileUriExposedException）。
+
+现在改成自己的 Android 原生插件：用 FileProvider 把更新包转成 `content://`，
+再带上 `application/vnd.android.package-archive` 交给系统安装器（会正常弹「是否安装」）。
+CI 在 `tauri android init` 之后用 `scripts/android-apk-plugin.py` 注入 Kotlin 类、
+`res/xml/file_paths.xml`、`REQUEST_INSTALL_PACKAGES` 权限与 provider 声明；
+注入不完整会直接让构建失败，不会发一个点不动的安装包。
+
+### 修 · 点「在浏览器中打开发布页」没反应
+
+`open_url` 的实现只写了 Windows / macOS / Linux 三支，移动端一路掉到
+「当前平台不支持直接打开外部链接」——界面上看起来就是点了没反应。
+现在移动端走系统 Intent 打开浏览器。
+
+### 修 · 手机端更新弹窗超出屏幕
+
+- 弹窗从 `grid + place-items:center` 改成 flex 居中 + 遮罩可滚动，矮屏也够得着按钮；
+- 高度改用 `dvh`（跟着手机地址栏伸缩），手机端几乎是全屏高度；
+- 说明区与报错区都加了 `min-width: 0` + `overflow-wrap: anywhere`：
+  之前一条 `/data/user/0/app.melodex/cache/updates/…apk` 就能把弹窗横向撑出屏幕。
+
+### 修 · 更新弹窗把 Markdown 符号原样显示
+
+`## 本次更新`、`**Melodex Music**` 之前是塞进 `<pre>` 里的，当然只能看到符号。
+新增 `src/lib/markdown.ts`（约 130 行，先整体转义再放行白名单标签）渲染标题、
+列表、加粗、行内代码、链接、引用与分割线；说明里的链接点一下会走系统浏览器打开。
+
+### 改 · 更新弹窗标题与 Release 命名
+
+- 弹窗标题写死过 `Melodex`，现在跟应用名一致：`Melodex Music vX.Y.Z`。
+- 以后 Release 标题统一为 `Melodex Music vX.Y.Z`，不再拖「· Windows 安装包 + Android APK」。
+- 顺带修好：浏览器演示模式下「检查更新」从来没被触发过，现在也会跑一次，
+  方便在浏览器里走查更新弹窗。
+
 ## v1.3.0
 
 品牌收口：GitHub 仓库改名 **Melodex-Music**，安装包与「应用和功能」里的显示名改成

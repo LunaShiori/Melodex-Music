@@ -128,6 +128,12 @@ jobs:
       - name: 生成 Android 工程
         run: npm run tauri android init
 
+      # Android 7 起不允许把 file:// 交给别的应用，安装自己下载的 APK 必须有
+      # FileProvider + REQUEST_INSTALL_PACKAGES 权限，这两样 gen/android 里没有。
+      # 脚本会 fail-fast：注入不完整就让构建挂掉，别发一个安装按钮点不动的包。
+      - name: 注入 APK 安装插件
+        run: python3 scripts/android-apk-plugin.py
+
       - name: 配置 release 签名
         env:
           KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
@@ -246,7 +252,9 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Melodex Music ${{ github.ref_name }} · Windows 安装包 + Android APK
+          # 标题统一成「Melodex Music vX.Y.Z」：带上 music，且不再拖
+          # 「· Windows 安装包 + Android APK」这种长尾巴，列表里一眼能扫完
+          name: Melodex Music ${{ github.ref_name }}
           draft: false
           prerelease: false
           # 自己拼好的说明已经包含更新内容；关掉自动 notes，

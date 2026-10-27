@@ -840,8 +840,10 @@ async fn update_install(app: tauri::AppHandle, path: String) -> Result<(), Strin
         return Err("安装包不存在，请重新下载".to_string());
     }
 
+    // 三个平台各写一份、用 cfg 只留一个：写成 let 绑定可以避免
+    // 「块不是尾表达式」带来的 unused_must_use 警告。
     #[cfg(target_os = "windows")]
-    {
+    let result = {
         std::process::Command::new(file)
             .spawn()
             .map_err(|err| format!("无法启动安装程序：{err}"))?;
@@ -852,25 +854,56 @@ async fn update_install(app: tauri::AppHandle, path: String) -> Result<(), Strin
             handle.exit(0);
         });
         Ok(())
-    }
+    };
 
-    #[cfg(not(target_os = "windows"))]
-    {
+    #[cfg(target_os = "android")]
+    let result = {
+        // 之前这里调的是 opener 的 `open_path`，两个问题叠在一起：
+        // 1. 该 API 在移动端把路径当裸字符串发过去，Kotlin 侧要的是 {url} 结构，直接反序列化失败；
+        // 2. 就算发过去了，file:// 从 Android 7 起也会被 StrictMode 拦掉。
+        // 所以改成走自己的 FileProvider 插件（content:// + 安装器 MIME）。
+        let handle = app.try_state::<ApkInstallHandle>().ok_or_else(|| {
+            "这台设备上没有可用的安装通道，请用「手动下载与其他格式」在浏览器里重新下载安装".to_string()
+        })?;
+        handle
+            .0
+            .run_mobile_plugin("install", serde_json::json!({ "path": path }))
+            .map_err(|err| format!("无法调起安装程序：{err}"))?;
+        Ok(())
+    };
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
+    let result = {
         use tauri_plugin_opener::OpenerExt;
         app.opener()
             .open_path(&path, None::<&str>)
             .map_err(|err| format!("无法打开安装包：{err}"))?;
         Ok(())
-    }
+    };
+
+    result
 }
 
 /// 用系统默认浏览器打开外部链接（更新页、安装包下载）。
 /// 不走 WebView 内部导航，避免把 App 变成浏览器。
 #[tauri::command]
-fn open_url(url: String) -> Result<(), String> {
+fn open_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err("只允许打开 http(s) 链接".to_string());
     }
+
+    // 移动端没有 rundll32 / open / xdg-open 这些命令，原先会一路掉到最后的
+    // 「当前平台不支持」分支——手机上点「在浏览器中打开发布页」永远不会响应。
+    // 这里交给 opener 插件走系统 Intent（Kotlin 侧收的是 {url, with} 两个字段）。
+    #[cfg(mobile)]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        return app
+            .opener()
+            .open_url(url.clone(), None::<&str>)
+            .map_err(|err| format!("无法打开链接：{err}"));
+    }
+
     #[cfg(target_os = "windows")]
     {
         // 不能直接 start url：cmd 会把 & 当成命令分隔符，交给 explorer 更稳
@@ -1049,11 +1082,43 @@ fn install_panic_hook(dir: PathBuf) {
     }));
 }
 
+/// Android 安装 APK 用的原生插件句柄。
+///
+/// Android 7 起不允许再把 `file://` 交给别的应用（FileUriExposedException），
+/// 必须由自己的 FileProvider 生成 `content://`，再配 MIME
+/// `application/vnd.android.package-archive` 交给系统安装器。
+/// 这一步只能在 Java/Kotlin 侧完成，工程由 CI 在 `tauri android init` 之后
+/// 用 `scripts/android-apk-plugin.py` 注入，源码见 `src-tauri/android/`。
+#[cfg(target_os = "android")]
+struct ApkInstallHandle(tauri::plugin::PluginHandle<tauri::Wry>);
+
+#[cfg(target_os = "android")]
+fn apk_install_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry, ()> {
+    tauri::plugin::Builder::<tauri::Wry, ()>::new("apk-install")
+        .setup(|app, api| {
+            match api.register_android_plugin("app.melodex", "ApkInstallPlugin") {
+                Ok(handle) => {
+                    let _ = app.manage(ApkInstallHandle(handle));
+                }
+                // 注册失败不要拖垮启动：安装按钮会退化成「请用浏览器下载」
+                Err(err) => eprintln!("APK 安装插件注册失败：{err}"),
+            }
+            Ok(())
+        })
+        .build()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_dialog::init());
+
+    // 只有 Android 需要这个原生插件，桌面端不能注册（没有对应的 Kotlin 类）
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(apk_install_plugin());
+
+    builder
         .setup(|app| {
             // 先装钩子，后面任何初始化失败也能留下记录
             if let Ok(dir) = app.path().app_data_dir() {

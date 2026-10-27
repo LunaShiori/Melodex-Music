@@ -11,7 +11,6 @@ import SideBar from '@/components/SideBar.vue'
 import TabBar from '@/components/TabBar.vue'
 import ToastStack from '@/components/ToastStack.vue'
 import UpdateNotice from '@/components/UpdateNotice.vue'
-import { transport } from '@/lib/transport'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { useSettingsStore } from '@/stores/settings'
 import { useTasksStore } from '@/stores/tasks'
@@ -36,8 +35,10 @@ function syncKeyboard(): void {
 
 onMounted(async () => {
   await Promise.all([settings.load(), tasks.init()])
-  // 启动后静默检查一次更新：失败不打扰用户，仅在真正有新版本时提示
-  if (transport.mode === 'tauri') void update.check({ silent: true })
+  // 启动后静默检查一次更新：失败不打扰用户，仅在真正有新版本时提示。
+  // 演示模式也跑一次——demo 里备了一份写好的更新清单，这样浏览器里也能走查
+  // 更新弹窗（Markdown 说明、手动挑安装包）而不用装 Tauri 外壳。
+  void update.check({ silent: true })
 
   window.visualViewport?.addEventListener('resize', syncKeyboard)
   window.visualViewport?.addEventListener('scroll', syncKeyboard)

@@ -555,11 +555,24 @@ export function createDemoTransport(): Transport {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))
       return {
-        current: '1.3.0',
+        current: '1.3.1',
         latest: 'v0.6.1',
         available: true,
-        notes:
-          '新增\n· 酷狗音源适配\n· 下载队列并发数热调整\n\n修复\n· 移动端深色主题下封面边框对比度\n· 断点续传在代理环境下的 416 处理',
+        // 故意写成带标题/加粗/列表/链接的 Markdown：更新弹窗要能正确渲染，
+        // 走查时一眼就能看出渲染器有没有退化
+        notes: [
+          '### 改 · 更新弹窗终于能读 Markdown',
+          '- `## 本次更新`、`**加粗**` 这类符号不再原样显示',
+          '- 长链接与长路径强制折行，手机上不会再把弹窗撑出屏幕',
+          '',
+          '### 修 · 安卓点「安装」没反应',
+          '- 之前交给系统的是 `file://`，Android 7 起会被直接拦下',
+          '- 现在走自己 FileProvider 的 `content://`，直接弹系统安装界面',
+          '',
+          '---',
+          '',
+          '完整说明见 [发布页](https://github.com/LunaShiori/Melodex-Music/releases/latest)。',
+        ].join('\n'),
         pageUrl: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
         publishedAt: '2026-10-01T08:00:00Z',
         assets: [

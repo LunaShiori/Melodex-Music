@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 的可见范围。更新包落在 app_cache_dir()/updates，
+     对应 context.getCacheDir()/updates，所以只需要暴露 cache 目录。 -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="updates" path="updates/" />
+    <cache-path name="cache" path="." />
+    <files-path name="files" path="." />
+</paths>

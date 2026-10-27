@@ -376,8 +376,15 @@ Windows DPAPI / Android Keystore。
         │
         ▼
       Windows: 执行 NSIS 安装包 + 自身退出
-      Android: 系统 Intent 打开 .apk
+      Android: 交给自己的 FileProvider 插件（content:// + 安装器 MIME）
 ```
+
+> **Android 为什么不能直接把路径交给系统**：Android 7 起 `file://` 不允许跨应用传递
+> （FileUriExposedException），7.0 之后还必须声明 `REQUEST_INSTALL_PACKAGES`。
+> 所以 `src-tauri/android/ApkInstallPlugin.kt` 用 FileProvider 把缓存里的安装包转成
+> `content://`，再配 `application/vnd.android.package-archive` 起 Intent；
+> `scripts/android-apk-plugin.py` 在 CI 里把这份 Kotlin、`file_paths.xml`、
+> 权限与 provider 声明注入 `tauri android init` 生成的工程（注入不完整会让构建失败）。
 
 ```
 GET https://api.github.com/repos/<owner>/<repo>/releases/latest
@@ -400,6 +407,7 @@ stores/update.ts ──► UpdateNotice.vue（左下角提示条 + 更新弹窗�
 | 临时换源 / 内网镜像 | 环境变量 `MELODEX_UPDATE_FEED` |
 | 版本号 | `package.json`、`src-tauri/tauri.conf.json`、`Cargo.toml` 三处保持一致 |
 | 换成静默自动更新 | 接 `tauri-plugin-updater` + 在 CI 里注入签名密钥；现有 `check_update` 可继续复用 |
+| 安卓安装通道 | `src-tauri/android/` 里的 Kotlin 插件 + `scripts/android-apk-plugin.py` |
 
 > Fork 到自己的账号后，记得把 `LunaShiori/Melodex-Music` 换成你的仓库地址（`Cargo.toml` 的 `repository`、`update.rs` 的 `DEFAULT_FEED`、`demo.ts` 里的演示链接），
 > 否则「检查更新」会去查原作者的发布页。
