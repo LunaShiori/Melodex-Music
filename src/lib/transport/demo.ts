@@ -562,9 +562,12 @@ export function createDemoTransport(): Transport {
     async checkUpdate() {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))
+      // 当前版本跟着 package.json 走，省得每次发版都来改这里
+      const [major, minor, patch] = __APP_VERSION__.split('.').map(Number)
+      const next = `v${major}.${minor}.${patch + 1}`
       return {
-        current: '1.4.0',
-        latest: 'v1.4.1',
+        current: __APP_VERSION__,
+        latest: next,
         available: true,
         // 故意写成带标题/加粗/列表/链接的 Markdown：更新弹窗要能正确渲染，
         // 走查时一眼就能看出渲染器有没有退化
@@ -585,19 +588,19 @@ export function createDemoTransport(): Transport {
         publishedAt: '2026-10-01T08:00:00Z',
         assets: [
           {
-            name: 'MelodexMusic_1.4.1_x64-setup.exe',
+            name: `MelodexMusic_${next.slice(1)}_x64-setup.exe`,
             size: 4_612_345,
             url: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
             kind: 'nsis',
           },
           {
-            name: 'MelodexMusic_1.4.1_x64_en-US.msi',
+            name: `MelodexMusic_${next.slice(1)}_x64_en-US.msi`,
             size: 5_180_224,
             url: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
             kind: 'msi',
           },
           {
-            name: 'MelodexMusic_1.4.1_universal.apk',
+            name: `MelodexMusic_${next.slice(1)}_universal.apk`,
             size: 9_812_006,
             url: 'https://github.com/LunaShiori/Melodex-Music/releases/latest',
             kind: 'apk',

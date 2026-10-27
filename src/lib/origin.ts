@@ -8,10 +8,10 @@
  * 2. **标题文本**——QQ、酷我没有对应字段，只能看标题里的自述：
  *    「晴天（原唱：周杰伦）」「起风了 cover 版」。
  *
- * 只用于列表打标和「置顶原唱」，不参与任何下载/解析逻辑——判断错了顶多顺序不好看。
+ * 只用于列表上的小标签，不参与任何排序、下载或解析逻辑——判断错了顶多标签不好看。
  */
 
-import type { OriginMark, Track } from './types'
+import type { OriginMark } from './types'
 
 /** 标题自带「这就是原唱 / 原版」的说明 */
 const ORIGINAL_PATTERN = /原唱|原版|原曲|原声/
@@ -33,11 +33,6 @@ export function originOf(input: { title: string; album?: string | null }): Origi
   return 'unknown'
 }
 
-/** 是否算「原唱」——置顶原唱就是按这个合集筛的 */
-export function isOriginal(input: { title: string; album?: string | null }): boolean {
-  return originOf(input) === 'original'
-}
-
 /**
  * 一首歌（合并后的条目）的版本口径。
  *
@@ -55,11 +50,6 @@ export function trackOrigin(track: {
   if (marks.includes('original')) return 'original'
   if (marks.includes('cover')) return 'cover'
   return originOf(track)
-}
-
-/** 是否算「原唱」——置顶原唱就是按这个合集筛的 */
-export function isTrackOriginal(track: Track): boolean {
-  return trackOrigin(track) === 'original'
 }
 
 /** 标题里能看出的版本说明，用于列表上的小标签；看不出来就返回空串 */

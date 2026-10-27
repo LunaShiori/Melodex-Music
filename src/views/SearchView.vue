@@ -23,7 +23,7 @@ const hot = ['晴天', '周杰伦', '起风了', 'Lemon', '漠河舞厅', '夜�
 const selectMode = ref(false)
 const picked = reactive(new Set<string>())
 
-/** 渲染顺序 = 后端顺序经过「排序方式 + 置顶原唱」处理后的结果 */
+/** 渲染顺序 = 后端顺序经过「排序方式」处理后的结果 */
 const list = computed(() => search.visible)
 
 const summary = computed(() => {
@@ -212,7 +212,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </button>
     </div>
 
-    <!-- 排序 + 置顶原唱：两个独立维度，可以叠加使用 -->
+    <!-- 排序工具条 -->
     <div v-if="search.tracks.length" class="toolbar">
       <div class="segmented sort">
         <button
@@ -227,24 +227,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         </button>
       </div>
 
-      <button
-        class="pin-toggle"
-        type="button"
-        :class="{ on: search.pinOriginal }"
-        :title="
-          search.pinOriginal
-            ? '已把标题带「原唱」的歌曲提到最前'
-            : '把标题带「原唱」的歌曲提到最前'
-        "
-        @click="search.togglePinOriginal()"
-      >
-        <span class="switch"><i /></span>
-        置顶原唱
-        <em v-if="search.originalCount" class="mono">{{ search.originalCount }}</em>
-      </button>
-
       <span class="muted small sort-hint">
-        {{ search.pinOriginal ? '原唱已置顶 · ' : '' }}{{ SORT_MODES.find((m) => m.value === search.sortMode)?.hint }}
+        {{ SORT_MODES.find((m) => m.value === search.sortMode)?.hint }}
       </span>
     </div>
 
@@ -500,7 +484,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   margin-left: 0;
 }
 
-/* 排序 / 置顶原唱 工具条 */
+/* 排序工具条 */
 .toolbar {
   display: flex;
   align-items: center;
@@ -517,64 +501,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.pin-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 12px 0 9px;
-  border-radius: var(--r-full);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 12px;
-  transition: all var(--dur) var(--ease);
-}
-.pin-toggle:hover {
-  border-color: var(--line-strong);
-  color: var(--text);
-}
-.pin-toggle.on {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-}
-.pin-toggle em {
-  font-style: normal;
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: var(--r-full);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-.switch {
-  position: relative;
-  width: 26px;
-  height: 15px;
-  border-radius: var(--r-full);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  flex: 0 0 auto;
-  transition: all var(--dur) var(--ease);
-}
-.switch i {
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: var(--text-3);
-  transition: all var(--dur) var(--ease);
-}
-.pin-toggle.on .switch {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-}
-.pin-toggle.on .switch i {
-  left: 12px;
-  background: var(--accent);
 }
 
 /* 批量操作条：浮在播放条之上，不挤压列表 */
@@ -801,9 +727,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   .sort button {
     min-width: 36px;
     padding: 0 8px;
-  }
-  .pin-toggle {
-    height: 30px;
   }
   .list-head {
     display: none;
