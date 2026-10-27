@@ -60,10 +60,18 @@ export function isUiStyle(value: unknown): value is UiStyleId {
 export function readUiStyle(): UiStyleId {
   try {
     const stored = localStorage.getItem(STYLE_KEY)
-    return isUiStyle(stored) ? stored : 'classic'
+    if (isUiStyle(stored)) return stored
   } catch {
-    return 'classic'
+    /* localStorage 不可用时按下面的默认值走 */
   }
+  // 没手动选过时按设备给默认值：手机端本身已经在用毛玻璃的底栏和播放条，
+  // 整体切成液态玻璃更统一；桌面端保持原有观感，想换自己去设置里切。
+  try {
+    if (window.matchMedia('(max-width: 860px)').matches) return 'glass'
+  } catch {
+    /* 老 WebView 没有 matchMedia */
+  }
+  return 'classic'
 }
 
 export function writeUiStyle(id: UiStyleId): void {
