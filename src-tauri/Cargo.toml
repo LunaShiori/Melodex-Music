@@ -1,6 +1,6 @@
 [package]
 name = "melodex"
-version = "1.4.1"
+version = "1.5.0"
 description = "Melodex Music · 多源音乐聚合搜索、播放与歌词"
 authors = ["Melodex Contributors"]
 license = "Apache-2.0"

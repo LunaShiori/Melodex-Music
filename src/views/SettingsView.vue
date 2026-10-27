@@ -3,6 +3,13 @@ import { computed, onMounted, ref } from 'vue'
 
 import AccountPanel from '@/components/AccountPanel.vue'
 import Icon from '@/components/Icon.vue'
+import {
+  formatOffset,
+  LYRIC_FONT_MAX,
+  LYRIC_FONT_MIN,
+  LYRIC_MODES,
+  LYRIC_THEMES,
+} from '@/lib/lyric-style'
 import { renderNaming } from '@/lib/naming'
 import { nominalBitrate, QUALITY_LEVELS, qualityRank } from '@/lib/quality'
 import { ACCENTS } from '@/lib/theme'
@@ -10,11 +17,13 @@ import { transport } from '@/lib/transport'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import type { PlatformQuality, QualityLevel, Settings, SourceId } from '@/lib/types'
 import { UI_STYLES } from '@/lib/ui-style'
+import { useLyricStore } from '@/stores/lyric'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { useSettingsStore } from '@/stores/settings'
 import { useUpdateStore } from '@/stores/update'
 
 const store = useSettingsStore()
+const lyricStore = useLyricStore()
 const updateStore = useUpdateStore()
 const onboarding = useOnboardingStore()
 const defaultDir = ref('')
@@ -452,6 +461,127 @@ onMounted(async () => {
       </section>
 
       <section class="card">
+        <h2>歌词</h2>
+
+        <div class="row">
+          <div class="label">
+            <p>歌词字号</p>
+            <small>歌词页的字号，手机与电脑共用这一个值</small>
+          </div>
+          <div class="control">
+            <input
+              class="range"
+              type="range"
+              :min="LYRIC_FONT_MIN"
+              :max="LYRIC_FONT_MAX"
+              step="1"
+              :value="lyricStore.fontSize"
+              @input="lyricStore.setFontSize(Number(($event.target as HTMLInputElement).value))"
+            />
+            <span class="value mono">{{ lyricStore.fontSize }}</span>
+          </div>
+        </div>
+
+        <div class="row lyric-preview-row">
+          <div class="label"><p class="muted">预览</p></div>
+          <div class="control wide">
+            <div class="lyric-preview">
+              <p class="line" :style="{ fontSize: `${lyricStore.fontSize}px` }">是谁打翻前世柜 惹尘埃是非</p>
+              <p
+                class="tr"
+                :style="{ fontSize: `${Math.round(lyricStore.fontSize * 0.62)}px` }"
+              >
+                Who knocked over the cupboard of a previous life
+              </p>
+            </div>
+            <button class="btn btn-sm" type="button" @click="lyricStore.setFontSize(22)">
+              重置
+            </button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">
+            <p>延迟偏移</p>
+            <small>歌比歌词慢就往正调，歌词比歌慢就往负调；歌词页里也能边听边调</small>
+          </div>
+          <div class="control">
+            <input
+              class="range"
+              type="range"
+              :min="-3000"
+              :max="3000"
+              step="100"
+              :value="lyricStore.offsetMs"
+              @input="lyricStore.setOffset(Number(($event.target as HTMLInputElement).value))"
+            />
+            <span class="value mono offset-value">{{ formatOffset(lyricStore.offsetMs) }}</span>
+            <button class="btn btn-sm" type="button" @click="lyricStore.setOffset(0)">归零</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">
+            <p>播放条显示歌词</p>
+            <small>没进歌词页时，在歌名旁边滚动显示当前这句</small>
+          </div>
+          <div class="control">
+            <button
+              class="switch"
+              type="button"
+              :class="{ on: lyricStore.showInBar }"
+              :aria-pressed="lyricStore.showInBar"
+              @click="lyricStore.setShowInBar(!lyricStore.showInBar)"
+            />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">
+            <p>默认模式</p>
+            <small>进入歌词页时的版面，进去后右上角也能随时切</small>
+          </div>
+          <div class="control">
+            <div class="segmented">
+              <button
+                v-for="item in LYRIC_MODES"
+                :key="item.id"
+                type="button"
+                :class="{ on: lyricStore.mode === item.id }"
+                @click="lyricStore.setMode(item.id)"
+              >
+                {{ item.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">
+            <p>歌词主题</p>
+            <small>底色与质感，与明暗主题、主题色互不影响</small>
+          </div>
+          <div class="control style-row">
+            <button
+              v-for="item in LYRIC_THEMES"
+              :key="item.id"
+              class="style-card"
+              :class="{ on: lyricStore.theme === item.id }"
+              type="button"
+              :title="item.desc"
+              @click="lyricStore.setTheme(item.id)"
+            >
+              <span
+                class="style-swatch"
+                :style="{ '--sw-a': item.preview[0], '--sw-b': item.preview[1] }"
+              />
+              <span class="style-name">{{ item.label }}</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>音源</h2>
         <div v-for="source in ALL_SOURCES" :key="source" class="row">
           <div class="label">
@@ -677,6 +807,41 @@ onMounted(async () => {
   text-align: center;
   font-size: 12px;
   color: var(--text-2);
+}
+.offset-value {
+  width: 48px;
+}
+
+/* 歌词字号预览：直接拿真实字号渲染一句，调完就看见效果 */
+.lyric-preview-row {
+  align-items: flex-start;
+}
+.lyric-preview {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-2);
+}
+.lyric-preview .line {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lyric-preview .tr {
+  margin: 4px 0 0;
+  line-height: 1.4;
+  color: var(--text-3);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chip {
