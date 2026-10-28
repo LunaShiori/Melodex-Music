@@ -967,6 +967,46 @@ fn default_download_dir(app: tauri::AppHandle) -> String {
 ///
 /// 所以这里改用 `raw_arg` 原样拼命令行，路径不存在时退化为打开所在目录，
 /// 目录也不存在才报错——让界面能明确告诉用户文件已经不在了。
+/// 把文本写进下载目录，用于歌单导出。返回写好的绝对路径。
+///
+/// 文件名做一次白名单过滤：只保留字母数字和几个安全符号，
+/// 免得用户在歌单名里带 `/` `..` 把文件写到下载目录外面去。
+#[tauri::command]
+fn save_text_file(
+    state: State<'_, AppState>,
+    file_name: String,
+    contents: String,
+) -> Result<String, String> {
+    let settings = state.engine.settings();
+    let dir = if settings.download_dir.trim().is_empty() {
+        melodex_core::default_download_dir()
+    } else {
+        std::path::PathBuf::from(settings.download_dir.trim())
+    };
+    std::fs::create_dir_all(&dir).map_err(|err| format!("建下载目录失败：{err}"))?;
+
+    let safe: String = file_name
+        .trim()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || "-_. ()（）[]".contains(c) {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let safe = if safe.trim().is_empty() {
+        "melodex-export.json".to_string()
+    } else {
+        safe
+    };
+
+    let path = dir.join(safe);
+    std::fs::write(&path, contents).map_err(|err| format!("写文件失败：{err}"))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 fn reveal_path(path: String) -> Result<(), String> {
     let raw = path.trim().trim_matches('"').to_string();
@@ -1173,6 +1213,7 @@ pub fn run() {
             default_download_dir,
             pick_download_dir,
             reveal_path,
+            save_text_file,
             check_update,
             update_download,
             update_install,

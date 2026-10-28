@@ -561,6 +561,20 @@ export function createDemoTransport(): Transport {
       /* 浏览器端不支持打开文件位置 */
     },
 
+    async saveTextFile(fileName, contents) {
+      // 浏览器里没法写盘，退化成一次普通下载，走查时能拿到文件
+      const blob = new Blob([contents], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = fileName
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      return null
+    },
+
     async checkUpdate() {
       // 演示一份"有新版本"的清单，方便走查更新弹窗；真实检查在 Tauri 端由 Rust 完成
       await new Promise((resolve) => setTimeout(resolve, 700))

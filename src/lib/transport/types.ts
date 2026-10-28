@@ -64,6 +64,11 @@ export interface Transport {
   /** 桌面端弹目录选择框，返回选中的目录（取消为 null） */
   pickDownloadDir(): Promise<string | null>
   reveal(path: string): Promise<void>
+  /**
+   * 把一段文本存成文件（歌单导出用）。
+   * 桌面端写进下载目录并返回绝对路径；浏览器演示模式触发一次下载、返回 null。
+   */
+  saveTextFile(fileName: string, contents: string): Promise<string | null>
   /** 检查线上是否有新版本（feed 留空用内置发布源） */
   checkUpdate(feed?: string): Promise<UpdateInfo>
   /**

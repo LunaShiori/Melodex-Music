@@ -216,6 +216,124 @@ function playTrack(track: Track) {
   void player.playList(list, index < 0 ? 0 : index)
 }
 
+/* ---------- 歌单导出 / 批量导入 ---------- */
+
+const exporting = ref(false)
+const importing = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+/** 导出文件的结构版本：字段变了就 +1，导入时按它判断兼容性 */
+const EXPORT_VERSION = 1
+
+/** 导出的是完整 Variant，导入回来能直接入队，不需要再联网搜一遍 */
+function exportPayload(details: PlaylistDetail[]): string {
+  return JSON.stringify(
+    {
+      app: 'melodex',
+      kind: 'playlist-export',
+      version: EXPORT_VERSION,
+      exportedAt: new Date().toISOString(),
+      playlists: details.map((detail) => ({
+        name: detail.name,
+        source: detail.source,
+        id: detail.id,
+        total: detail.total,
+        items: detail.items,
+      })),
+    },
+    null,
+    2,
+  )
+}
+
+function exportFileName(base: string): string {
+  const stamp = new Date().toISOString().slice(0, 10)
+  return `${base}-${stamp}.json`
+}
+
+async function exportOpened() {
+  const detail = opened.value
+  if (!detail || exporting.value) return
+  exporting.value = true
+  try {
+    const path = await transport.saveTextFile(
+      exportFileName(`melodex-歌单-${detail.name || detail.id}`),
+      exportPayload([detail]),
+    )
+    tasks.pushNotice('success', path ? `已导出到 ${path}` : '已开始下载导出文件')
+  } catch (err) {
+    tasks.pushNotice('error', err instanceof Error ? err.message : String(err))
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function exportAll() {
+  if (!playlists.value.length || exporting.value) return
+  exporting.value = true
+  try {
+    const details: PlaylistDetail[] = []
+    for (const item of playlists.value) {
+      const detail = await transport.playlist({ source: item.source, id: item.id })
+      if (detail) details.push(detail)
+    }
+    const path = await transport.saveTextFile(
+      exportFileName('melodex-歌单合集'),
+      exportPayload(details),
+    )
+    tasks.pushNotice(
+      'success',
+      path ? `已导出 ${details.length} 个歌单到 ${path}` : `已开始下载 ${details.length} 个歌单`,
+    )
+  } catch (err) {
+    tasks.pushNotice('error', err instanceof Error ? err.message : String(err))
+  } finally {
+    exporting.value = false
+  }
+}
+
+/** 从导出文件还原曲目；按「音源 + id」去重，导入两遍不会重复下载 */
+function tracksFromExport(raw: unknown): Track[] {
+  const file = raw as { kind?: string; playlists?: Array<{ items?: Variant[] }> } | null
+  if (!file || file.kind !== 'playlist-export' || !Array.isArray(file.playlists)) {
+    throw new Error('这不是 Melodex 导出的歌单文件')
+  }
+  const out: Track[] = []
+  const seen = new Set<string>()
+  for (const playlist of file.playlists) {
+    for (const variant of playlist.items ?? []) {
+      if (!variant?.source || !variant?.id || !variant?.title) continue
+      const key = `${variant.source}-${variant.id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(toTrack(variant))
+    }
+  }
+  return out
+}
+
+async function onImportFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  // 清空 value：同一个文件连选两次也要能再次触发 change
+  input.value = ''
+  if (!file) return
+  importing.value = true
+  try {
+    const tracks = tracksFromExport(JSON.parse(await file.text()))
+    if (!tracks.length) {
+      tasks.pushNotice('warning', '这个文件里没有可以下载的曲目')
+      return
+    }
+    await tasks.enqueue(tracks)
+    tasks.pushNotice('success', `已导入 ${tracks.length} 首，开始下载`)
+  } catch (err) {
+    tasks.pushNotice('error', `导入失败：${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    importing.value = false
+  }
+}
+
 onMounted(async () => {
   // 账号状态不随应用启动加载（只有设置页会拉），这里补一次，
   // 否则「未登录」的提示会对着已经登录的账号闪一下
@@ -246,6 +364,10 @@ onMounted(async () => {
           <button class="btn" type="button" @click="back">
             <Icon name="chevron" :size="14" class="flip" />
             返回
+          </button>
+          <button class="btn" type="button" :disabled="exporting" @click="exportOpened">
+            <Icon name="download" :size="14" />
+            导出
           </button>
           <button
             class="btn btn-primary"
@@ -288,6 +410,31 @@ onMounted(async () => {
           <button class="icon-btn" type="button" title="刷新" @click="load">
             <Icon name="refresh" :size="15" :class="{ spin: loading }" />
           </button>
+          <button
+            class="icon-btn"
+            type="button"
+            title="导出全部歌单"
+            :disabled="exporting || !total"
+            @click="exportAll"
+          >
+            <Icon name="download" :size="15" />
+          </button>
+          <button
+            class="icon-btn"
+            type="button"
+            title="从导出文件导入并批量下载"
+            :disabled="importing"
+            @click="fileInput?.click()"
+          >
+            <Icon name="folder" :size="15" />
+          </button>
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".json,application/json"
+            hidden
+            @change="onImportFile"
+          />
         </template>
       </div>
     </header>

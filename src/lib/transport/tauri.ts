@@ -122,6 +122,10 @@ export function createTauriTransport(): Transport {
       await invoke('reveal_path', { path })
     },
 
+    saveTextFile(fileName: string, contents: string) {
+      return invoke<string>('save_text_file', { fileName, contents })
+    },
+
     checkUpdate(feed?: string) {
       return invoke<UpdateInfo>('check_update', { feed: feed ?? null })
     },
