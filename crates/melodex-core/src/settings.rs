@@ -84,6 +84,12 @@ pub struct Settings {
     /// 想卡总带宽就把并发调小。限速在流式写入的每个 chunk 后按配额补 sleep，
     /// 所以实际速率会略低于设定值（不会超）。
     pub speed_limit_kbps: u32,
+    /// 全局代理地址，留空表示直连。
+    ///
+    /// 支持 `http://` / `https://` / `socks5://` / `socks5h://` / `socks4://`。
+    /// 搜索、取播放链接、下载歌曲、检查更新都走它——国内直连 GitHub 检查更新
+    /// 常常超时，填一个本地代理就能救。
+    pub proxy: String,
     /// 是否写入 ID3 标签
     pub write_tags: bool,
     /// 是否内嵌封面
@@ -115,6 +121,7 @@ impl Default for Settings {
             artist_separator: " / ".into(),
             concurrency: 3,
             speed_limit_kbps: 0,
+            proxy: String::new(),
             write_tags: true,
             embed_cover: true,
             save_lyric: true,
@@ -136,6 +143,9 @@ impl Settings {
         // 上限 1 GB/s 只是防手滑输入天文数字（u32 也能塞个 40 亿）。
         // 0 保留原义：不限速。
         self.speed_limit_kbps = self.speed_limit_kbps.min(1_048_576);
+        // 代理只做 trim：格式对不对交给网络层判断（这里不引网络依赖）。
+        // 填错了不会静默变成别的地址——设置页里能看见自己填的内容，方便改。
+        self.proxy = self.proxy.trim().to_string();
         if self.schema < CONFIG_SCHEMA {
             // v1 只有裸 bitrate，用户当时选的 999 其实是「能拿多高拿多高」。
             // 注意不能用 `quality == Standard` 判断是否「用户没设过」——容器级
@@ -159,6 +169,16 @@ impl Settings {
         self.quality_overrides
             .retain(|source, _| self.sources.contains(source));
         self
+    }
+
+    /// 非空代理地址（已 trim）；空字符串表示直连。
+    pub fn proxy_url(&self) -> Option<&str> {
+        let trimmed = self.proxy.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
     }
 
     /// 某个音源的目标音质：优先取分平台设置，其次全局默认。
@@ -255,6 +275,35 @@ mod tests {
         let parsed: Settings = serde_json::from_str(json).expect("旧配置应当能读");
         assert_eq!(parsed.speed_limit_kbps, 0);
         assert_eq!(parsed.concurrency, 3);
+    }
+
+    #[test]
+    fn proxy_defaults_to_direct_and_is_trimmed() {
+        assert_eq!(Settings::default().proxy_url(), None);
+
+        let padded = Settings {
+            proxy: "  http://127.0.0.1:7890  ".into(),
+            ..Default::default()
+        }
+        .sanitized();
+        assert_eq!(padded.proxy, "http://127.0.0.1:7890");
+        assert_eq!(padded.proxy_url(), Some("http://127.0.0.1:7890"));
+
+        // 只有空格 = 直连
+        let blank = Settings {
+            proxy: "   ".into(),
+            ..Default::default()
+        }
+        .sanitized();
+        assert_eq!(blank.proxy_url(), None);
+    }
+
+    #[test]
+    fn old_settings_without_proxy_fall_back_to_direct() {
+        let json = r#"{"downloadDir":"","quality":"lossless"}"#;
+        let parsed: Settings = serde_json::from_str(json).expect("旧配置应当能读");
+        assert_eq!(parsed.proxy, "");
+        assert_eq!(parsed.proxy_url(), None);
     }
 
     #[test]

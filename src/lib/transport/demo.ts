@@ -235,6 +235,7 @@ const DEFAULT_SETTINGS: Settings = {
   artistSeparator: ' / ',
   concurrency: 3,
   speedLimitKbps: 0,
+  proxy: '',
   writeTags: true,
   embedCover: true,
   saveLyric: true,

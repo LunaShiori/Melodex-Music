@@ -230,6 +230,8 @@ export interface Settings {
   concurrency: number
   /** 单任务下载限速（KB/s），0 表示不限 */
   speedLimitKbps: number
+  /** 全局代理地址（http/https/socks5），空字符串 = 直连 */
+  proxy: string
   writeTags: boolean
   embedCover: boolean
   saveLyric: boolean

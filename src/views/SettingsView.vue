@@ -109,6 +109,16 @@ async function browseDir() {
 /** 限速上限与核心 settings.rs 的 sanitize 对齐：1 GB/s。 */
 const SPEED_LIMIT_MAX = 1048576
 
+/** 代理地址认这几个前缀；核心那边用 reqwest 解析，对不上就退回直连。 */
+const PROXY_SCHEME = /^(https?|socks5h?|socks4):\/\//i
+
+/** 只在「填了内容但一看就不像地址」的时候提示，别在用户打字途中烦人。 */
+const proxyHint = computed(() => {
+  const raw = settings.value?.proxy.trim() ?? ''
+  if (!raw || PROXY_SCHEME.test(raw)) return ''
+  return '这个地址少了协议头。要写成 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080 这样；保存后也会按直连处理。'
+})
+
 /**
  * 限速输入框：允许直接敲数字，也允许清空（清空 = 不限）。
  * 超过上限时按上限存，并把输入框回写成收敛后的值，避免屏幕上显示一个存不下的数。
@@ -158,6 +168,31 @@ onMounted(async () => {
 
     <template v-if="settings">
       <AccountPanel />
+
+      <section class="card">
+        <h2>网络</h2>
+
+        <div class="row">
+          <div class="label">
+            <p>代理服务器</p>
+            <small>
+              留空 = 直连。支持 http:// / https:// / socks5://，
+              例 <code>http://127.0.0.1:7890</code>；搜索、下载、更新都走它
+            </small>
+          </div>
+          <div class="control wide">
+            <input
+              class="input"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="留空 = 直连"
+              :value="settings.proxy"
+              @change="update({ proxy: ($event.target as HTMLInputElement).value })"
+            />
+          </div>
+        </div>
+        <p v-if="proxyHint" class="proxy-hint">{{ proxyHint }}</p>
+      </section>
 
       <section class="card">
         <h2>下载</h2>
@@ -881,6 +916,12 @@ onMounted(async () => {
   font-size: 11px;
   color: var(--text-3);
   white-space: nowrap;
+}
+.proxy-hint {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--danger);
 }
 
 /* 歌词字号预览：直接拿真实字号渲染一句，调完就看见效果 */

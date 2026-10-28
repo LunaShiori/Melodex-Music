@@ -43,7 +43,8 @@ impl AppState {
             .and_then(|text| serde_json::from_str::<Settings>(&text).ok())
             .unwrap_or_default();
 
-        let net = melodex_core::net::Net::new().map_err(|err| err.to_string())?;
+        let net = melodex_core::net::Net::with_proxy(settings.proxy_url().unwrap_or(""))
+            .map_err(|err| err.to_string())?;
         let creds = CredStore::new();
         let vault_dir = dir.join("vault");
 
@@ -430,6 +431,8 @@ fn get_settings(state: State<'_, AppState>) -> Settings {
 #[tauri::command]
 async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<(), String> {
     state.engine.update_settings(settings.clone());
+    // 搜索 / 登录 / 检查更新走 Net，下载走 engine 自己的客户端：两边都得跟着换代理。
+    state.net.set_proxy(settings.proxy_url().unwrap_or(""));
     let json = serde_json::to_string_pretty(&settings).map_err(|err| err.to_string())?;
     std::fs::write(&state.settings_path, json).map_err(|err| err.to_string())?;
     Ok(())

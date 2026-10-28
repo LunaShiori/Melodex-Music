@@ -88,7 +88,9 @@ pub struct DownloadEngine {
 
 struct Inner {
     registry: Registry,
-    client: reqwest::Client,
+    /// 下载用的 HTTP 客户端。放在 RwLock 里是为了设置页改代理后能重建——
+    /// 旧客户端会被在途任务继续持有，不影响正在下的文件。
+    client: RwLock<reqwest::Client>,
     settings: RwLock<Settings>,
     tasks: Mutex<Vec<DownloadTask>>,
     controls: Mutex<HashMap<String, Control>>,
@@ -105,16 +107,13 @@ impl DownloadEngine {
         settings: Settings,
         store_path: Option<PathBuf>,
     ) -> Result<Self> {
-        let client = reqwest::Client::builder()
-            .user_agent(crate::net::UA)
-            .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(300))
-            .build()?;
+        let sanitized = settings.sanitized();
+        let client = RwLock::new(build_client(sanitized.proxy_url().unwrap_or(""))?);
         let (tx, _) = broadcast::channel(256);
         let inner = Arc::new(Inner {
             registry,
             client,
-            settings: RwLock::new(settings.sanitized()),
+            settings: RwLock::new(sanitized),
             tasks: Mutex::new(Vec::new()),
             controls: Mutex::new(HashMap::new()),
             tx,
@@ -135,6 +134,10 @@ impl DownloadEngine {
 
     pub fn update_settings(&self, settings: Settings) {
         let sanitized = settings.sanitized();
+        // 下载链路不走 Net，代理改了得自己重建客户端。
+        if let Ok(client) = build_client(sanitized.proxy_url().unwrap_or("")) {
+            *self.inner.client.write().expect("client poisoned") = client;
+        }
         *self.inner.settings.write().expect("settings poisoned") = sanitized;
         self.inner.persist();
     }
@@ -301,8 +304,8 @@ impl Inner {
         self.settings.read().expect("settings poisoned").clone()
     }
 
-    fn client(&self) -> &reqwest::Client {
-        &self.client
+    fn client(&self) -> reqwest::Client {
+        self.client.read().expect("client poisoned").clone()
     }
 
     fn find(&self, id: &str) -> Option<DownloadTask> {
@@ -670,8 +673,9 @@ async fn execute(
     let mut last_at = Instant::now();
     let progress_inner = inner.clone();
     let progress_id = id.to_string();
+    let download_client = inner.client();
     let outcome = transfer::download(
-        inner.client(),
+        &download_client,
         &play.url,
         &part,
         cancel,
@@ -746,7 +750,8 @@ async fn execute(
 
     if settings.write_tags && extension == "mp3" {
         let cover = if settings.embed_cover {
-            fetch_cover(inner.client(), task.cover.as_deref()).await
+            let cover_client = inner.client();
+            fetch_cover(&cover_client, task.cover.as_deref()).await
         } else {
             None
         };
@@ -765,6 +770,21 @@ async fn execute(
     }
 
     Ok(Step::Completed(target.to_string_lossy().into_owned()))
+}
+
+/// 下载专用客户端：单请求超时给到 5 分钟（无损文件可能很大），
+/// 代理地址无效时忽略代理、退回直连（用户改设置页就能修，不该因此下不了歌）。
+fn build_client(proxy: &str) -> Result<reqwest::Client> {
+    let mut builder = reqwest::Client::builder()
+        .user_agent(crate::net::UA)
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(300));
+    if !proxy.trim().is_empty() {
+        if let Ok(parsed) = reqwest::Proxy::all(proxy.trim()) {
+            builder = builder.proxy(parsed);
+        }
+    }
+    Ok(builder.build()?)
 }
 
 async fn fetch_cover(client: &reqwest::Client, url: Option<&str>) -> Option<Vec<u8>> {
