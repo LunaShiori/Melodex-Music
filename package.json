@@ -1,7 +1,7 @@
 {
   "name": "melodex",
   "private": true,
-  "version": "1.7.1",
+  "version": "1.8.0",
   "type": "module",
   "description": "Melodex Music · 多源音乐聚合搜索、播放与歌词",
   "keywords": [
