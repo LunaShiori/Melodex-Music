@@ -165,6 +165,15 @@ function openDetail() {
     <div class="right">
       <button
         class="icon-btn"
+        :class="{ 'is-active': player.queueOpen }"
+        title="播放队列"
+        :disabled="!player.queue.length"
+        @click="player.toggleQueue()"
+      >
+        <Icon name="queue" :size="17" />
+      </button>
+      <button
+        class="icon-btn"
         :class="{ 'is-active': player.detailOpen }"
         title="歌词详情"
         :disabled="!player.current"
@@ -204,6 +213,15 @@ function openDetail() {
       </button>
       <button class="m-btn" :disabled="!player.current" @click="player.next()">
         <Icon name="next" :size="20" />
+      </button>
+      <button
+        class="m-btn"
+        :class="{ 'is-active': player.queueOpen }"
+        :disabled="!player.queue.length"
+        title="播放队列"
+        @click="player.toggleQueue()"
+      >
+        <Icon name="queue" :size="18" />
       </button>
     </div>
   </footer>
