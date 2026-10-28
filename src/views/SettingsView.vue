@@ -106,6 +106,27 @@ async function browseDir() {
   if (dir) void update({ downloadDir: dir })
 }
 
+/** 限速上限与核心 settings.rs 的 sanitize 对齐：1 GB/s。 */
+const SPEED_LIMIT_MAX = 1048576
+
+/**
+ * 限速输入框：允许直接敲数字，也允许清空（清空 = 不限）。
+ * 超过上限时按上限存，并把输入框回写成收敛后的值，避免屏幕上显示一个存不下的数。
+ */
+function onSpeedLimitInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const raw = input.value.trim()
+  if (raw === '') {
+    void update({ speedLimitKbps: 0 })
+    return
+  }
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed)) return
+  const clamped = Math.max(0, Math.min(SPEED_LIMIT_MAX, Math.round(parsed)))
+  void update({ speedLimitKbps: clamped })
+  if (input.value !== String(clamped)) input.value = String(clamped)
+}
+
 function toggleSource(source: SourceId) {
   if (!settings.value) return
   const has = settings.value.sources.includes(source)
@@ -183,20 +204,32 @@ onMounted(async () => {
         <div class="row">
           <div class="label">
             <p>单任务限速</p>
-            <small>0 = 不限。按每个任务算；想卡总带宽，把上面的并发一起调小</small>
+            <small>清空或填 0 = 不限；也能直接输入数字（上限 1 GB/s）。按每个任务算，想卡总带宽把并发一起调小</small>
           </div>
-          <div class="control">
+          <div class="control speed-control">
             <input
               class="range"
               type="range"
               min="0"
-              max="2048"
+              max="10240"
               step="128"
-              :value="settings.speedLimitKbps"
+              :value="Math.min(settings.speedLimitKbps, 10240)"
               @input="update({ speedLimitKbps: Number(($event.target as HTMLInputElement).value) })"
             />
-            <span class="value mono speed-value">
-              {{ settings.speedLimitKbps ? `${settings.speedLimitKbps} KB/s` : '不限' }}
+            <span class="speed-field">
+              <input
+                class="input speed-input"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                :max="SPEED_LIMIT_MAX"
+                step="1"
+                placeholder="不限"
+                :value="settings.speedLimitKbps || ''"
+                @input="onSpeedLimitInput"
+                @change="onSpeedLimitInput"
+              />
+              <span class="speed-unit">KB/s</span>
             </span>
           </div>
         </div>
@@ -833,9 +866,20 @@ onMounted(async () => {
   width: 48px;
 }
 /* 限速值要同时容纳「不限」和「1024 KB/s」，18px 会把字挤成竖排 */
-.speed-value {
-  width: 88px;
+.speed-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.speed-input {
+  width: 78px;
+  flex: 0 0 auto;
   text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.speed-unit {
+  font-size: 11px;
+  color: var(--text-3);
   white-space: nowrap;
 }
 
