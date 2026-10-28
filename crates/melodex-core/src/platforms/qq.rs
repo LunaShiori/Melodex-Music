@@ -12,7 +12,7 @@ use crate::lyric::unescape_entities;
 use crate::model::{
     Fee, Lyric, PlayUrl, PlaylistDetail, PlaylistSummary, SearchPage, Source, Variant,
 };
-use crate::net::Net;
+use crate::net::{Net, ProxyFor};
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::qq_file::{candidate_files, extension_of, is_lossless_format, FileInfo};
 use crate::quality::{Quality, QualityLevel};
@@ -115,7 +115,7 @@ impl QqMusic {
                 "param": { "song_type": 0, "song_mid": mid },
             }
         });
-        let decoded = self.musicu(&body).await?;
+        let decoded = self.musicu(ProxyFor::Search, &body).await?;
         let track = decoded
             .pointer("/songinfo/data/track_info")
             .cloned()
@@ -138,10 +138,14 @@ impl QqMusic {
     }
 
     /// POST 一次 `musicu.fcg` 并返回整个响应。
-    async fn musicu(&self, body: &serde_json::Value) -> Result<serde_json::Value> {
+    async fn musicu(
+        &self,
+        purpose: ProxyFor,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
         let response = self
             .net
-            .client()
+            .client_for(purpose)
             .post(MUSICU)
             .header("Referer", REFERER)
             .header("Origin", "https://y.qq.com")
@@ -190,7 +194,7 @@ impl QqMusic {
                 }
             }
         });
-        let decoded = self.musicu(&body).await?;
+        let decoded = self.musicu(ProxyFor::Link, &body).await?;
         let resp = decoded
             .get("vkey.GetVkeyServer.CgiGetVkey")
             .cloned()
@@ -423,7 +427,7 @@ impl MusicPlatform for QqMusic {
                 "param": { "uin": uin, "sin": 0, "size": 200 },
             }
         });
-        let decoded = self.musicu(&body).await?;
+        let decoded = self.musicu(ProxyFor::Search, &body).await?;
         let code = decoded
             .pointer("/req/code")
             .and_then(|v| v.as_i64())

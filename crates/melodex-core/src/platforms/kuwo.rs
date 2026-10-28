@@ -3,7 +3,7 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::error::{Error, Reason, Result};
 use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
-use crate::net::Net;
+use crate::net::{Net, ProxyFor};
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::pseudo_json;
 use crate::quality::Quality;
@@ -17,13 +17,20 @@ const STREAM_HEADERS: &[(&str, &str)] = &[("Referer", REFERER)];
 /// 播放链接由 `antiserver` 直出，拿到就能下。
 pub struct Kuwo {
     net: Net,
-    #[allow(dead_code)]
     creds: CredStore,
 }
 
 impl Kuwo {
     pub fn new(net: Net, creds: CredStore) -> Self {
         Self { net, creds }
+    }
+
+    /// 酷我的高音质接口要带网页登录后的 `kw_token`：Cookie 里放一份，`csrf` 头再放一份。
+    /// 没登录就返回 None，让请求照旧走匿名链路（320k 以下仍然能取）。
+    fn auth(&self) -> Option<(String, String)> {
+        let cookie = self.creds.cookie(Source::Kuwo)?;
+        let token = kuwo_token(&cookie)?;
+        Some((token.clone(), format!("kw_token={token}")))
     }
 }
 
@@ -125,13 +132,16 @@ impl MusicPlatform for Kuwo {
             quality.format
         );
 
-        let body = self
-            .net
-            .text(
-                &url,
-                &[("User-Agent", "okhttp/4.10.0"), ("Referer", REFERER)],
-            )
-            .await?;
+        // 登录了就把凭据带上；没登录也照旧发，只是拿不到会员档位
+        let auth = self.auth();
+        let mut headers: Vec<(&str, &str)> =
+            vec![("User-Agent", "okhttp/4.10.0"), ("Referer", REFERER)];
+        if let Some((token, cookie)) = auth.as_ref() {
+            headers.push(("csrf", token));
+            headers.push(("Cookie", cookie));
+        }
+
+        let body = self.net.text_for(ProxyFor::Link, &url, &headers).await?;
         let data: serde_json::Value = serde_json::from_str(&body)
             .map_err(|err| Error::decode(format!("酷我 mobi.s 响应解析失败：{err}")))?;
 
@@ -198,6 +208,18 @@ impl MusicPlatform for Kuwo {
     }
 }
 
+/// 从 Cookie 串里挑出酷我的登录令牌。
+///
+/// 网页登录写的是 `kw_token`，客户端有时用 `HITOKEN`，两个都认。
+fn kuwo_token(cookie: &str) -> Option<String> {
+    cookie
+        .split(';')
+        .filter_map(|item| item.split_once('='))
+        .find(|(name, _)| matches!(name.trim(), "kw_token" | "HITOKEN"))
+        .map(|(_, value)| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
 /// 酷我返回的文本里带 HTML 实体，统一还原。
 fn clean(raw: &str) -> String {
     raw.replace("&nbsp;", " ")
@@ -249,6 +271,17 @@ fn random_hex(bytes: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn picks_token_out_of_cookie() {
+        assert_eq!(
+            kuwo_token("HITOKEN=abc123; kw_token=abc123; other=1").as_deref(),
+            Some("abc123")
+        );
+        assert_eq!(kuwo_token("kw_token=xyz").as_deref(), Some("xyz"));
+        assert_eq!(kuwo_token("other=1"), None);
+        assert_eq!(kuwo_token("kw_token= ; x=1"), None);
+    }
 
     #[test]
     fn cleans_entities() {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import AccountPanel from '@/components/AccountPanel.vue'
 import Icon from '@/components/Icon.vue'
@@ -15,7 +15,13 @@ import { nominalBitrate, QUALITY_LEVELS, qualityRank } from '@/lib/quality'
 import { ACCENTS } from '@/lib/theme'
 import { transport } from '@/lib/transport'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
-import type { PlatformQuality, QualityLevel, Settings, SourceId } from '@/lib/types'
+import type {
+  PlatformQuality,
+  ProxyScopes,
+  QualityLevel,
+  Settings,
+  SourceId,
+} from '@/lib/types'
 import { UI_STYLES } from '@/lib/ui-style'
 import { useLyricStore } from '@/stores/lyric'
 import { useOnboardingStore } from '@/stores/onboarding'
@@ -106,17 +112,79 @@ async function browseDir() {
   if (dir) void update({ downloadDir: dir })
 }
 
+type ProxyScheme = 'direct' | 'http' | 'https' | 'socks5' | 'socks5h' | 'socks4'
+
+const PROXY_SCHEMES: { value: ProxyScheme; label: string }[] = [
+  { value: 'direct', label: '直连' },
+  { value: 'http', label: 'HTTP' },
+  { value: 'https', label: 'HTTPS' },
+  { value: 'socks5', label: 'SOCKS5' },
+  { value: 'socks5h', label: 'SOCKS5H' },
+  { value: 'socks4', label: 'SOCKS4' },
+]
+
+/** 核心只认这几种协议头，其余一律当直连，所以下拉里不给别的选项。 */
+const PROXY_SCOPE_ITEMS: { key: keyof ProxyScopes; label: string; hint: string }[] = [
+  { key: 'search', label: '搜索与浏览', hint: '搜索、歌词、歌单、登录' },
+  { key: 'link', label: '取播放链接', hint: 'vkey / song-url' },
+  { key: 'download', label: '下载', hint: '歌曲与封面' },
+  { key: 'update', label: '检查更新', hint: '版本检查与安装包' },
+]
+
+const proxyScheme = ref<ProxyScheme>('direct')
+const proxyAddr = ref('')
+
+/** 把存下来的整串拆成「协议 + 地址」两个控件：http://127.0.0.1:7890 → http / 127.0.0.1:7890 */
+function splitProxy(raw: string): { scheme: ProxyScheme; addr: string } {
+  const text = raw.trim()
+  if (!text) return { scheme: 'direct', addr: '' }
+  const matched = /^([a-z0-9]+):\/\/(.*)$/i.exec(text)
+  // 少了协议头：地址照样回填，选个协议就能修好
+  if (!matched) return { scheme: 'direct', addr: text }
+  const scheme = matched[1].toLowerCase()
+  const known = PROXY_SCHEMES.find((item) => item.value === scheme)
+  return { scheme: known ? known.value : 'http', addr: matched[2] }
+}
+
+watch(
+  () => settings.value?.proxy ?? '',
+  (raw) => {
+    if (!raw.trim()) {
+      proxyScheme.value = 'direct'
+      return
+    }
+    const next = splitProxy(raw)
+    proxyScheme.value = next.scheme
+    proxyAddr.value = next.addr
+  },
+  { immediate: true },
+)
+
+/** 协议 + 地址一起决定存什么；直连或地址为空都存空字符串。 */
+function commitProxy() {
+  const addr = proxyAddr.value.trim()
+  const next = proxyScheme.value === 'direct' || !addr ? '' : `${proxyScheme.value}://${addr}`
+  if (next !== (settings.value?.proxy ?? '')) void update({ proxy: next })
+}
+
+function toggleScope(key: keyof ProxyScopes, on: boolean) {
+  const current = settings.value?.proxyScopes
+  if (!current) return
+  void update({ proxyScopes: { ...current, [key]: on } })
+}
+
 /** 限速上限与核心 settings.rs 的 sanitize 对齐：1 GB/s。 */
 const SPEED_LIMIT_MAX = 1048576
 
 /** 代理地址认这几个前缀；核心那边用 reqwest 解析，对不上就退回直连。 */
-const PROXY_SCHEME = /^(https?|socks5h?|socks4):\/\//i
-
-/** 只在「填了内容但一看就不像地址」的时候提示，别在用户打字途中烦人。 */
+/** 协议已经选过了，这里只挑「地址本身不对劲」的情况提示，别在用户打字途中烦人。 */
 const proxyHint = computed(() => {
-  const raw = settings.value?.proxy.trim() ?? ''
-  if (!raw || PROXY_SCHEME.test(raw)) return ''
-  return '这个地址少了协议头。要写成 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080 这样；保存后也会按直连处理。'
+  if (proxyScheme.value === 'direct') return ''
+  const addr = proxyAddr.value.trim()
+  if (!addr) return ''
+  if (/\s/.test(addr)) return '地址里不要有空格。'
+  if (!/:[0-9]{1,5}$/.test(addr)) return '看起来少了端口，一般写成 127.0.0.1:7890。'
+  return ''
 })
 
 /**
@@ -174,21 +242,55 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>代理服务器</p>
-            <small>
-              留空 = 直连。支持 http:// / https:// / socks5://，
-              例 <code>http://127.0.0.1:7890</code>；搜索、下载、更新都走它
-            </small>
+            <p>代理</p>
+            <small>先选协议再填地址。选错协议不会让请求变慢，而是直接连不上。</small>
           </div>
           <div class="control wide">
-            <input
-              class="input"
-              spellcheck="false"
-              autocomplete="off"
-              placeholder="留空 = 直连"
-              :value="settings.proxy"
-              @change="update({ proxy: ($event.target as HTMLInputElement).value })"
-            />
+            <div class="proxy-line">
+              <select
+                class="select"
+                :value="proxyScheme"
+                @change="proxyScheme = ($event.target as HTMLSelectElement).value as ProxyScheme; commitProxy()"
+              >
+                <option v-for="item in PROXY_SCHEMES" :key="item.value" :value="item.value">
+                  {{ item.label }}
+                </option>
+              </select>
+              <input
+                class="input"
+                spellcheck="false"
+                autocomplete="off"
+                placeholder="127.0.0.1:7890"
+                :disabled="proxyScheme === 'direct'"
+                :value="proxyAddr"
+                @input="proxyAddr = ($event.target as HTMLInputElement).value"
+                @change="commitProxy()"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">
+            <p>用在哪些地方</p>
+            <small>没勾的用途走直连。只给下载挂代理是常见用法。</small>
+          </div>
+          <div class="control wide">
+            <div class="scope-list">
+              <label
+                v-for="item in PROXY_SCOPE_ITEMS"
+                :key="item.key"
+                class="scope"
+                :title="item.hint"
+              >
+                <input
+                  type="checkbox"
+                  :checked="settings.proxyScopes?.[item.key] ?? true"
+                  @change="toggleScope(item.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ item.label }}</span>
+              </label>
+            </div>
           </div>
         </div>
         <p v-if="proxyHint" class="proxy-hint">{{ proxyHint }}</p>
@@ -922,6 +1024,50 @@ onMounted(async () => {
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--danger);
+}
+
+/* 协议下拉和地址输入挤一行：下拉按内容宽度，地址吃掉剩下的 */
+.proxy-line {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.select {
+  flex: none;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+.select:focus {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.input:disabled {
+  opacity: 0.45;
+}
+.scope-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+.scope input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 /* 歌词字号预览：直接拿真实字号渲染一句，调完就看见效果 */

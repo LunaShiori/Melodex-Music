@@ -108,7 +108,7 @@ impl DownloadEngine {
         store_path: Option<PathBuf>,
     ) -> Result<Self> {
         let sanitized = settings.sanitized();
-        let client = RwLock::new(build_client(sanitized.proxy_url().unwrap_or(""))?);
+        let client = RwLock::new(build_client(download_proxy(&sanitized))?);
         let (tx, _) = broadcast::channel(256);
         let inner = Arc::new(Inner {
             registry,
@@ -135,7 +135,8 @@ impl DownloadEngine {
     pub fn update_settings(&self, settings: Settings) {
         let sanitized = settings.sanitized();
         // 下载链路不走 Net，代理改了得自己重建客户端。
-        if let Ok(client) = build_client(sanitized.proxy_url().unwrap_or("")) {
+        // 「代理用在哪几件事上」里没勾下载，就等于没有代理。
+        if let Ok(client) = build_client(download_proxy(&sanitized)) {
             *self.inner.client.write().expect("client poisoned") = client;
         }
         *self.inner.settings.write().expect("settings poisoned") = sanitized;
@@ -774,6 +775,15 @@ async fn execute(
 
 /// 下载专用客户端：单请求超时给到 5 分钟（无损文件可能很大），
 /// 代理地址无效时忽略代理、退回直连（用户改设置页就能修，不该因此下不了歌）。
+/// 下载链路实际该用的代理：用户没把代理用在下载上就当直连。
+fn download_proxy(settings: &Settings) -> &str {
+    if settings.proxy_scopes.download {
+        settings.proxy_url().unwrap_or("")
+    } else {
+        ""
+    }
+}
+
 fn build_client(proxy: &str) -> Result<reqwest::Client> {
     let mut builder = reqwest::Client::builder()
         .user_agent(crate::net::UA)

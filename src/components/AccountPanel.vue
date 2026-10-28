@@ -28,7 +28,8 @@ function stateOf(source: SourceId) {
     return { loggedIn: true, text: account.nickname || '已登录', keys: account.keys }
   }
   if (source === 'kuwo') {
-    return { loggedIn: false, text: '免登录可用', keys: [] }
+    // 未登录也能下，只是拿不到会员档位，文案里说清楚，别让人以为必须登录
+    return { loggedIn: false, text: '未登录 · 免登录只能取到 320k', keys: [] }
   }
   return { loggedIn: false, text: '未登录', keys: [] }
 }
@@ -138,10 +139,7 @@ async function logout(source: SourceId) {
           </p>
         </div>
         <div class="acts">
-          <template v-if="source === 'kuwo'">
-            <span class="muted small">无需登录</span>
-          </template>
-          <template v-else-if="stateOf(source).loggedIn">
+          <template v-if="stateOf(source).loggedIn">
             <button class="btn btn-ghost btn-sm" type="button" @click="logout(source)">
               退出登录
             </button>

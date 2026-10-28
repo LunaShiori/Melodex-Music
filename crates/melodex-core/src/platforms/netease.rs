@@ -8,7 +8,7 @@ use crate::error::{Error, Reason, Result};
 use crate::model::{
     Fee, Lyric, Origin, PlayUrl, PlaylistDetail, PlaylistSummary, SearchPage, Source, Variant,
 };
-use crate::net::Net;
+use crate::net::{Net, ProxyFor};
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::quality::{Quality, QualityLevel};
 
@@ -71,7 +71,7 @@ impl Netease {
         if let Some(cookie) = cookie {
             headers.push(("Cookie", cookie));
         }
-        let raw: RawSongUrl = self.net.json(&url, &headers).await?;
+        let raw: RawSongUrl = self.net.json_for(ProxyFor::Link, &url, &headers).await?;
         let Some(item) = raw.data.into_iter().next() else {
             return Ok(None);
         };

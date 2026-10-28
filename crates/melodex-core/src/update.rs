@@ -363,7 +363,7 @@ pub async fn download_asset(
                 .map(|meta| meta.len())
                 .unwrap_or(0);
 
-            let mut request = net.client().get(candidate);
+            let mut request = net.client_for(crate::net::ProxyFor::Update).get(candidate);
             if existing > 0 {
                 request = request.header("Range", format!("bytes={existing}-"));
             }

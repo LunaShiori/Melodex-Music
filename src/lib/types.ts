@@ -232,6 +232,8 @@ export interface Settings {
   speedLimitKbps: number
   /** 全局代理地址（http/https/socks5），空字符串 = 直连 */
   proxy: string
+  /** 代理用在哪几件事上；老配置没有这个字段时四条全开 */
+  proxyScopes: ProxyScopes
   writeTags: boolean
   embedCover: boolean
   saveLyric: boolean
@@ -239,6 +241,14 @@ export interface Settings {
   theme: 'light' | 'dark' | 'system'
   accent: AccentId
   sources: SourceId[]
+}
+
+/** 代理的适用范围，四条互相独立 */
+export interface ProxyScopes {
+  search: boolean
+  link: boolean
+  download: boolean
+  update: boolean
 }
 
 export const SOURCE_META: Record<

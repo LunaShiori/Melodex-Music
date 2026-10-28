@@ -39,6 +39,13 @@ const meta = computed(() => (props.source ? SOURCE_META[props.source] : null))
 /** 网易云与 QQ 音乐都有官方扫码接口；酷我免登录，用不上 */
 const supportsQr = computed(() => props.source === 'netease' || props.source === 'qq')
 
+/** 每个平台要的 Cookie 字段不一样，占位符跟着变，别让人对着网易云的模板填酷我。 */
+const cookiePlaceholder = computed(() => {
+  if (props.source === 'qq') return 'uin=...; qm_keyst=...'
+  if (props.source === 'kuwo') return 'kw_token=...'
+  return 'MUSIC_U=...; __csrf=...'
+})
+
 const modes = computed(() => {
   const list: { id: LoginMode; label: string; icon: string }[] = []
   if (webSupported.value) list.push({ id: 'web', label: '内置登录', icon: 'external' })
@@ -327,7 +334,7 @@ onBeforeUnmount(() => {
                 class="input cookie-input"
                 rows="4"
                 spellcheck="false"
-                placeholder="MUSIC_U=...; __csrf=... 或 uin=...; qm_keystore=..."
+                :placeholder="cookiePlaceholder"
               />
               <input
                 v-model="nickname"
@@ -335,6 +342,9 @@ onBeforeUnmount(() => {
                 type="text"
                 :placeholder="source === 'qq' ? '备注名（可留空，自动识别 QQ 号）' : '备注名（可留空）'"
               />
+              <p v-if="source === 'kuwo'" class="muted small">
+                酷我要的是 <code>kw_token</code>。登录后用账号自己的会员档位；没有会员仍然只能取到 320k。
+              </p>
               <p class="muted small">
                 只保存在本机加密保险库；不会上传到任何服务器，也不会被写入日志。
               </p>

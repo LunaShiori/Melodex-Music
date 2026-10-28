@@ -45,6 +45,7 @@ impl AppState {
 
         let net = melodex_core::net::Net::with_proxy(settings.proxy_url().unwrap_or(""))
             .map_err(|err| err.to_string())?;
+        net.set_scopes(settings.proxy_scopes);
         let creds = CredStore::new();
         let vault_dir = dir.join("vault");
 
@@ -433,6 +434,7 @@ async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result
     state.engine.update_settings(settings.clone());
     // 搜索 / 登录 / 检查更新走 Net，下载走 engine 自己的客户端：两边都得跟着换代理。
     state.net.set_proxy(settings.proxy_url().unwrap_or(""));
+    state.net.set_scopes(settings.proxy_scopes);
     let json = serde_json::to_string_pretty(&settings).map_err(|err| err.to_string())?;
     std::fs::write(&state.settings_path, json).map_err(|err| err.to_string())?;
     Ok(())
@@ -491,7 +493,7 @@ async fn login_qr_start(
         Source::Qq => melodex_core::login::qq::start(&state.net)
             .await
             .map_err(|err| err.to_string()),
-        Source::Kuwo => Err("酷我音乐可以免登录下载，无需登录".into()),
+        Source::Kuwo => Err("酷我不支持扫码登录，请用内置网页登录或粘贴 Cookie".into()),
     }
 }
 
@@ -507,7 +509,7 @@ async fn login_qr_poll(
         Source::Netease => melodex_core::login::netease::poll(&state.net, &key).await,
         Source::Qq => melodex_core::login::qq::poll(&state.net, &key).await,
         Source::Kuwo => Err(melodex_core::error::Error::Invalid(
-            "酷我音乐可以免登录下载，无需登录".into(),
+            "酷我不支持扫码登录，请用内置网页登录或粘贴 Cookie".into(),
         )),
     }
     .map_err(|err| err.to_string())?;
@@ -569,7 +571,7 @@ fn start_web_login(app: tauri::AppHandle, source: Source) -> Result<(), String> 
     let home = match source {
         Source::Qq => "https://y.qq.com/",
         Source::Netease => "https://music.163.com/",
-        Source::Kuwo => return Err("酷我音乐免登录即可下载，不需要登录".into()),
+        Source::Kuwo => "https://www.kuwo.cn/",
     };
     let parsed = tauri::Url::parse(home).map_err(|err| format!("登录地址无效：{err}"))?;
 
@@ -713,8 +715,10 @@ fn collect_cookie(source: Source, cookies: &[(String, String)]) -> Option<String
             let csrf = get(cookies, "__csrf").unwrap_or_default();
             Some(format!("MUSIC_U={token}; __csrf={csrf}"))
         }
-        // 酷我不需要登录，永远不会走到这里
-        Source::Kuwo => None,
+        Source::Kuwo => {
+            let token = get(cookies, "kw_token").or_else(|| get(cookies, "HITOKEN"))?;
+            Some(format!("kw_token={token}"))
+        }
     }
 }
 

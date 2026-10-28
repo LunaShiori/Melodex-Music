@@ -90,6 +90,12 @@ pub struct Settings {
     /// 搜索、取播放链接、下载歌曲、检查更新都走它——国内直连 GitHub 检查更新
     /// 常常超时，填一个本地代理就能救。
     pub proxy: String,
+    /// 代理用在哪几件事上：搜索、取播放链接、下载、检查更新。
+    ///
+    /// 不是每条请求都值得绕代理：搜索结果国内的 CDN 直连就够快，
+    /// 只有下载或者检查更新经常被墙。老配置（v1.7 及以前）没有这个字段，
+    /// 反序列化时按「四条全开」处理——那时本来就是全都走代理。
+    pub proxy_scopes: ProxyScopes,
     /// 是否写入 ID3 标签
     pub write_tags: bool,
     /// 是否内嵌封面
@@ -104,6 +110,31 @@ pub struct Settings {
     pub accent: Accent,
     /// 启用的音源
     pub sources: Vec<Source>,
+}
+
+/// 代理的适用范围：四条互相独立，设置页里勾选。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProxyScopes {
+    /// 搜索、歌词、歌单、登录这类在线浏览
+    pub search: bool,
+    /// 取播放链接（vkey / song-url）
+    pub link: bool,
+    /// 下载歌曲与封面
+    pub download: bool,
+    /// 检查更新、下载安装包
+    pub update: bool,
+}
+
+impl Default for ProxyScopes {
+    fn default() -> Self {
+        Self {
+            search: true,
+            link: true,
+            download: true,
+            update: true,
+        }
+    }
 }
 
 impl Default for Settings {
@@ -122,6 +153,7 @@ impl Default for Settings {
             concurrency: 3,
             speed_limit_kbps: 0,
             proxy: String::new(),
+            proxy_scopes: ProxyScopes::default(),
             write_tags: true,
             embed_cover: true,
             save_lyric: true,

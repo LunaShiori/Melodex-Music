@@ -236,6 +236,7 @@ const DEFAULT_SETTINGS: Settings = {
   concurrency: 3,
   speedLimitKbps: 0,
   proxy: '',
+  proxyScopes: { search: true, link: true, download: true, update: true },
   writeTags: true,
   embedCover: true,
   saveLyric: true,
@@ -728,12 +729,19 @@ export function createDemoTransport(): Transport {
       } satisfies QrPoll
     },
 
-    async saveAccount(source: SourceId, _cookie: string, nickname?: string | null) {
+    async saveAccount(source: SourceId, cookie: string, nickname?: string | null) {
+      // 演示模式也从粘贴的内容里认字段，免得酷我显示成「MUSIC_U」这种张冠李戴
+      const keys = cookie
+        .split(';')
+        .map((item) => item.split('=')[0]?.trim() ?? '')
+        .filter(Boolean)
+      const fallback =
+        source === 'qq' ? 'QQ 演示账号' : source === 'kuwo' ? '酷我演示账号' : '演示账号'
       const account: AccountInfo = {
         source,
-        nickname: nickname || (source === 'qq' ? 'QQ 演示账号' : '演示账号'),
+        nickname: nickname || fallback,
         savedAt: Math.floor(Date.now() / 1000),
-        keys: source === 'qq' ? ['uin', 'qm_keystore'] : ['MUSIC_U'],
+        keys: keys.length ? keys : ['MUSIC_U'],
       }
       demoAccounts_.set(source, account)
       return account
@@ -756,7 +764,8 @@ export function createDemoTransport(): Transport {
       window.setTimeout(() => {
         const account: AccountInfo = {
           source,
-          nickname: source === 'qq' ? 'QQ 演示账号' : '演示账号',
+          nickname:
+            source === 'qq' ? 'QQ 演示账号' : source === 'kuwo' ? '酷我演示账号' : '演示账号',
           savedAt: Math.floor(Date.now() / 1000),
           keys: source === 'qq' ? ['uin', 'qm_keyst'] : ['MUSIC_U'],
         }
