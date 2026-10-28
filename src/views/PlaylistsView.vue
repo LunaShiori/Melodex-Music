@@ -407,34 +407,36 @@ onMounted(async () => {
               <Icon :name="mode.icon" :size="14" />
             </button>
           </div>
-          <button class="icon-btn" type="button" title="刷新" @click="load">
-            <Icon name="refresh" :size="15" :class="{ spin: loading }" />
-          </button>
-          <button
-            class="icon-btn"
-            type="button"
-            title="导出全部歌单"
-            :disabled="exporting || !total"
-            @click="exportAll"
-          >
-            <Icon name="download" :size="15" />
-          </button>
-          <button
-            class="icon-btn"
-            type="button"
-            title="从导出文件导入并批量下载"
-            :disabled="importing"
-            @click="fileInput?.click()"
-          >
-            <Icon name="folder" :size="15" />
-          </button>
-          <input
-            ref="fileInput"
-            type="file"
-            accept=".json,application/json"
-            hidden
-            @change="onImportFile"
-          />
+          <span class="head-icons">
+            <button class="icon-btn" type="button" title="刷新" @click="load">
+              <Icon name="refresh" :size="15" :class="{ spin: loading }" />
+            </button>
+            <button
+              class="icon-btn"
+              type="button"
+              title="导出全部歌单"
+              :disabled="exporting || !total"
+              @click="exportAll"
+            >
+              <Icon name="download" :size="15" />
+            </button>
+            <button
+              class="icon-btn"
+              type="button"
+              title="从导出文件导入并批量下载"
+              :disabled="importing"
+              @click="fileInput?.click()"
+            >
+              <Icon name="folder" :size="15" />
+            </button>
+            <input
+              ref="fileInput"
+              type="file"
+              accept=".json,application/json"
+              hidden
+              @change="onImportFile"
+            />
+          </span>
         </template>
       </div>
     </header>
@@ -662,6 +664,13 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+/* 刷新 / 导出 / 导入 挤成一组：窄屏换行时靠右，不会孤零零掉到下一行左边 */
+.head-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
 }
 
 /* 显示方式切换：图标比文字省地方，窄屏也放得下 */
