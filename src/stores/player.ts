@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+import { pushRecent } from '@/lib/history'
 import { activeLineIndex, mergeTranslation, parseLrc, type LrcLine } from '@/lib/lrc'
 import { transport } from '@/lib/transport'
 import type { FailReason, PlayUrl, SourceId, Track, Variant } from '@/lib/types'
@@ -249,6 +250,7 @@ export const usePlayerStore = defineStore('player', () => {
   async function playTrack(track: Track, chosen?: Variant) {
     const target = chosen ?? bestVariant(track)
     current.value = track
+    pushRecent(track)
     variant.value = target
     duration.value = track.durationMs || 0
     position.value = 0
@@ -281,6 +283,7 @@ export const usePlayerStore = defineStore('player', () => {
   /** 播放本地已下载文件（桌面端走 asset 协议）。 */
   async function playLocal(track: Track, src: string) {
     current.value = track
+    pushRecent(track)
     variant.value = track.variants[0] ?? null
     duration.value = track.durationMs || 0
     position.value = 0
@@ -335,6 +338,65 @@ export const usePlayerStore = defineStore('player', () => {
     index.value = (index.value - 1 + queue.value.length) % queue.value.length
     const track = queue.value[index.value]
     if (track) await playTrack(track)
+  }
+
+  /* ---------- 播放队列面板 ---------- */
+
+  const queueOpen = ref(false)
+
+  function toggleQueue() {
+    queueOpen.value = !queueOpen.value
+  }
+
+  function closeQueue() {
+    queueOpen.value = false
+  }
+
+  /** 点队列里的某一首直接播 */
+  async function jumpTo(position: number) {
+    const track = queue.value[position]
+    if (!track) return
+    index.value = position
+    await playTrack(track)
+  }
+
+  /**
+   * 从队列里移除一首。
+   *
+   * 删的是正在播的那首时顺位接着播下一首（列表因此变短，位置要夹一下）；
+   * 删掉队列里的最后一首时停在这里，不自动停播也不报错。
+   */
+  async function removeAt(position: number) {
+    if (position < 0 || position >= queue.value.length) return
+    const playingIndex = index.value
+    queue.value.splice(position, 1)
+    if (!queue.value.length) {
+      index.value = -1
+      return
+    }
+    if (position === playingIndex) {
+      index.value = Math.min(playingIndex, queue.value.length - 1)
+      const track = queue.value[index.value]
+      if (track) await playTrack(track)
+      return
+    }
+    if (position < playingIndex) index.value = playingIndex - 1
+  }
+
+  /** 拖动排序：把 from 挪到 to，正在播的那首跟着它自己的位置走 */
+  function move(from: number, to: number) {
+    const list = queue.value
+    if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return
+    const [item] = list.splice(from, 1)
+    if (!item) return
+    list.splice(to, 0, item)
+    if (index.value === from) {
+      index.value = to
+    } else if (from < index.value && to >= index.value) {
+      index.value -= 1
+    } else if (from > index.value && to <= index.value) {
+      index.value += 1
+    }
   }
 
   function toggle() {
@@ -404,6 +466,12 @@ export const usePlayerStore = defineStore('player', () => {
     playList,
     next,
     prev,
+    queueOpen,
+    toggleQueue,
+    closeQueue,
+    jumpTo,
+    removeAt,
+    move,
     toggle,
     seek,
     setVolume,

@@ -3,12 +3,14 @@ import { onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 
 import PlayerBar from '@/components/PlayerBar.vue'
+import QueuePanel from '@/components/QueuePanel.vue'
 import LyricView from '@/components/LyricView.vue'
 import OnboardingDialog from '@/components/OnboardingDialog.vue'
 import SideBar from '@/components/SideBar.vue'
 import TabBar from '@/components/TabBar.vue'
 import ToastStack from '@/components/ToastStack.vue'
 import UpdateNotice from '@/components/UpdateNotice.vue'
+import { loadHistory } from '@/lib/history'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { useSettingsStore } from '@/stores/settings'
 import { useTasksStore } from '@/stores/tasks'
@@ -32,6 +34,7 @@ function syncKeyboard(): void {
 }
 
 onMounted(async () => {
+  loadHistory()
   await Promise.all([settings.load(), tasks.init()])
   // 启动后静默检查一次更新：失败不打扰用户，仅在真正有新版本时提示。
   // 演示模式也跑一次——demo 里备了一份写好的更新清单，这样浏览器里也能走查
@@ -64,6 +67,7 @@ onUnmounted(() => {
       </main>
     </div>
     <PlayerBar />
+    <QueuePanel />
     <TabBar />
     <LyricView />
     <OnboardingDialog />

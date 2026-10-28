@@ -5,6 +5,8 @@ import { useRoute } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import TrackRow from '@/components/TrackRow.vue'
 import DownloadPicker from '@/components/DownloadPicker.vue'
+import { coverOf } from '@/lib/artwork'
+import { clearKeywords, clearRecent, keywords, pushKeyword, recent } from '@/lib/history'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
 import { SORT_MODES, useSearchStore } from '@/stores/search'
@@ -35,7 +37,18 @@ const pickedTracks = computed(() => list.value.filter((item) => picked.has(item.
 const allPicked = computed(() => list.value.length > 0 && picked.size >= list.value.length)
 
 function submit() {
+  const word = search.keyword.trim()
+  if (word) pushKeywordSafe(word)
   void search.run(1, false)
+}
+
+/** 记历史是顺手的事，写不进去也不该拦住搜索 */
+function pushKeywordSafe(word: string) {
+  try {
+    pushKeyword(word)
+  } catch {
+    /* localStorage 不可用 */
+  }
 }
 
 function pick(word: string) {
@@ -46,6 +59,12 @@ function pick(word: string) {
 function playTrack(track: Track) {
   const index = list.value.findIndex((item) => item.fingerprint === track.fingerprint)
   void player.playList(list.value, index < 0 ? 0 : index)
+}
+
+/** 从「最近播放」起播：整个最近列表就是队列，位置对应该曲 */
+function playRecent(track: Track) {
+  const index = recent.value.findIndex((item) => item.fingerprint === track.fingerprint)
+  void player.playList(recent.value, index < 0 ? 0 : index)
 }
 
 /** 单曲下载时弹出平台/音质选择框 */
@@ -295,6 +314,46 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <div class="empty-art"><Icon name="music" :size="26" /></div>
       <h3>搜索你想听的歌</h3>
       <p class="muted">结果会按音源合并，同一首歌只出现一次，右侧标签表示可从哪些平台取到。</p>
+
+      <!-- 最近播放：点一条直接起播，曲库里有过的歌不用再搜 -->
+      <div v-if="recent.length" class="history-block">
+        <div class="history-head">
+          <span>最近播放</span>
+          <button class="link-btn" type="button" @click="clearRecent()">清空</button>
+        </div>
+        <ul class="recent-list">
+          <li v-for="track in recent.slice(0, 5)" :key="track.fingerprint">
+            <button class="recent-item" type="button" @click="playRecent(track)">
+              <img class="recent-cover" :src="coverOf(track.cover, track.fingerprint)" alt="" loading="lazy" />
+              <span class="recent-text">
+                <span class="recent-title">{{ track.title }}</span>
+                <span class="recent-meta">{{ track.artists.join(' / ') || '未知歌手' }}</span>
+              </span>
+              <Icon name="play" :size="14" />
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div v-if="keywords.length" class="history-block">
+        <div class="history-head">
+          <span>最近搜索</span>
+          <button class="link-btn" type="button" @click="clearKeywords()">清空</button>
+        </div>
+        <div class="hot">
+          <button
+            v-for="word in keywords"
+            :key="word"
+            class="chip chip-btn"
+            type="button"
+            @click="pick(word)"
+          >
+            {{ word }}
+          </button>
+        </div>
+      </div>
+
+      <div class="hot-label">{{ recent.length || keywords.length ? '或者试试' : '热门搜索' }}</div>
       <div class="hot">
         <button v-for="word in hot" :key="word" class="chip chip-btn" type="button" @click="pick(word)">
           {{ word }}
@@ -639,6 +698,91 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   margin-top: 18px;
   flex-wrap: wrap;
   justify-content: center;
+}
+.hot-label {
+  margin-top: 26px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.hot-label + .hot {
+  margin-top: 10px;
+}
+
+/* 最近播放 / 最近搜索 */
+.history-block {
+  width: 100%;
+  max-width: 440px;
+  margin-top: 24px;
+}
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.history-head .link-btn {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.history-head .link-btn:hover {
+  color: var(--accent);
+}
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.recent-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.recent-item:hover {
+  background: var(--surface-2);
+}
+.recent-cover {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+}
+.recent-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.recent-title {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recent-meta {
+  font-size: 11px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .skeleton {
