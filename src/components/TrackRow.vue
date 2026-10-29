@@ -6,6 +6,7 @@ import { coverOf } from '@/lib/artwork'
 import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatDuration } from '@/lib/format'
 import { originLabel } from '@/lib/origin'
+import { useMenuStore } from '@/stores/trackMenu'
 import { SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
 
@@ -24,6 +25,34 @@ const emit = defineEmits<{
   (e: 'download', track: Track, variant?: Variant): void
   (e: 'toggle', track: Track): void
 }>()
+
+const menu = useMenuStore()
+
+/** 右键（桌面）与长按（触屏）都弹同一份菜单 */
+function onContextMenu(event: MouseEvent) {
+  if (props.selectMode) return
+  event.preventDefault()
+  menu.openMenu(event, props.track)
+}
+
+/** 触屏长按 500ms 弹菜单：手机上没有右键，长按是通用手势 */
+let pressTimer: ReturnType<typeof setTimeout> | null = null
+
+function startPress(event: PointerEvent) {
+  if (props.selectMode || event.pointerType === 'mouse') return
+  cancelPress()
+  pressTimer = setTimeout(() => {
+    pressTimer = null
+    menu.openMenu(event, props.track)
+  }, 500)
+}
+
+function cancelPress() {
+  if (pressTimer) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+}
 
 const cover = computed(() => coverOf(props.track.cover, props.track.fingerprint))
 const bestBitrate = computed(() => Math.max(...props.track.variants.map((v) => v.bitrate)))
@@ -63,6 +92,11 @@ function onPlay() {
     :class="{ active, playing, picked: selected, selectable: selectMode }"
     @dblclick="!selectMode && emit('play', track)"
     @click="onRowClick"
+    @contextmenu="onContextMenu"
+    @pointerdown="startPress"
+    @pointerup="cancelPress"
+    @pointercancel="cancelPress"
+    @pointermove="cancelPress"
   >
     <!-- 勾选框只在多选模式出现；平时这个位置是序号 -->
     <span v-if="selectMode" class="pick">

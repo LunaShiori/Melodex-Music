@@ -115,6 +115,11 @@ pub enum Error {
         message: String,
     },
 
+    /// 直链已经拿到，但 CDN 拒绝提供内容（403/404 居多）。
+    /// 下载层抛出，引擎据此决定「重取一次链接」还是按「直链被拒」上报。
+    #[error("下载被拒绝：HTTP {status}")]
+    HttpStatus { status: u16 },
+
     /// 没有任何原因信息的兜底失败（旧路径仍在用）。
     #[error("该歌曲没有可用的音频链接")]
     NoPlayableUrl,
@@ -171,6 +176,13 @@ impl Error {
         match self {
             Error::Unavailable { reason, .. } => Some(*reason),
             Error::NoPlayableUrl => Some(Reason::Unknown),
+            Error::HttpStatus { status } => {
+                if *status == 403 || *status == 404 {
+                    Some(Reason::LinkRejected)
+                } else {
+                    Some(Reason::Network)
+                }
+            }
             #[cfg(feature = "net")]
             Error::Http(_) => Some(Reason::Network),
             _ => None,
@@ -181,7 +193,7 @@ impl Error {
     #[cfg(feature = "net")]
     pub fn is_retryable(&self) -> bool {
         match self {
-            Error::Http(_) | Error::NoPlayableUrl => true,
+            Error::Http(_) | Error::NoPlayableUrl | Error::HttpStatus { .. } => true,
             Error::Unavailable { reason, .. } => reason.is_retryable(),
             _ => false,
         }
@@ -246,6 +258,19 @@ mod tests {
         assert!(Reason::NeedLogin.is_login_fixable());
         assert!(Reason::VipOnly.is_login_fixable());
         assert!(!Reason::Copyright.is_login_fixable());
+    }
+
+    #[test]
+    fn http_403_means_link_rejected_and_retryable() {
+        let denied = Error::HttpStatus { status: 403 };
+        assert_eq!(denied.reason(), Some(Reason::LinkRejected));
+        assert!(denied.is_retryable());
+
+        let missing = Error::HttpStatus { status: 404 };
+        assert_eq!(missing.reason(), Some(Reason::LinkRejected));
+
+        let broken = Error::HttpStatus { status: 500 };
+        assert_eq!(broken.reason(), Some(Reason::Network));
     }
 
     #[test]

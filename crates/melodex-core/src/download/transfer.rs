@@ -33,12 +33,14 @@ pub struct TransferResult {
 pub async fn download(
     client: &reqwest::Client,
     url: &str,
+    // 音源要求的请求头（Referer / Origin 等）：QQ 的 CDN 不带 Referer 直接 403
+    headers: &[(&'static str, &'static str)],
     part: &Path,
     cancel: &AtomicBool,
     pause: &AtomicBool,
     decrypt_key: Option<&str>,
     speed_limit_bps: u64,
-    mut on_progress: impl FnMut(u64, u64),
+    on_progress: &mut (dyn FnMut(u64, u64) + Send),
 ) -> Result<TransferResult> {
     let existing = tokio::fs::metadata(part)
         .await
@@ -52,6 +54,9 @@ pub async fn download(
     };
 
     let mut request = client.get(url);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
     if existing > 0 {
         request = request.header("Range", format!("bytes={existing}-"));
     }
@@ -66,9 +71,9 @@ pub async fn download(
         });
     }
     if !status.is_success() {
-        return Err(Error::Source {
-            platform: "transfer".into(),
-            reason: format!("下载失败：HTTP {status}"),
+        // 交给引擎判断：403/404 多半是链接过期或绑定的 IP 变了，值得重取一次。
+        return Err(Error::HttpStatus {
+            status: status.as_u16(),
         });
     }
 

@@ -60,6 +60,39 @@ function mediaError(reason: FailReason, detail: string, source: SourceId): Playe
 export const usePlayerStore = defineStore('player', () => {
   const queue = ref<Track[]>([])
   const index = ref(-1)
+  /**
+   * 播放模式：顺序 / 单曲循环 / 随机。
+   * 只影响「自动播下一首」（播完、自然结束）——手动点上一首 / 下一首永远是一首一首换，
+   * 否则单曲循环下按钮就失灵了。
+   */
+  const MODE_KEY = 'melodex.playmode'
+  type PlayMode = 'order' | 'repeat-one' | 'shuffle'
+  const mode = ref<PlayMode>(readMode())
+
+  function readMode(): PlayMode {
+    try {
+      const saved = localStorage.getItem(MODE_KEY)
+      if (saved === 'order' || saved === 'repeat-one' || saved === 'shuffle') return saved
+    } catch {
+      // 隐私模式下 localStorage 会抛，按默认来
+    }
+    return 'order'
+  }
+
+  function setMode(next: PlayMode) {
+    mode.value = next
+    try {
+      localStorage.setItem(MODE_KEY, next)
+    } catch {
+      // 存不下就算了，本次会话内照样生效
+    }
+  }
+
+  /** 顺序点一周：顺序 → 单曲循环 → 随机 → 顺序 */
+  function cycleMode() {
+    const order: PlayMode[] = ['order', 'repeat-one', 'shuffle']
+    setMode(order[(order.indexOf(mode.value) + 1) % order.length]!)
+  }
   const current = ref<Track | null>(null)
   const variant = ref<Variant | null>(null)
   const playing = ref(false)
@@ -176,7 +209,7 @@ export const usePlayerStore = defineStore('player', () => {
       playing.value = false
     })
     audio.addEventListener('ended', () => {
-      void next()
+      void next(true)
     })
     audio.addEventListener('error', () => {
       if (isDemo) return
@@ -202,7 +235,7 @@ export const usePlayerStore = defineStore('player', () => {
     ticker = setInterval(() => {
       if (!isDemo || !playing.value) return
       position.value = Math.min(duration.value, position.value + 250)
-      if (duration.value && position.value >= duration.value) void next()
+      if (duration.value && position.value >= duration.value) void next(true)
     }, 250)
   }
 
@@ -323,21 +356,92 @@ export const usePlayerStore = defineStore('player', () => {
     if (track) await playTrack(track)
   }
 
-  async function next() {
+  /** 随机挑一首「不是当前这首」的；队列只有一首时原地重播 */
+  function randomIndex(): number {
+    const total = queue.value.length
+    if (total <= 1) return 0
+    let picked = index.value
+    // 队列够长却一直抽到同一首的极端情况有概率死循环，这里限个次数
+    for (let attempt = 0; attempt < 12 && picked === index.value; attempt += 1) {
+      picked = Math.floor(Math.random() * total)
+    }
+    return picked === index.value ? (index.value + 1) % total : picked
+  }
+
+  /**
+   * @param auto 是不是「自己播完」触发的。自动播放在顺序模式下播到最后一首就停，
+   *             手动点下一首则回卷到第一首（和大多数播放器一致）。
+   */
+  async function next(auto = false) {
     if (!queue.value.length) {
       playing.value = false
       return
     }
-    index.value = (index.value + 1) % queue.value.length
+    if (auto && mode.value === 'repeat-one' && current.value) {
+      position.value = 0
+      if (isDemo) {
+        playing.value = true
+        startTicker()
+      } else if (audio) {
+        audio.currentTime = 0
+        await audio.play().catch(() => {
+          if (current.value) void playTrack(current.value, variant.value ?? undefined)
+        })
+        playing.value = true
+      }
+      return
+    }
+    if (mode.value === 'shuffle') {
+      index.value = randomIndex()
+      const picked = queue.value[index.value]
+      if (picked) await playTrack(picked)
+      return
+    }
+    const last = queue.value.length - 1
+    if (index.value >= last) {
+      if (auto) {
+        // 顺序播放：播完最后一首就停在结尾，不自动回到开头
+        playing.value = false
+        position.value = duration.value
+        return
+      }
+      index.value = 0
+    } else {
+      index.value += 1
+    }
     const track = queue.value[index.value]
     if (track) await playTrack(track)
   }
 
   async function prev() {
     if (!queue.value.length) return
-    index.value = (index.value - 1 + queue.value.length) % queue.value.length
+    if (mode.value === 'shuffle') {
+      index.value = randomIndex()
+    } else {
+      index.value = (index.value - 1 + queue.value.length) % queue.value.length
+    }
     const track = queue.value[index.value]
     if (track) await playTrack(track)
+  }
+
+  /** 插到「正在播的下一首」后面；没有在播就当成队列的第一首 */
+  function playNext(track: Track) {
+    if (!queue.value.length || index.value < 0) {
+      queue.value = [track]
+      index.value = 0
+      void playTrack(track)
+      return
+    }
+    queue.value.splice(index.value + 1, 0, track)
+  }
+
+  /** 追加到队列末尾；队列空时直接起播 */
+  function appendToQueue(track: Track) {
+    if (!queue.value.length) {
+      void playList([track], 0)
+      return
+    }
+    queue.value.push(track)
   }
 
   /* ---------- 播放队列面板 ---------- */
@@ -453,6 +557,9 @@ export const usePlayerStore = defineStore('player', () => {
     position,
     duration,
     volume,
+    mode,
+    setMode,
+    cycleMode,
     lyricLines,
     detailOpen,
     loading,
@@ -464,6 +571,8 @@ export const usePlayerStore = defineStore('player', () => {
     playTrack,
     playLocal,
     playList,
+    playNext,
+    appendToQueue,
     next,
     prev,
     queueOpen,

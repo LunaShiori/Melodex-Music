@@ -4,6 +4,7 @@ import { RouterView } from 'vue-router'
 
 import PlayerBar from '@/components/PlayerBar.vue'
 import QueuePanel from '@/components/QueuePanel.vue'
+import TrackMenu from '@/components/TrackMenu.vue'
 import LyricView from '@/components/LyricView.vue'
 import OnboardingDialog from '@/components/OnboardingDialog.vue'
 import SideBar from '@/components/SideBar.vue'
@@ -68,6 +69,7 @@ onUnmounted(() => {
     </div>
     <PlayerBar />
     <QueuePanel />
+    <TrackMenu />
     <TabBar />
     <LyricView />
     <OnboardingDialog />

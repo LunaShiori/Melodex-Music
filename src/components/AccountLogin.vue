@@ -323,7 +323,13 @@ onBeforeUnmount(() => {
 
             <!-- Cookie 粘贴 -->
             <section v-else class="cookie-wrap">
-              <p class="hint">
+              <p v-if="source === 'kuwo'" class="hint">
+                酷我网页端没有扫码登录（App 里那个扫码是私有协议，没有公开接口）。桌面端用上方的
+                「内置登录」在应用内完成；手机端先在浏览器打开
+                <button class="link" type="button" @click="openHome">{{ meta.label }}</button>
+                登录，再复制 <code>kw_token</code> 粘贴到下面。
+              </p>
+              <p v-else class="hint">
                 在浏览器打开
                 <button class="link" type="button" @click="openHome">{{ meta.label }}</button>
                 并登录，然后按 F12 → Network → 任选一个请求 → 复制 Request Headers 里的

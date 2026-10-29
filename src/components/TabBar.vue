@@ -10,6 +10,7 @@ const tasks = useTasksStore()
 
 const items = [
   { name: 'search', path: '/search', label: '搜索', icon: 'search' },
+  { name: 'recent', path: '/recent', label: '最近', icon: 'history' },
   { name: 'downloads', path: '/downloads', label: '下载', icon: 'download' },
   { name: 'library', path: '/library', label: '曲库', icon: 'library' },
   { name: 'playlists', path: '/playlists', label: '歌单', icon: 'queue' },

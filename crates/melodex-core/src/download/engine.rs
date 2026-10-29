@@ -545,6 +545,8 @@ async fn execute(
 
     let mut play: Option<crate::model::PlayUrl> = None;
     let mut resolved: Option<(Source, String)> = None;
+    // 命中的那一档（音源 + 音质）也留一份：CDN 拒绝时可以原样再取一次新链接
+    let mut resolve_input: Option<(Variant, &'static quality::Quality)> = None;
     // 记录信息量最大的失败原因（NeedLogin 比 QualityMissing 有用得多）
     let mut best: Option<Error> = None;
 
@@ -595,6 +597,7 @@ async fn execute(
             match platform.resolve(&variant, item).await {
                 Ok(result) => {
                     resolved = Some((source, source_id));
+                    resolve_input = Some((variant.clone(), item));
                     play = Some(result);
                     break 'candidates;
                 }
@@ -675,39 +678,75 @@ async fn execute(
     let progress_inner = inner.clone();
     let progress_id = id.to_string();
     let download_client = inner.client();
-    let outcome = transfer::download(
-        &download_client,
-        &play.url,
-        &part,
-        cancel,
-        pause,
-        play.ekey.as_deref(),
-        // 限速按 KB/s 配置，核心内部统一用 B/s；0 表示不限速
-        (settings.speed_limit_kbps as u64) * 1024,
-        move |downloaded, total| {
-            let now = Instant::now();
-            if now.duration_since(last_emit) < Duration::from_millis(240) {
-                return;
+    // 播放走本地回环代理时这些头由代理补上；下载是自己发请求，必须自己带。
+    // QQ 的 CDN 不带 Referer(https://y.qq.com/) 会直接 403，这就是「直链被拒」的来源。
+    let stream_headers = platform.stream_headers();
+    let mut on_progress = move |downloaded: u64, total: u64| {
+        let now = Instant::now();
+        if now.duration_since(last_emit) < Duration::from_millis(240) {
+            return;
+        }
+        let elapsed = now.duration_since(last_at).as_secs_f64();
+        let speed = if elapsed > 0.2 {
+            ((downloaded.saturating_sub(last_bytes)) as f64 / elapsed) as u64
+        } else {
+            0
+        };
+        last_bytes = downloaded;
+        last_at = now;
+        last_emit = now;
+        progress_inner.mutate(&progress_id, |task| {
+            task.downloaded = downloaded;
+            if total > 0 {
+                task.total = total;
             }
-            let elapsed = now.duration_since(last_at).as_secs_f64();
-            let speed = if elapsed > 0.2 {
-                ((downloaded.saturating_sub(last_bytes)) as f64 / elapsed) as u64
-            } else {
-                0
-            };
-            last_bytes = downloaded;
-            last_at = now;
-            last_emit = now;
-            progress_inner.mutate(&progress_id, |task| {
-                task.downloaded = downloaded;
-                if total > 0 {
-                    task.total = total;
-                }
-                task.speed_bps = speed;
-            });
-        },
-    )
-    .await?;
+            task.speed_bps = speed;
+        });
+    };
+
+    let mut url = play.url.clone();
+    let mut ekey = play.ekey.clone();
+    let mut refreshed_once = false;
+    let outcome = loop {
+        let attempt = transfer::download(
+            &download_client,
+            &url,
+            stream_headers,
+            &part,
+            cancel,
+            pause,
+            ekey.as_deref(),
+            // 限速按 KB/s 配置，核心内部统一用 B/s；0 表示不限速
+            (settings.speed_limit_kbps as u64) * 1024,
+            &mut on_progress,
+        )
+        .await;
+        match attempt {
+            Ok(outcome) => break outcome,
+            // 403/404：大概率是链接过期，或取链与下载走了不同出口 IP。
+            // 重取一次链接再来；再不行才按「直链被拒」上报（可重试，也建议换音源）。
+            Err(Error::HttpStatus { status })
+                if (status == 403 || status == 404) && !refreshed_once =>
+            {
+                refreshed_once = true;
+                let (variant, item) = resolve_input
+                    .as_ref()
+                    .ok_or_else(|| Error::unavailable(play_source, Reason::LinkRejected))?;
+                let fresh = platform.resolve(variant, item).await?;
+                url = fresh.url;
+                ekey = fresh.ekey;
+                let _ = tokio::fs::remove_file(&part).await;
+            }
+            Err(Error::HttpStatus { status }) => {
+                return Err(Error::unavailable_with(
+                    play_source,
+                    Reason::LinkRejected,
+                    format!("HTTP {status}"),
+                ));
+            }
+            Err(err) => return Err(err),
+        }
+    };
 
     match outcome.outcome {
         TransferOutcome::Paused => return Ok(Step::Paused),

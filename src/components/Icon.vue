@@ -43,6 +43,10 @@ const PATHS: Record<string, string[]> = {
   grid: ['M4 4h7v7H4V4Z', 'M13 4h7v7h-7V4Z', 'M4 13h7v7H4v-7Z', 'M13 13h7v7h-7v-7Z'],
   compact: ['M4 5h5v5H4V5Z', 'M9.5 5h5v5h-5V5Z', 'M15 5h5v5h-5V5Z', 'M4 12h5v5H4v-5Z', 'M9.5 12h5v5h-5v-5Z', 'M15 12h5v5h-5v-5Z'],
   rowlist: ['M4 6h16', 'M4 11h16', 'M4 16h16', 'M4 21h10'],
+  history: ['M12 3a9 9 0 1 0 8.5 12', 'M12 7v5l3.5 2', 'M20 4v4h-4'],
+  order: ['M4 6h12', 'M4 12h12', 'M4 18h8', 'M18 9v7', 'M15.5 13.5 18 16l2.5-2.5'],
+  repeat: ['M20 12a8 8 0 1 1-2.3-5.6', 'M20 4v4h-4', 'M12 10.5v3'],
+  shuffle: ['M4 6h3.5l9 12H20', 'M4 18h3.5l9-12H20', 'M17.5 3.5 20 6l-2.5 2.5'],
 }
 </script>
 

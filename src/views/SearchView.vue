@@ -36,6 +36,17 @@ const summary = computed(() => {
 const pickedTracks = computed(() => list.value.filter((item) => picked.has(item.fingerprint)))
 const allPicked = computed(() => list.value.length > 0 && picked.size >= list.value.length)
 
+/* 最近搜索下拉的状态。用 mousedown.prevent 而不是 click，避免 blur 先把面板收掉 */
+const historyOpen = ref(false)
+
+function openHistory() {
+  historyOpen.value = keywords.value.length > 0
+}
+
+function closeHistory() {
+  historyOpen.value = false
+}
+
 function submit() {
   const word = search.keyword.trim()
   if (word) pushKeywordSafe(word)
@@ -171,7 +182,28 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         autocomplete="off"
         spellcheck="false"
         @keydown.enter="submit"
+        @focus="openHistory"
+        @blur="closeHistory"
       />
+      <!-- 最近搜索跟着搜索框走：聚焦就展开，点条目直接搜 -->
+      <Transition name="drop">
+        <div v-if="historyOpen && keywords.length" class="history-drop">
+          <div class="drop-head">
+            <span>最近搜索</span>
+            <button class="link-btn" type="button" @mousedown.prevent="clearKeywords()">清空</button>
+          </div>
+          <button
+            v-for="word in keywords"
+            :key="word"
+            class="drop-item"
+            type="button"
+            @mousedown.prevent="pick(word)"
+          >
+            <Icon name="history" :size="14" />
+            <span class="drop-word">{{ word }}</span>
+          </button>
+        </div>
+      </Transition>
       <button v-if="search.keyword" class="clear" type="button" @click="search.reset()">
         <Icon name="close" :size="15" />
       </button>
@@ -335,25 +367,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         </ul>
       </div>
 
-      <div v-if="keywords.length" class="history-block">
-        <div class="history-head">
-          <span>最近搜索</span>
-          <button class="link-btn" type="button" @click="clearKeywords()">清空</button>
-        </div>
-        <div class="hot">
-          <button
-            v-for="word in keywords"
-            :key="word"
-            class="chip chip-btn"
-            type="button"
-            @click="pick(word)"
-          >
-            {{ word }}
-          </button>
-        </div>
-      </div>
-
-      <div class="hot-label">{{ recent.length || keywords.length ? '或者试试' : '热门搜索' }}</div>
+      <div class="hot-label">{{ recent.length ? '或者试试' : '热门搜索' }}</div>
       <div class="hot">
         <button v-for="word in hot" :key="word" class="chip chip-btn" type="button" @click="pick(word)">
           {{ word }}
@@ -433,6 +447,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .searchbar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -692,6 +707,62 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   max-width: 460px;
   line-height: 1.7;
 }
+/* 最近搜索下拉：贴在搜索框下面，和搜索框同宽 */
+.history-drop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  padding: 6px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(var(--surface), var(--surface)), var(--bg);
+  box-shadow: var(--shadow-lg);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.drop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 6px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.drop-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.drop-item:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+}
+.drop-word {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drop-enter-active,
+.drop-leave-active {
+  transition: opacity 120ms var(--ease), transform 120ms var(--ease);
+}
+.drop-enter-from,
+.drop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
 .hot {
   display: flex;
   gap: 8px;

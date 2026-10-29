@@ -12,6 +12,12 @@ const router = createRouter({
       meta: { title: '搜索' },
     },
     {
+      path: '/recent',
+      name: 'recent',
+      component: () => import('@/views/RecentView.vue'),
+      meta: { title: '最近' },
+    },
+    {
       path: '/downloads',
       name: 'downloads',
       component: () => import('@/views/DownloadsView.vue'),

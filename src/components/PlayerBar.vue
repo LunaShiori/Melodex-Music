@@ -14,6 +14,20 @@ const player = usePlayerStore()
 const lyric = useLyricStore()
 const bar = ref<HTMLElement | null>(null)
 const scrubbing = ref(false)
+/** 鼠标停在音量区时显示百分比；移开就收起来，避免一直占位 */
+const volumeHot = ref(false)
+
+const MODE_TITLE: Record<string, string> = {
+  order: '顺序播放',
+  'repeat-one': '单曲循环',
+  shuffle: '随机播放',
+}
+const modeTitle = computed(() => `${MODE_TITLE[player.mode] ?? '顺序播放'}（点击切换）`)
+
+/** 滚轮一格 5%：往下滚调小，往上滚调大 */
+function onVolumeWheel(event: WheelEvent) {
+  player.setVolume(player.volume + (event.deltaY < 0 ? 0.05 : -0.05))
+}
 
 const cover = computed(() =>
   player.current ? coverOf(player.current.cover, player.current.fingerprint) : '',
@@ -151,6 +165,14 @@ function openDetail() {
         <button class="icon-btn" title="下一首" :disabled="!player.current" @click="player.next()">
           <Icon name="next" :size="18" />
         </button>
+        <button
+          class="icon-btn mode-btn"
+          :class="{ 'is-active': player.mode !== 'order' }"
+          :title="modeTitle"
+          @click="player.cycleMode()"
+        >
+          <Icon :name="player.mode === 'repeat-one' ? 'repeat' : player.mode === 'shuffle' ? 'shuffle' : 'order'" :size="17" />
+        </button>
       </div>
       <div class="timeline">
         <span class="t mono">{{ formatDuration(player.position) }}</span>
@@ -181,7 +203,13 @@ function openDetail() {
       >
         <Icon name="lyric" :size="17" />
       </button>
-      <div class="volume">
+      <div
+        class="volume"
+        :class="{ hot: volumeHot }"
+        @mouseenter="volumeHot = true"
+        @mouseleave="volumeHot = false"
+        @wheel.prevent="onVolumeWheel"
+      >
         <button class="icon-btn" title="静音" @click="player.setVolume(player.volume > 0 ? 0 : 0.8)">
           <Icon :name="player.volume > 0 ? 'volume' : 'mute'" :size="17" />
         </button>
@@ -192,8 +220,10 @@ function openDetail() {
           max="1"
           step="0.01"
           :value="player.volume"
+          :title="`音量 ${Math.round(player.volume * 100)}%`"
           @input="player.setVolume(Number(($event.target as HTMLInputElement).value))"
         />
+        <span v-if="volumeHot" class="volume-pct mono">{{ Math.round(player.volume * 100) }}%</span>
       </div>
     </div>
 
@@ -559,9 +589,35 @@ function openDetail() {
   gap: 6px;
 }
 .volume {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
+}
+/* 百分比浮在音量条上方，不挤占布局（悬停才出现） */
+.volume-pct {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 2px 7px;
+  border-radius: var(--r-full);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: pct-in 120ms ease-out;
+}
+@keyframes pct-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 3px);
+  }
+}
+.mode-btn.is-active {
+  color: var(--accent);
 }
 .slider {
   width: 76px;

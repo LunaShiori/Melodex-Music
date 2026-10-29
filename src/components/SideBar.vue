@@ -19,6 +19,7 @@ const player = usePlayerStore()
 
 const navs = computed(() => [
   { name: 'search', path: '/search', label: '搜索', icon: 'search', badge: 0 },
+  { name: 'recent', path: '/recent', label: '最近', icon: 'history', badge: 0 },
   { name: 'downloads', path: '/downloads', label: '下载', icon: 'download', badge: tasks.counts.active },
   { name: 'library', path: '/library', label: '曲库', icon: 'library', badge: tasks.completed.length },
   { name: 'playlists', path: '/playlists', label: '歌单', icon: 'queue', badge: 0 },
