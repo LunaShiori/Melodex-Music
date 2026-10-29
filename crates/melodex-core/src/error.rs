@@ -202,7 +202,7 @@ impl Error {
     #[cfg(not(feature = "net"))]
     pub fn is_retryable(&self) -> bool {
         match self {
-            Error::NoPlayableUrl => true,
+            Error::NoPlayableUrl | Error::HttpStatus { .. } => true,
             Error::Unavailable { reason, .. } => reason.is_retryable(),
             _ => false,
         }
