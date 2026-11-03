@@ -574,7 +574,7 @@ QQ 歌单这一块有两个容易踩的字段坑，记在这里省得再查一�
 | 平台 | 状态 | 说明 |
 | --- | --- | --- |
 | Windows 10/11 x64 | ✅ 主要目标 | NSIS 安装包 + MSI，WebView2 随系统 |
-| macOS 11+ | ✅ 打包产出 | Apple 芯片 `dmg`（aarch64）与 Intel `dmg`（x86_64）各一份，未签名 |
+| macOS 11+ | ✅ 打包产出 | 一份通用 `dmg`（arm64 + x86_64），未签名 |
 | Linux x64 | ✅ 打包产出 | `deb` 与 `AppImage`；构建在 Ubuntu 22.04 上，兼容 Debian 12 / Ubuntu 22.04+ |
 | Android 8.0+ (arm64) | ✅ 同一套代码 | `tauri android build` 出 APK，界面自动切移动布局 |
 
@@ -584,7 +584,7 @@ QQ 歌单这一块有两个容易踩的字段坑，记在这里省得再查一�
   Linux 上需要在文件管理器里选中某个文件时才会失败降级为「只打开目录」。
 - **默认下载目录**：Windows 是「音乐」库，macOS / Linux 落到 `~/Music/Melodex`，
   不存在就现场创建，不需要额外权限。
-- **安装包**：macOS 与 Linux 均由 CI 在对应 runner 上真实构建（不交叉编译），
+- **安装包**：macOS 与 Linux 均由 CI 在对应 runner 上真实构建（macOS 用 arm64 runner 交叉编出通用二进制），
   所以产物链接的是各自平台原生的 WebView（WKWebView / WebKitGTK 4.1）。
 
 移动端的差异处理：
@@ -670,12 +670,13 @@ xcode-select --install                     # 需要 Command Line Tools
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
 npm install
-npm run tauri build -- --bundles dmg                                  # 当前机器的架构
-npm run tauri build -- --bundles dmg --target x86_64-apple-darwin     # Intel 机器上交叉产出
+# 通用包（Apple 芯片 + Intel 同一个 dmg），CI 就是这么出的
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+npm run tauri build -- --target universal-apple-darwin --bundles dmg
 ```
 
-产物：`src-tauri/target/<target>/release/bundle/dmg/Melodex Music_<version>_<arch>.dmg`，
-不指定 `--target` 时就在 `src-tauri/target/release/bundle/dmg/` 下。
+产物：`src-tauri/target/universal-apple-darwin/release/bundle/dmg/Melodex Music_<version>_universal.dmg`。
+只出当前架构的话，把 `--target universal-apple-darwin` 去掉即可。
 
 > 两个平台都没有代码签名证书：macOS 首次打开需要「右键 → 打开」绕过 Gatekeeper，
 > Linux 的 deb 是普通未签名包，直接 `dpkg -i` 即可。

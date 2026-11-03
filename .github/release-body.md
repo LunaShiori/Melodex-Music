@@ -4,8 +4,7 @@
 | --- | --- | --- |
 | Windows 10/11 x64 | `*_x64-setup.exe` | 推荐，双击安装，含开始菜单与卸载项 |
 | Windows 10/11 x64 | `*_x64_en-US.msi` | 企业分发 / 静默安装 |
-| macOS 11+ Apple 芯片 | `*_aarch64.dmg` | 拖进「应用程序」即可 |
-| macOS 11+ Intel | `*_x86_64.dmg` | 同上 |
+| macOS 11+（通用） | `*_universal.dmg` | 拖进「应用程序」即可；Apple 芯片与 Intel 同一份 |
 | Linux x64 | `*_amd64.deb` | Debian / Ubuntu：`sudo dpkg -i` 后补依赖 |
 | Linux x64 | `*_amd64.AppImage` | 免安装，`chmod +x` 后直接运行 |
 | Android 8.0+ | `*.apk` | 通用包，需允许「安装未知来源应用」 |

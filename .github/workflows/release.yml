@@ -250,18 +250,10 @@ jobs:
           if-no-files-found: error
 
   macos:
-    name: macOS 安装包 (${{ matrix.arch }})
-    # 两个架构各出一个 dmg：GitHub 的 macos-latest 已经是 arm64，
-    # Intel 机器还得有 macos-13（最后一个 x86_64 镜像）。
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-latest
-            arch: aarch64
-          - runner: macos-13
-            arch: x86_64
-    runs-on: ${{ matrix.runner }}
+    name: macOS 安装包
+    # 一次出通用包（arm64 + x86_64 都包含），不再依赖 macos-13：
+    # Intel 镜像排队能排几十分钟到几小时，而 arm64 runner 上可以直接交叉编出通用二进制。
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -271,35 +263,37 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          key: ${{ matrix.arch }}
+          key: universal
 
       - name: 安装前端依赖
         run: npm ci
 
       # 没有 Apple 开发者证书，只能出未签名包：dmg 里是正常的 .app，
       # 用户首次打开要右键「打开」绕过 Gatekeeper。签名留到有证书时再补。
-      - name: 构建桌面端（dmg）
-        run: npm run tauri build -- --bundles dmg
+      - name: 构建桌面端（通用 dmg）
+        run: npm run tauri build -- --target universal-apple-darwin --bundles dmg
 
       - name: 整理并校验产物
         run: |
           mkdir -p out
           version="${GITHUB_REF_NAME#v}"
-          dmg=$(find src-tauri/target/release/bundle/dmg -name '*.dmg' | head -n 1)
+          dmg=$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name '*.dmg' | head -n 1)
           if [ -z "$dmg" ]; then
             echo "缺少 dmg 产物" >&2
             exit 1
           fi
-          cp "$dmg" "out/MelodexMusic_${version}_${{ matrix.arch }}.dmg"
+          cp "$dmg" "out/MelodexMusic_${version}_universal.dmg"
           ls -lh out
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}
+          name: macos-universal
           path: out/*
           if-no-files-found: error
 

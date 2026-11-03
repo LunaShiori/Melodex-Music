@@ -3,6 +3,27 @@
 本项目的版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)，
 安装包命名与 `Cargo.toml` / `tauri.conf.json` 的 `version` 保持一致。
 
+## v2.0.1
+
+修一个「装了新包却点安装失败」的问题，顺带把 macOS 产物合成一份。
+
+### 修复 · Android 应用内更新装不上（解析软件包时出现问题 (11)）
+
+小米等系统的安装器不在自己的进程里读 `content://`，而是把 URI 转交给另一个进程再打开。
+只靠 intent 上的 `FLAG_GRANT_READ_URI_PERMISSION`，那次转交拿不到授权，系统就报
+`Permission Denial: opening provider ... not exported from UID ...`。
+
+- URI 同时放进 `ClipData`，并给所有能处理安装包 MIME 的应用显式 `grantUriPermission`；
+- Android 11+ 补 `<queries>` 声明，否则应用根本查不到系统安装器；
+- MIUI / AOSP / Google / 三星这几个常见安装器包名再兜一次授权；
+- 系统里没有能安装 APK 的应用时，给出「去设置里允许安装未知应用」的明确提示。
+
+### 改 · macOS 只出一份通用 dmg
+
+- 之前 Apple 芯片与 Intel 各一个 dmg，Intel 那份要排队等 `macos-13` runner，经常一卡几十分钟；
+- 现在在 arm64 runner 上交叉编出 `universal-apple-darwin`，只产出一份 `*_universal.dmg`，
+  Apple 芯片与 Intel 通用。
+
 ## v2.0.0
 
 这一版两件事：能装的平台多了一倍，下载下来的东西终于对得上了。
