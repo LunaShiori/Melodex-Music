@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 import Icon from './Icon.vue'
 import { transport } from '@/lib/transport'
 import { SOURCE_META } from '@/lib/types'
-import type { PlatformQuality, QualityLevel, Track, Variant } from '@/lib/types'
+import type { PlatformQuality, QualityLevel, QualityTier, SourceId, Track, Variant } from '@/lib/types'
+import { useAccountsStore } from '@/stores/accounts'
 
 const props = defineProps<{
   track: Track
@@ -12,23 +13,29 @@ const props = defineProps<{
   initialSource?: string | null
 }>()
 const emit = defineEmits<{
-  (e: 'confirm', payload: { variant: Variant; quality: QualityLevel }): void
+  (e: 'confirm', payload: { variant: Variant; quality: QualityLevel; label: string }): void
   (e: 'close'): void
 }>()
+
+const accounts = useAccountsStore()
 
 /** 各平台的档位表，后端唯一维护 */
 const qualities = ref<PlatformQuality[]>([])
 
 /** 当前选中的平台（用 source id） */
-const selectedSource = ref<string | null>(null)
-/** 各平台选中的音质等级 */
-const chosen: Record<string, QualityLevel> = {}
+const selectedSource = ref<SourceId | null>(null)
+/**
+ * 各平台选中的音质等级。
+ * 必须是响应式的：以前是普通对象，点了档位界面不刷新，
+ * 用户看不到自己选中了哪档，就以为「选了没反馈」。
+ */
+const chosen = reactive<Record<string, QualityLevel>>({})
 
 onMounted(async () => {
   qualities.value = await transport.platformQualities().catch(() => [])
   // 默认选中用户点的那个平台，否则选音质最高的那个
   if (props.initialSource && props.track.variants.some((v) => v.source === props.initialSource)) {
-    selectedSource.value = props.initialSource
+    selectedSource.value = props.initialSource as SourceId
   } else if (props.track.variants.length) {
     selectedSource.value = bestVariant().source
   }
@@ -39,8 +46,40 @@ onMounted(async () => {
   }
 })
 
+/**
+ * 这一档对当前账号能不能下。
+ *
+ * 只做能确定的三件事：会员档要会员、QQ 未登录基本取不到直链、
+ * 其余标成「可直接下」。真正的可用性最终由平台返回，取不到时引擎会自动降级。
+ */
+function tierState(source: SourceId, tier: QualityTier): { text: string; warn: boolean } {
+  const logged = !!accounts.accountOf(source)
+  if (tier.vip) return { text: logged ? '需会员' : '需登录 + 会员', warn: true }
+  if (source === 'qq' && !logged) return { text: '需登录', warn: true }
+  return { text: '可直接下', warn: false }
+}
+
+/** 当前选中档位；没有可选项时为 null */
+const activeTier = computed(() => {
+  const source = selectedSource.value
+  if (!source) return null
+  return tierOf(source)
+})
+
+/** 选中的档位是否需要账号权益，决定底部那句提醒 */
+const activeNeedsRights = computed(() => {
+  const tier = activeTier.value
+  const source = selectedSource.value
+  if (!tier || !source) return false
+  return tierState(source, tier).warn
+})
+
+function tierCaption(tier: QualityTier): string {
+  return `${tier.format.toUpperCase()} ${tier.bitrate >= 1000 ? `${tier.bitrate / 1000} Mbps` : `${tier.bitrate}kbps`}`
+}
+
 /** 该平台选中的档位对象 */
-function tierOf(source: string) {
+function tierOf(source: SourceId) {
   const table = qualities.value.find((item) => item.source === source)
   if (!table?.items.length) return null
   const level = chosen[source]
@@ -64,7 +103,7 @@ function confirm() {
   const variant = selectedVariant.value
   const tier = selectedSource.value ? tierOf(selectedSource.value) : null
   if (!variant || !tier) return
-  emit('confirm', { variant, quality: tier.level })
+  emit('confirm', { variant, quality: tier.level, label: tier.label })
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -87,7 +126,10 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
       </header>
 
       <div class="body">
-        <p class="hint muted">选择下载平台与音质。多平台可取的歌，各平台的音质上限不同。</p>
+        <p class="hint muted">
+          选平台和音质。每档后面标了当前账号能不能下：带「需登录」「需会员」的档位取不到时会自动降到下一档，
+          不会卡住整首。
+        </p>
 
         <div class="platforms">
           <article
@@ -121,6 +163,9 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
                   <span v-if="tier.vip" class="vip mini">会员</span>
                 </span>
                 <span class="tier-detail mono">{{ tier.detail }}</span>
+                <span class="tier-state" :class="{ warn: tierState(variant.source, tier).warn }">
+                  {{ tierState(variant.source, tier).text }}
+                </span>
               </button>
             </div>
           </article>
@@ -128,6 +173,13 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
       </div>
 
       <footer class="foot">
+        <p v-if="activeTier && selectedVariant" class="foot-summary">
+          <span class="mono">{{ SOURCE_META[selectedVariant.source].label }}</span>
+          <span class="sep">·</span>
+          <strong>{{ activeTier.label }}</strong>
+          <span class="mono muted">{{ tierCaption(activeTier) }}</span>
+          <span v-if="activeNeedsRights" class="foot-warn">账号没有这档权益时会自动降级</span>
+        </p>
         <button class="btn" type="button" @click="emit('close')">取消</button>
         <button class="btn btn-primary" type="button" :disabled="!selectedVariant" @click="confirm">
           <Icon name="download" :size="15" />
@@ -142,7 +194,8 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 .backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* 高于更新提示与各类气泡（80/90），否则会被压在弹窗上面 */
+  z-index: 95;
   display: grid;
   place-items: center;
   padding: 20px;
@@ -308,6 +361,39 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
   color: var(--text-3);
 }
 
+.tier-state {
+  margin-top: 2px;
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: var(--ok, #1f9d6b);
+}
+.tier-state.warn {
+  color: var(--text-3);
+}
+
+.foot-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 auto 0 0;
+  font-size: 12px;
+  color: var(--text-2);
+  min-width: 0;
+}
+.foot-summary .sep {
+  color: var(--text-3);
+}
+.foot-summary strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.foot-warn {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
 .vip {
   padding: 0 5px;
   border-radius: 4px;
@@ -324,6 +410,7 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 
 .foot {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 18px 16px;

@@ -25,6 +25,8 @@ CHECK_FILES = [
     "mipmap-xxxhdpi/ic_launcher_foreground.png",
     "mipmap-xxxhdpi/ic_launcher_round.png",
     "mipmap-anydpi-v26/ic_launcher.xml",
+    "mipmap-anydpi-v26/ic_launcher_round.xml",
+    "drawable/ic_launcher_background.xml",
     "values/ic_launcher_background.xml",
 ]
 

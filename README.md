@@ -1,6 +1,6 @@
 # Melodex Music
 
-**多源音乐聚合搜索 · 内置播放器与逐行歌词 · 批量下载 —— Windows 桌面端 + Android 手机端**
+**多源音乐聚合搜索 · 内置播放器与逐行歌词 · 批量下载 —— Windows / macOS / Linux 桌面端 + Android 手机端**
 
 一次输入，同时检索网易云音乐、QQ 音乐、酷我音乐，把同一首歌的三份结果合并成一条：
 点开就在应用里播、歌词逐行跟着走，要留存就批量下载，落盘时自动写 ID3 标签与封面。
@@ -13,7 +13,7 @@
 
 <!-- 徽章：仓库地址替换成你自己的即可 -->
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-6b5bf0.svg)](#平台支持)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-6b5bf0.svg)](#平台支持)
 [![Rust](https://img.shields.io/badge/core-Rust%20%2B%20Tauri%202-orange.svg)](crates/melodex-core)
 [![Vue](https://img.shields.io/badge/ui-Vue%203%20%2B%20TypeScript-42b883.svg)](src)
 
@@ -34,6 +34,7 @@
 - [平台支持](#平台支持)
 - [快速开始](#快速开始)
 - [构建 Windows 安装包](#构建-windows-安装包)
+- [构建 macOS / Linux 安装包](#构建-macos--linux-安装包)
 - [构建 Android APK](#构建-android-apk)
 - [发布安装包（GitHub Release）](#发布安装包github-release)
 - [开发与调试](#开发与调试)
@@ -573,8 +574,18 @@ QQ 歌单这一块有两个容易踩的字段坑，记在这里省得再查一�
 | 平台 | 状态 | 说明 |
 | --- | --- | --- |
 | Windows 10/11 x64 | ✅ 主要目标 | NSIS 安装包 + MSI，WebView2 随系统 |
+| macOS 11+ | ✅ 打包产出 | Apple 芯片 `dmg`（aarch64）与 Intel `dmg`（x86_64）各一份，未签名 |
+| Linux x64 | ✅ 打包产出 | `deb` 与 `AppImage`；构建在 Ubuntu 22.04 上，兼容 Debian 12 / Ubuntu 22.04+ |
 | Android 8.0+ (arm64) | ✅ 同一套代码 | `tauri android build` 出 APK，界面自动切移动布局 |
-| macOS / Linux | 🟡 理论可用 | 核心与界面与平台无关，未做打包验证 |
+
+三个桌面平台的差异处理：
+
+- **打开文件 / 打开文件夹**：Windows 走 `explorer`，macOS 走 `open` / `open -R`，Linux 走 `xdg-open`；
+  Linux 上需要在文件管理器里选中某个文件时才会失败降级为「只打开目录」。
+- **默认下载目录**：Windows 是「音乐」库，macOS / Linux 落到 `~/Music/Melodex`，
+  不存在就现场创建，不需要额外权限。
+- **安装包**：macOS 与 Linux 均由 CI 在对应 runner 上真实构建（不交叉编译），
+  所以产物链接的是各自平台原生的 WebView（WKWebView / WebKitGTK 4.1）。
 
 移动端的差异处理：
 
@@ -627,6 +638,47 @@ npm run tauri build
 | NSIS 安装包 | `src-tauri/target/release/bundle/nsis/Melodex Music_<version>_x64-setup.exe` |
 | MSI 安装包 | `src-tauri/target/release/bundle/msi/Melodex Music_<version>_x64_en-US.msi` |
 | 免安装可执行 | `src-tauri/target/release/melodex.exe` |
+
+## 构建 macOS / Linux 安装包
+
+两个平台都在各自的原生环境里构建（`.github/workflows/release.yml` 的 `linux` / `macos` job 就是这么做），
+不做交叉编译——Tauri 的产物链接系统自带的 WebView，交叉编译出来的包在目标机器上起不来。
+
+**Linux（Ubuntu 22.04 / Debian 12）**
+
+```bash
+sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev   libayatana-appindicator3-dev librsvg2-dev patchelf file
+
+npm install
+npm run tauri build -- --bundles deb,appimage
+```
+
+产物：
+
+| 文件 | 路径 |
+| --- | --- |
+| deb | `src-tauri/target/release/bundle/deb/Melodex Music_<version>_amd64.deb` |
+| AppImage | `src-tauri/target/release/bundle/appimage/Melodex Music_<version>_amd64.AppImage` |
+
+AppImage 依赖 `libfuse2`（Ubuntu 24.04 上包名是 `libfuse2t64`），没装的话可以
+`./Melodex\ Music_<version>_amd64.AppImage --appimage-extract-and-run` 直接跑。
+
+**macOS（11+）**
+
+```bash
+xcode-select --install                     # 需要 Command Line Tools
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+npm install
+npm run tauri build -- --bundles dmg                                  # 当前机器的架构
+npm run tauri build -- --bundles dmg --target x86_64-apple-darwin     # Intel 机器上交叉产出
+```
+
+产物：`src-tauri/target/<target>/release/bundle/dmg/Melodex Music_<version>_<arch>.dmg`，
+不指定 `--target` 时就在 `src-tauri/target/release/bundle/dmg/` 下。
+
+> 两个平台都没有代码签名证书：macOS 首次打开需要「右键 → 打开」绕过 Gatekeeper，
+> Linux 的 deb 是普通未签名包，直接 `dpkg -i` 即可。
 
 ## 构建 Android APK
 

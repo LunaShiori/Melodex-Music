@@ -4,7 +4,9 @@ use std::time::{Duration, Instant};
 use futures_util::future::join_all;
 use tokio::time::timeout;
 
-use crate::model::{normalize_title, AggregatedPage, Source, SourceReport, Track, Variant};
+use crate::model::{
+    normalize_title, version_tag, AggregatedPage, Source, SourceReport, Track, Variant,
+};
 use crate::platform::{MusicPlatform, Registry, SearchQuery};
 
 /// 跨源聚合器：并发扇出到各音源，合并同一首歌，再按相关度排序。
@@ -146,14 +148,23 @@ fn interleave(buckets: Vec<Vec<Variant>>) -> Vec<Variant> {
     merged
 }
 
-/// 把同曲记录合并为聚合条目。判重条件：归一化标题一致，且（时长接近 或 歌手有交集）。
+/// 把同曲记录合并为聚合条目。判重条件：归一化标题一致、版本标记一致，
+/// 且（时长接近 或 歌手有交集）。
+///
+/// 「版本类型一致」不是锦上添花：归一化会把括号整段丢掉，`晴天 (伴奏)` 与 `晴天`
+/// 归一化后完全一样、时长也一样，只按标题判重会把伴奏并进原曲，
+/// 下载时就可能拿到伴奏文件（列表仍显示原曲）。
 fn group_tracks(variants: Vec<Variant>) -> Vec<Track> {
     let mut groups: Vec<Track> = Vec::new();
     for variant in variants {
         let title_key = normalize_title(&variant.title);
+        let tag = version_tag(&variant.title);
         let mut matched = false;
         for track in groups.iter_mut() {
             if normalize_title(&track.title) != title_key {
+                continue;
+            }
+            if version_tag(&track.title) != tag {
                 continue;
             }
             if same_song(track, &variant) {
@@ -277,12 +288,37 @@ mod tests {
         let items = vec![
             variant(Source::Netease, "1", "晴天", "周杰伦", 269_000),
             variant(Source::Qq, "2", "晴天", "周杰伦", 270_000),
-            variant(Source::Kuwo, "3", "晴天 (Live)", "周杰伦", 271_000),
+            variant(Source::Kuwo, "3", "晴天", "周杰伦", 271_000),
         ];
         let tracks = group_tracks(items);
         assert_eq!(tracks.len(), 1);
         assert_eq!(tracks[0].variants.len(), 3);
         assert_eq!(tracks[0].sources().len(), 3);
+    }
+
+    /// 伴奏和原曲时长、歌手都一样，归一化后标题也相同——
+    /// 只按标题判重会并成一条，下载就可能拿到伴奏（用户反馈过这个 bug）。
+    #[test]
+    fn keeps_instrumental_apart_from_original() {
+        let items = vec![
+            variant(Source::Netease, "1", "晴天", "周杰伦", 269_000),
+            variant(Source::Qq, "2", "晴天 (伴奏)", "周杰伦", 269_000),
+            variant(Source::Netease, "3", "晴天（纯音乐）", "周杰伦", 269_000),
+        ];
+        let tracks = group_tracks(items);
+        assert_eq!(tracks.len(), 3, "原曲、伴奏、纯音乐应当是三条");
+        assert!(tracks.iter().all(|track| track.variants.len() == 1));
+    }
+
+    #[test]
+    fn keeps_live_and_remix_apart() {
+        let items = vec![
+            variant(Source::Netease, "1", "晴天", "周杰伦", 269_000),
+            variant(Source::Qq, "2", "晴天 (Live)", "周杰伦", 269_000),
+            variant(Source::Kuwo, "3", "晴天 (DJ版)", "周杰伦", 269_000),
+        ];
+        let tracks = group_tracks(items);
+        assert_eq!(tracks.len(), 3);
     }
 
     #[test]

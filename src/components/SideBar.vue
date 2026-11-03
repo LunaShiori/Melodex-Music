@@ -6,7 +6,6 @@ import BrandMark from './BrandMark.vue'
 import Icon from './Icon.vue'
 import { transport } from '@/lib/transport'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
-import { usePlayerStore } from '@/stores/player'
 import { useSearchStore } from '@/stores/search'
 import { useSettingsStore } from '@/stores/settings'
 import { useTasksStore } from '@/stores/tasks'
@@ -15,7 +14,6 @@ const route = useRoute()
 const tasks = useTasksStore()
 const search = useSearchStore()
 const settings = useSettingsStore()
-const player = usePlayerStore()
 
 const navs = computed(() => [
   { name: 'search', path: '/search', label: '搜索', icon: 'search', badge: 0 },
@@ -32,7 +30,7 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
 <template>
   <aside class="sidebar">
     <header class="brand">
-      <span class="mark" :class="{ spinning: player.playing }"><BrandMark :size="26" /></span>
+      <span class="mark"><BrandMark :size="22" /></span>
       <span class="brand-text">
         <strong>Melodex<i class="music-tag">MUSIC</i></strong>
         <small>多源音乐聚合 · 播放与歌词</small>
@@ -113,18 +111,9 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
   height: 38px;
   border-radius: 12px;
   color: #fff;
-  background: linear-gradient(148deg, var(--accent) 10%, #22c1c3 120%);
+  background: linear-gradient(150deg, #816aff, #4e2fd6);
   box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--accent) 70%, transparent);
 }
-.mark.spinning :deep(svg) {
-  animation: spin 8s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .brand-text {
   display: flex;
   flex-direction: column;

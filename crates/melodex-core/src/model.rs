@@ -396,6 +396,77 @@ pub fn normalize_title(raw: &str) -> String {
     out
 }
 
+/// 标题里带的「版本类型」标记。
+///
+/// [`normalize_title`] 会把括号内容整段丢掉，于是「晴天」与「晴天 (伴奏)」归一化后同名。
+/// 判重只看标题 + 歌手 + 时长时，伴奏版会被并进原曲那一条，
+/// 结果就是「列表显示原曲、下下来却是伴奏」——下载实际选中的是另一份录音。
+/// 这里把这类标记单独提出来，判重时要求两边一致。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VersionClass {
+    /// 录音室原版（标题没有版本标记）。
+    Studio,
+    /// 伴奏 / 纯音乐 / 卡拉 OK。
+    Instrumental,
+    /// 现场版。
+    Live,
+    /// 混音 / DJ 版。
+    Remix,
+    /// 翻唱。
+    Cover,
+}
+
+/// 版本标记表：越靠前优先级越高（同一条标题里出现多个标记时取第一个）。
+const VERSION_MARKS: &[(&str, VersionClass)] = &[
+    ("伴奏", VersionClass::Instrumental),
+    ("纯音乐", VersionClass::Instrumental),
+    ("伴唱", VersionClass::Instrumental),
+    ("消音", VersionClass::Instrumental),
+    ("无和声", VersionClass::Instrumental),
+    ("off vocal", VersionClass::Instrumental),
+    ("offvocal", VersionClass::Instrumental),
+    ("instrumental", VersionClass::Instrumental),
+    ("karaoke", VersionClass::Instrumental),
+    ("翻唱", VersionClass::Cover),
+    ("翻自", VersionClass::Cover),
+    ("cover", VersionClass::Cover),
+    ("自唱", VersionClass::Cover),
+    ("live", VersionClass::Live),
+    ("现场", VersionClass::Live),
+    ("演唱会", VersionClass::Live),
+    ("音乐会", VersionClass::Live),
+    ("remix", VersionClass::Remix),
+    ("混音", VersionClass::Remix),
+    ("dj版", VersionClass::Remix),
+    ("dj 版", VersionClass::Remix),
+    ("重混", VersionClass::Remix),
+];
+
+fn match_mark(raw: &str) -> Option<(&'static str, VersionClass)> {
+    let lower = raw.to_ascii_lowercase();
+    VERSION_MARKS
+        .iter()
+        .find(|(mark, _)| lower.contains(mark))
+        .map(|(mark, class)| (*mark, *class))
+}
+
+/// 标题里命中的版本标记原文，没有则 `None`。
+///
+/// 判重时用「标记原文」而不是类别：`伴奏` 和 `纯音乐` 都属于 Instrumental，
+/// 但它们是两份不同的录音，不能因为类别相同就并到一起。
+pub fn version_tag(raw: &str) -> Option<&'static str> {
+    match_mark(raw).map(|(mark, _)| mark)
+}
+
+/// 从原始标题（不是归一化标题）里认出这是哪个版本。
+///
+/// 只认标题里明写的标记：平台不给「原曲 / 伴奏」字段，宁可判成 Studio 也不去猜。
+pub fn version_class(raw: &str) -> VersionClass {
+    match_mark(raw)
+        .map(|(_, class)| class)
+        .unwrap_or(VersionClass::Studio)
+}
+
 /// 判重指纹：标题 + 首位歌手 + 时长（按 3 秒取整，容忍各源元数据偏差）。
 pub fn fingerprint(title: &str, artists: &[String], duration_ms: u64) -> String {
     let artist = artists
@@ -414,6 +485,18 @@ pub fn fingerprint(title: &str, artists: &[String], duration_ms: u64) -> String 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn version_class_reads_markers_without_guessing() {
+        assert_eq!(version_class("晴天"), VersionClass::Studio);
+        assert_eq!(version_class("晴天 (伴奏)"), VersionClass::Instrumental);
+        assert_eq!(version_class("晴天（纯音乐）"), VersionClass::Instrumental);
+        assert_eq!(version_class("晴天 (Live)"), VersionClass::Live);
+        assert_eq!(version_class("晴天 (DJ版)"), VersionClass::Remix);
+        assert_eq!(version_class("晴天 (翻唱)"), VersionClass::Cover);
+        // 没写版本标记的一律按原版处理，不靠时长/歌手去猜
+        assert_eq!(version_class("晴天 周杰伦"), VersionClass::Studio);
+    }
 
     #[test]
     fn normalize_strips_bracket_suffix_and_punct() {

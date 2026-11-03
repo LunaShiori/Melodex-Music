@@ -83,22 +83,19 @@ const pickerTrack = ref<Track | null>(null)
 const pickerSource = ref<string | null>(null)
 
 function download(track: Track, variant?: Variant) {
-  // 只有一个音源时没有选择必要，直接入队（引擎按设置音质自动降级）
-  if (track.variants.length <= 1) {
-    void tasks.enqueue([track])
-    return
-  }
+  // 只有一个音源也弹窗：用户要先看到这档能不能下、能不能选，选完再入队
   // 点了某个音源芯片：预选该平台；否则默认按最高音质挑平台
   pickerSource.value = variant?.source ?? null
   pickerTrack.value = track
 }
 
-function onPickerConfirm(payload: { variant: Variant; quality: string }) {
+function onPickerConfirm(payload: { variant: Variant; quality: string; label: string }) {
   if (!pickerTrack.value) return
   void tasks.enqueuePicked(
     pickerTrack.value,
     payload.variant,
     payload.quality as import('@/lib/types').QualityLevel,
+    payload.label,
   )
   pickerTrack.value = null
 }

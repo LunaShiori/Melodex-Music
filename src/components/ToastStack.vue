@@ -27,7 +27,8 @@ const visible = computed(() => tasks.notices.slice(-3))
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 50;
+  /* 要压在更新提示（60）上面，否则刚入队的提示会被盖住 */
+  z-index: 70;
   pointer-events: none;
 }
 
@@ -76,7 +77,8 @@ const visible = computed(() => tasks.notices.slice(-3))
   .toasts {
     left: 12px;
     right: 12px;
-    bottom: calc(var(--player) + 62px);
+    /* 手机上还要让开底部那条更新提示，再往上抬一点 */
+    bottom: calc(var(--player) + 118px);
   }
   .toast {
     max-width: none;

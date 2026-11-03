@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { transport } from '@/lib/transport'
+import { SOURCE_META } from '@/lib/types'
 import type { DownloadTask, EngineEvent, EnqueueInput, QualityLevel, Track, Variant } from '@/lib/types'
 import { bestVariant, fallbacksOf } from '@/lib/track'
 
@@ -107,7 +108,12 @@ export const useTasksStore = defineStore('tasks', () => {
    * 用户在下载选择弹窗里明确指定了平台与音质，按该选择入队，
    * 其余平台作为兜底（首选源取不到链接时依次尝试）。
    */
-  async function enqueuePicked(track: Track, variant: Variant, quality: QualityLevel) {
+  async function enqueuePicked(
+    track: Track,
+    variant: Variant,
+    quality: QualityLevel,
+    label?: string,
+  ) {
     const input: EnqueueInput = {
       source: variant.source,
       sourceId: variant.id,
@@ -122,7 +128,9 @@ export const useTasksStore = defineStore('tasks', () => {
       fallbacks: fallbacksOf(track, variant.source),
     }
     const ids = await transport.enqueue([input])
-    pushNotice('info', `已加入下载任务`)
+    // 明确回到用户刚才选了什么，否则看起来像「点了没反应、还是默认档」
+    const tier = label ? ` · ${label}` : ''
+    pushNotice('info', `已加入下载${tier} · ${SOURCE_META[variant.source].label}：${track.title}`)
     return ids
   }
 
