@@ -3,7 +3,10 @@
 package app.melodex
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.core.content.FileProvider
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -34,6 +37,14 @@ class ApkInstallArgs {
  */
 @TauriPlugin
 class ApkInstallPlugin(private val activity: Activity) : Plugin(activity) {
+  /** 常见系统安装器的包名：queryIntentActivities 拿不到时兜底授权 */
+  private val KNOWN_INSTALLERS = listOf(
+    "com.miui.packageinstaller",
+    "com.android.packageinstaller",
+    "com.google.android.packageinstaller",
+    "com.samsung.android.packageinstaller"
+  )
+
   /** 4 字节的 ZIP 本地文件头魔数；APK 本质就是个 ZIP */
   private val zipMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
 
@@ -69,12 +80,36 @@ class ApkInstallPlugin(private val activity: Activity) : Plugin(activity) {
       }
       val authority = "${activity.packageName}.apkprovider"
       val uri = FileProvider.getUriForFile(activity, authority, file)
+      val readGrant = Intent.FLAG_GRANT_READ_URI_PERMISSION
       val intent = Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(uri, "application/vnd.android.package-archive")
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        addFlags(readGrant)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // 有些系统安装器（小米的 packageinstaller 就是）不在自己的进程里直接读这个
+        // content://，而是把 URI 转交给另一个进程再打开。只靠 intent 上的
+        // FLAG_GRANT_READ_URI_PERMISSION，那次转交就拿不到授权，用户看到的是
+        // 「解析软件包时出现问题 (11) Permission Denial: ... not exported」。
+        // 所以这里做两件事：URI 同时放进 ClipData，并给每个能处理它的应用显式授权。
+        clipData = ClipData.newRawUri("apk", uri)
       }
-      activity.startActivity(intent)
+      val handlers = activity.packageManager
+        .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+      for (handler in handlers) {
+        activity.grantUriPermission(handler.activityInfo.packageName, uri, readGrant)
+      }
+      // 系统 installer 常常以 resolver 身份出现、不会出现在上面的列表里（Android 11+
+      // 的包可见性还会把 queryIntentActivities 过滤空），所以再按常见包名逐个补授权；
+      // 包不存在时这个调用是空操作，不会抛异常。
+      for (pkg in KNOWN_INSTALLERS) {
+        activity.grantUriPermission(pkg, uri, readGrant)
+      }
+      try {
+        activity.startActivity(intent)
+      } catch (ex: ActivityNotFoundException) {
+        throw IllegalStateException(
+          "系统里没有能安装 APK 的应用，请到「设置 → 应用 → 安装未知应用」里检查后重试"
+        )
+      }
       invoke.resolve()
     } catch (ex: Exception) {
       // 最常见的是「不允许安装未知应用」：系统会自己弹授权页，这里只把原因回给前端

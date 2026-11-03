@@ -46,6 +46,17 @@ PROVIDER = """        <!-- file:// 从 Android 7 起不能跨应用传递，更�
         </provider>
 """
 
+# Android 11+ 默认看不到别的应用；不声明 <queries>，queryIntentActivities 会是空列表，
+# 就拿不到「谁会处理 application/vnd.android.package-archive」，也就没法给它授权。
+QUERIES = """    <!-- 让应用能查到系统安装器，好把 content:// 的读权限显式授给它 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
+    </queries>
+"""
+
 GRADLE_DEP = '    implementation("androidx.core:core-ktx:1.13.1")\n'
 
 
@@ -54,22 +65,37 @@ def identifier() -> str:
     return conf["identifier"]
 
 
+def _line_end(text: str, index: int) -> int:
+    """返回 index 所在行的行尾之后的位置（含换行符）。"""
+    found = text.find(chr(10), index)
+    return len(text) if found < 0 else found + 1
+
+
 def patch_manifest(path: pathlib.Path) -> None:
     text = path.read_text(encoding="utf-8")
     original = text
 
     if "REQUEST_INSTALL_PACKAGES" not in text:
-        match = re.search(r"<manifest[^>]*>\s*\n", text)
-        if not match:
+        anchor = text.find("<manifest")
+        if anchor < 0:
             raise SystemExit(f"错误：{path} 里找不到 <manifest> 开标签，无法注入权限")
-        text = text[: match.end()] + USES_PERMISSION + text[match.end():]
+        insert_at = _line_end(text, anchor)
+        text = text[:insert_at] + USES_PERMISSION + text[insert_at:]
+
+    if "<queries>" not in text:
+        anchor = text.find("<uses-permission")
+        if anchor < 0:
+            anchor = text.find("<manifest")
+        if anchor < 0:
+            raise SystemExit(f"错误：{path} 里找不到可插入 <queries> 的位置")
+        insert_at = _line_end(text, anchor)
+        text = text[:insert_at] + QUERIES + text[insert_at:]
 
     if "apkprovider" not in text:
         index = text.rfind("</application>")
         if index < 0:
             raise SystemExit(f"错误：{path} 里找不到 </application>，无法注入 FileProvider")
-        # 退到这一行的行首再插入，否则 </application> 的缩进会跑到 provider 前面去
-        line_start = text.rfind("\n", 0, index) + 1
+        line_start = text.rfind(chr(10), 0, index) + 1
         text = text[:line_start] + PROVIDER + text[line_start:]
 
     if text != original:
