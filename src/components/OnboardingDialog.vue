@@ -119,6 +119,7 @@ function go(path: string) {
             <span>{{ t(point) }}</span>
           </li>
         </ul>
+        <p v-if="isLast" class="legal-note">{{ t('onboard.s5.note') }}</p>
 
         <footer class="foot">
           <div class="dots" aria-hidden="true">
@@ -140,6 +141,12 @@ function go(path: string) {
 </template>
 
 <style scoped>
+.legal-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
 .mask {
   position: fixed;
   inset: 0;

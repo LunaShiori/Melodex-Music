@@ -248,6 +248,7 @@ const DEFAULT_SETTINGS: Settings = {
   speedLimitKbps: 0,
   proxy: '',
   proxyScopes: { search: true, link: true, download: true, update: true },
+  proxySources: ['netease', 'qq', 'kuwo', 'kugou'],
   writeTags: true,
   embedCover: true,
   saveLyric: true,

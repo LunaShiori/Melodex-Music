@@ -96,6 +96,11 @@ pub struct Settings {
     /// 只有下载或者检查更新经常被墙。老配置（v1.7 及以前）没有这个字段，
     /// 反序列化时按「四条全开」处理——那时本来就是全都走代理。
     pub proxy_scopes: ProxyScopes,
+
+    /// 允许走代理的音源。默认全部（含老配置：反序列化缺字段时按全部补齐）。
+    /// 只填了代理、没勾某个音源时，那个音源的请求直接连。
+    #[serde(default = "all_sources")]
+    pub proxy_sources: Vec<Source>,
     /// 是否写入 ID3 标签
     pub write_tags: bool,
     /// 是否内嵌封面
@@ -154,6 +159,7 @@ impl Default for Settings {
             speed_limit_kbps: 0,
             proxy: String::new(),
             proxy_scopes: ProxyScopes::default(),
+            proxy_sources: all_sources(),
             write_tags: true,
             embed_cover: true,
             save_lyric: true,
@@ -233,6 +239,11 @@ impl Settings {
 ///
 /// 每个目标平台只编译出**一个** `let dir`，避免用 `return` 早退导致其余分支成为
 /// 不可达代码（Android 目标上曾因此触发 `unreachable_code` 警告）。
+/// 默认让所有音源都走代理。
+fn all_sources() -> Vec<Source> {
+    Source::ALL.to_vec()
+}
+
 pub fn default_download_dir() -> std::path::PathBuf {
     #[cfg(target_os = "android")]
     let dir = std::path::PathBuf::from("/storage/emulated/0/Download/Melodex");

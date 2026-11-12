@@ -234,6 +234,8 @@ export interface Settings {
   proxy: string
   /** 代理用在哪几件事上；老配置没有这个字段时四条全开 */
   proxyScopes: ProxyScopes
+  /** 允许走代理的音源；缺省全部 */
+  proxySources: SourceId[]
   writeTags: boolean
   embedCover: boolean
   saveLyric: boolean

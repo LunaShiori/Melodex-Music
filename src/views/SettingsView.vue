@@ -170,6 +170,21 @@ function commitProxy() {
   if (next !== (settings.value?.proxy ?? '')) void update({ proxy: next })
 }
 
+// 「哪些音源走代理」：没填过时按全部勾上处理
+const PROXY_SOURCE_ITEMS = ALL_SOURCES
+
+function proxySourceOn(source: SourceId): boolean {
+  const list = settings.value?.proxySources
+  if (!list) return true
+  return list.includes(source)
+}
+
+function toggleProxySource(source: SourceId, on: boolean) {
+  const list = settings.value?.proxySources ?? [...ALL_SOURCES]
+  const next = on ? Array.from(new Set([...list, source])) : list.filter((item) => item !== source)
+  void update({ proxySources: next })
+}
+
 function toggleScope(key: keyof ProxyScopes, on: boolean) {
   const current = settings.value?.proxyScopes
   if (!current) return
@@ -327,6 +342,24 @@ onMounted(async () => {
                   @change="toggleScope(item.key, ($event.target as HTMLInputElement).checked)"
                 />
                 <span>{{ t(item.label) }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="label">
+            <p>{{ t('settings.proxySources') }}</p>
+            <small>{{ t('settings.proxySourcesHint') }}</small>
+          </div>
+          <div class="control wide">
+            <div class="scope-list">
+              <label v-for="item in PROXY_SOURCE_ITEMS" :key="item" class="scope">
+                <input
+                  type="checkbox"
+                  :checked="proxySourceOn(item)"
+                  @change="toggleProxySource(item, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ sourceName(item) }}</span>
               </label>
             </div>
           </div>

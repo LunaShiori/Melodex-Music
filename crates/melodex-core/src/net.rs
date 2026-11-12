@@ -4,6 +4,7 @@ use std::time::Duration;
 use serde::de::DeserializeOwned;
 
 use crate::error::{Error, Result};
+use crate::model::Source;
 use crate::settings::ProxyScopes;
 
 pub const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
@@ -58,6 +59,8 @@ pub struct Net {
     /// 用户填的原值（已 trim），非法也照样保留，设置页要能看见自己填了什么。
     proxy: Arc<RwLock<String>>,
     scopes: Arc<RwLock<ProxyScopes>>,
+    /// 允许走代理的音源。空集合 = 全部音源都直连。
+    sources: Arc<RwLock<Vec<Source>>>,
 }
 
 impl Net {
@@ -82,6 +85,7 @@ impl Net {
             direct,
             proxy: Arc::new(RwLock::new(proxy)),
             scopes: Arc::new(RwLock::new(ProxyScopes::default())),
+            sources: Arc::new(RwLock::new(Source::ALL.to_vec())),
         })
     }
 
@@ -112,6 +116,23 @@ impl Net {
         *self.scopes.read().expect("net lock poisoned")
     }
 
+    /// 改「哪些音源走代理」。默认全部走；用户可以让某个音源直连（比如国内源不挂梯子更快）。
+    pub fn set_sources(&self, sources: Vec<Source>) {
+        *self.sources.write().expect("net lock poisoned") = sources;
+    }
+
+    pub fn sources(&self) -> Vec<Source> {
+        self.sources.read().expect("net lock poisoned").clone()
+    }
+
+    /// 这个音源的请求会不会走代理。`None` 表示不区分音源（更新检查、登录窗口这类）。
+    fn source_allowed(&self, source: Option<Source>) -> bool {
+        match source {
+            Some(source) => self.sources().contains(&source),
+            None => true,
+        }
+    }
+
     pub fn proxy(&self) -> String {
         self.proxy.read().expect("net lock poisoned").clone()
     }
@@ -124,25 +145,91 @@ impl Net {
         self.proxied.read().expect("net lock poisoned").is_some()
     }
 
+    /// 某个音源的某类请求会不会走代理。
+    pub fn uses_proxy_for(&self, source: Source, purpose: ProxyFor) -> bool {
+        self.pick(purpose, Some(source)).is_some()
+    }
+
     pub fn client_for(&self, purpose: ProxyFor) -> reqwest::Client {
-        match self.pick(purpose) {
+        match self.pick(purpose, None) {
             Some(clients) => clients.client.clone(),
             None => self.direct.client.clone(),
         }
     }
 
     fn plain_for(&self, purpose: ProxyFor) -> reqwest::Client {
-        match self.pick(purpose) {
+        match self.pick(purpose, None) {
             Some(clients) => clients.plain.clone(),
             None => self.direct.plain.clone(),
         }
     }
 
-    fn pick(&self, purpose: ProxyFor) -> Option<Clients> {
+    fn pick(&self, purpose: ProxyFor, source: Option<Source>) -> Option<Clients> {
         if !self.scopes().allows(purpose) {
             return None;
         }
+        if !self.source_allowed(source) {
+            return None;
+        }
         self.proxied.read().expect("net lock poisoned").clone()
+    }
+
+    /// 某个音源专用的客户端：音源被排除在代理外时给直连客户端。
+    pub fn client_src(&self, source: Source, purpose: ProxyFor) -> reqwest::Client {
+        match self.pick(purpose, Some(source)) {
+            Some(clients) => clients.client.clone(),
+            None => self.direct.client.clone(),
+        }
+    }
+
+    /// 某个音源的 GET 取文本。
+    pub async fn text_src(
+        &self,
+        source: Source,
+        purpose: ProxyFor,
+        url: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<String> {
+        Ok(self
+            .get_src(source, purpose, url, headers)
+            .await?
+            .text()
+            .await?)
+    }
+
+    /// 某个音源的 JSON 请求。
+    pub async fn json_src<T: DeserializeOwned>(
+        &self,
+        source: Source,
+        purpose: ProxyFor,
+        url: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<T> {
+        let body = self.text_src(source, purpose, url, headers).await?;
+        serde_json::from_str(&body)
+            .map_err(|err| Error::decode(format!("{} <- {}", err, snippet(&body))))
+    }
+
+    async fn get_src(
+        &self,
+        source: Source,
+        purpose: ProxyFor,
+        url: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<reqwest::Response> {
+        let mut req = self.client_src(source, purpose).get(url);
+        for (name, value) in headers {
+            req = req.header(*name, *value);
+        }
+        let resp = req.send().await?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(Error::Source {
+                platform: "http".into(),
+                reason: format!("HTTP {status} <- {}", trim_url(url)),
+            });
+        }
+        Ok(resp)
     }
 
     pub fn client(&self) -> reqwest::Client {
@@ -366,6 +453,26 @@ mod tests {
             net.uses_proxy(ProxyFor::Download),
             "只勾了下载，它就还走代理"
         );
+    }
+
+    #[test]
+    fn excluded_source_stays_direct() {
+        let net = Net::with_proxy("http://127.0.0.1:7890").expect("http 代理应当能建");
+        net.set_sources(vec![Source::Qq]);
+        // QQ 在名单里，走代理；网易云不在，直连
+        assert!(net.uses_proxy_for(Source::Qq, ProxyFor::Search));
+        assert!(!net.uses_proxy_for(Source::Netease, ProxyFor::Search));
+        // 不区分音源的请求（更新检查）不受这份名单影响
+        assert!(net.uses_proxy(ProxyFor::Update));
+    }
+
+    #[test]
+    fn empty_source_list_sends_everything_direct() {
+        let net = Net::with_proxy("http://127.0.0.1:7890").expect("http 代理应当能建");
+        net.set_sources(Vec::new());
+        for source in Source::ALL {
+            assert!(!net.uses_proxy_for(source, ProxyFor::Search));
+        }
     }
 
     #[test]

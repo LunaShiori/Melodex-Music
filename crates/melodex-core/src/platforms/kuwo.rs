@@ -8,6 +8,9 @@ use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::pseudo_json;
 use crate::quality::Quality;
 
+/// 本音源的标识，用于「哪些音源走代理」的判定。
+const SOURCE: Source = Source::Kuwo;
+
 const SEARCH_API: &str = "http://search.kuwo.cn/r.s";
 const REFERER: &str = "http://www.kuwo.cn/";
 /// 播放直链的附加请求头（本地代理用）。
@@ -53,7 +56,9 @@ impl MusicPlatform for Kuwo {
         );
         let body = self
             .net
-            .text(
+            .text_src(
+                SOURCE,
+                ProxyFor::Search,
                 &url,
                 &[("Referer", REFERER), ("User-Agent", crate::net::UA)],
             )

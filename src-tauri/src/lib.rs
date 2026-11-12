@@ -46,6 +46,7 @@ impl AppState {
         let net = melodex_core::net::Net::with_proxy(settings.proxy_url().unwrap_or(""))
             .map_err(|err| err.to_string())?;
         net.set_scopes(settings.proxy_scopes);
+        net.set_sources(settings.proxy_sources.clone());
         let creds = CredStore::new();
         let vault_dir = dir.join("vault");
 
@@ -435,6 +436,7 @@ async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result
     // 搜索 / 登录 / 检查更新走 Net，下载走 engine 自己的客户端：两边都得跟着换代理。
     state.net.set_proxy(settings.proxy_url().unwrap_or(""));
     state.net.set_scopes(settings.proxy_scopes);
+    state.net.set_sources(settings.proxy_sources.clone());
     let json = serde_json::to_string_pretty(&settings).map_err(|err| err.to_string())?;
     std::fs::write(&state.settings_path, json).map_err(|err| err.to_string())?;
     Ok(())

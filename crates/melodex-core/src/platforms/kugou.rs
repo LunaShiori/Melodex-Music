@@ -11,6 +11,8 @@ use crate::quality::Quality;
 const SEARCH_API: &str = "https://songsearch.kugou.com/song_search_v2";
 const PLAY_API: &str = "https://m.kugou.com/app/i/getSongInfo.php";
 const REFERER: &str = "https://www.kugou.com/";
+/// 本音源的标识，用于「哪些音源走代理」的判定。
+const SOURCE: Source = Source::Kugou;
 /// 播放直链的附加请求头（本地代理用）。
 const STREAM_HEADERS: &[(&str, &str)] = &[("Referer", REFERER)];
 /// 搜索页默认每页条数上限，接口自己也会夹。
@@ -72,7 +74,9 @@ impl MusicPlatform for Kugou {
         );
         let body = self
             .net
-            .text(
+            .text_src(
+                SOURCE,
+                ProxyFor::Search,
                 &url,
                 &[("Referer", REFERER), ("User-Agent", crate::net::UA)],
             )
@@ -108,7 +112,8 @@ impl MusicPlatform for Kugou {
         let url = format!("{PLAY_API}?cmd=playInfo&hash={hash}");
         let body = self
             .net
-            .text_for(
+            .text_src(
+                SOURCE,
                 ProxyFor::Link,
                 &url,
                 &[(

@@ -17,6 +17,9 @@ use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::qq_file::{candidate_files, extension_of, is_lossless_format, FileInfo};
 use crate::quality::{Quality, QualityLevel};
 
+/// 本音源的标识，用于「哪些音源走代理」的判定。
+const SOURCE: Source = Source::Qq;
+
 const REFERER: &str = "https://y.qq.com/";
 /// 歌词接口的 Referer 必须是播放器页，换成首页会返回空歌词。
 const LYRIC_REFERER: &str = "https://y.qq.com/portal/player.html";
@@ -263,7 +266,10 @@ impl MusicPlatform for QqMusic {
             "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p={}&n={}&w={keyword}&format=json&cr=1&t=0",
             query.page, query.limit
         );
-        let raw: RawSearch = self.net.json(&url, &self.headers()).await?;
+        let raw: RawSearch = self
+            .net
+            .json_src(SOURCE, ProxyFor::Search, &url, &self.headers())
+            .await?;
         let song = raw
             .data
             .and_then(|d| d.song)
@@ -359,7 +365,10 @@ impl MusicPlatform for QqMusic {
         // 不带这个参数时返回的是 base64 后再被 JSON 转义的文本，很容易解出乱码。
         let url = format!("{LYRIC_API}?songmid={id}&format=json&nobase64=1&g_tk=5381");
         let headers = [("Referer", LYRIC_REFERER), ("Origin", REFERER)];
-        let raw: RawLyric = self.net.json(&url, &headers).await?;
+        let raw: RawLyric = self
+            .net
+            .json_src(SOURCE, ProxyFor::Search, &url, &headers)
+            .await?;
         if raw.retcode.unwrap_or(0) != 0 {
             return Ok(None);
         }
@@ -386,7 +395,10 @@ impl MusicPlatform for QqMusic {
         if !cookie.is_empty() {
             headers.push(("Cookie", cookie.as_str()));
         }
-        let raw: RawCdList = self.net.json(&url, &headers).await?;
+        let raw: RawCdList = self
+            .net
+            .json_src(SOURCE, ProxyFor::Search, &url, &headers)
+            .await?;
         let Some(detail) = raw.cdlist.and_then(|list| list.into_iter().next()) else {
             return Ok(None);
         };

@@ -12,6 +12,9 @@ use crate::net::{Net, ProxyFor};
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::quality::{Quality, QualityLevel};
 
+/// 本音源的标识，用于「哪些音源走代理」的判定。
+const SOURCE: Source = Source::Netease;
+
 const ORIGIN: &str = "https://music.163.com";
 /// 播放直链的附加请求头（本地代理用）。
 const STREAM_HEADERS: &[(&str, &str)] = &[("Referer", ORIGIN)];
@@ -46,7 +49,10 @@ impl Netease {
             .collect::<Vec<_>>()
             .join(",");
         let url = format!("{ORIGIN}/api/song/detail?ids=%5B{joined}%5D");
-        let raw: RawDetail = self.net.json(&url, &self.headers()).await?;
+        let raw: RawDetail = self
+            .net
+            .json_src(SOURCE, ProxyFor::Search, &url, &self.headers())
+            .await?;
         let mut map = HashMap::new();
         for song in raw.songs.unwrap_or_default() {
             let album = song.album.unwrap_or_default();
@@ -65,7 +71,10 @@ impl Netease {
         for chunk in ids.chunks(500) {
             let joined = chunk.join(",");
             let url = format!("{ORIGIN}/api/song/detail?ids=%5B{joined}%5D");
-            let raw: RawSongs = self.net.json(&url, headers).await?;
+            let raw: RawSongs = self
+                .net
+                .json_src(SOURCE, ProxyFor::Search, &url, headers)
+                .await?;
             for song in raw.songs.unwrap_or_default() {
                 map.insert(song.id.to_string(), song.into_variant());
             }
@@ -89,7 +98,10 @@ impl Netease {
         if let Some(cookie) = cookie {
             headers.push(("Cookie", cookie));
         }
-        let raw: RawSongUrl = self.net.json_for(ProxyFor::Link, &url, &headers).await?;
+        let raw: RawSongUrl = self
+            .net
+            .json_src(SOURCE, ProxyFor::Link, &url, &headers)
+            .await?;
         let Some(item) = raw.data.into_iter().next() else {
             return Ok(None);
         };
@@ -130,7 +142,11 @@ impl Netease {
         if let Some(ref c) = cookie {
             headers.push(("Cookie", c.as_str()));
         }
-        let raw: RawPrivilegeDetail = self.net.json(&url, &headers).await.ok()?;
+        let raw: RawPrivilegeDetail = self
+            .net
+            .json_src(SOURCE, ProxyFor::Search, &url, &headers)
+            .await
+            .ok()?;
         let fee = raw
             .songs
             .as_ref()
@@ -186,7 +202,10 @@ impl MusicPlatform for Netease {
         if let Some(ref c) = cookie {
             headers.push(("Cookie", c.as_str()));
         }
-        let raw: RawSearch = self.net.json(&url, &headers).await?;
+        let raw: RawSearch = self
+            .net
+            .json_src(SOURCE, ProxyFor::Search, &url, &headers)
+            .await?;
         let result = raw
             .result
             .ok_or_else(|| Error::decode("网易云搜索返回空 result"))?;
@@ -241,7 +260,10 @@ impl MusicPlatform for Netease {
 
     async fn lyric(&self, id: &str) -> Result<Option<Lyric>> {
         let url = format!("{ORIGIN}/api/song/lyric?id={id}&lv=1&kv=1&tv=-1");
-        let raw: RawLyric = self.net.json(&url, &self.headers()).await?;
+        let raw: RawLyric = self
+            .net
+            .json_src(SOURCE, ProxyFor::Search, &url, &self.headers())
+            .await?;
         let translation = raw.tlyric.and_then(|t| {
             if t.lyric.trim().is_empty() {
                 None
@@ -263,7 +285,10 @@ impl MusicPlatform for Netease {
         if !cookie.is_empty() {
             headers.push(("Cookie", cookie.as_str()));
         }
-        let raw: RawPlaylist = self.net.json(&url, &headers).await?;
+        let raw: RawPlaylist = self
+            .net
+            .json_src(SOURCE, ProxyFor::Search, &url, &headers)
+            .await?;
         let Some(playlist) = raw.playlist else {
             return Ok(None);
         };
@@ -315,7 +340,10 @@ impl MusicPlatform for Netease {
             .ok_or_else(|| Error::unavailable(Source::Netease, Reason::NeedLogin))?;
 
         let url = format!("{ORIGIN}/api/user/playlist?uid={uid}&limit=200&offset=0");
-        let raw: RawUserPlaylists = self.net.json(&url, &headers).await?;
+        let raw: RawUserPlaylists = self
+            .net
+            .json_src(SOURCE, ProxyFor::Search, &url, &headers)
+            .await?;
         Ok(raw
             .playlist
             .unwrap_or_default()
