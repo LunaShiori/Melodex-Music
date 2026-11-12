@@ -130,6 +130,10 @@ impl Registry {
             Source::Kuwo,
             Arc::new(crate::platforms::kuwo::Kuwo::new(net.clone(), creds)),
         );
+        map.insert(
+            Source::Kugou,
+            Arc::new(crate::platforms::kugou::Kugou::new(net.clone())),
+        );
         Self {
             platforms: Arc::new(map),
         }

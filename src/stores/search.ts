@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { ALL_SOURCES } from '@/lib/types'
 import { computed, ref } from 'vue'
 
 import { transport } from '@/lib/transport'
@@ -39,7 +40,7 @@ function readPrefs(): SortMode {
 export const useSearchStore = defineStore('search', () => {
   const keyword = ref('')
   const activeKeyword = ref('')
-  const sources = ref<SourceId[]>(['netease', 'qq', 'kuwo'])
+  const sources = ref<SourceId[]>([...ALL_SOURCES])
   const tracks = ref<Track[]>([])
   const reports = ref<SourceReport[]>([])
   const page = ref(1)

@@ -88,14 +88,14 @@ interface Seed {
 }
 
 const CATALOG: Seed[] = [
-  { title: '晴天', artists: ['周杰伦'], album: '叶惠美', durationMs: 269_000, fee: 'vip', sources: ['netease', 'qq', 'kuwo'] },
+  { title: '晴天', artists: ['周杰伦'], album: '叶惠美', durationMs: 269_000, fee: 'vip', sources: ['netease', 'qq', 'kuwo', 'kugou'] },
   { title: '七里香', artists: ['周杰伦'], album: '七里香', durationMs: 299_000, fee: 'vip', sources: ['netease', 'qq'] },
-  { title: '稻香', artists: ['周杰伦'], album: '魔杰座', durationMs: 223_000, fee: 'free', sources: ['netease', 'qq', 'kuwo'] },
+  { title: '稻香', artists: ['周杰伦'], album: '魔杰座', durationMs: 223_000, fee: 'free', sources: ['netease', 'qq', 'kuwo', 'kugou'] },
   { title: '夜曲', artists: ['周杰伦'], album: '十一月的萧邦', durationMs: 226_000, fee: 'vip', sources: ['qq', 'kuwo'] },
   { title: '起风了', artists: ['买辣椒也用券'], album: '起风了', durationMs: 325_000, fee: 'free', sources: ['netease', 'kuwo'] },
   { title: '海底', artists: ['一支榴莲'], album: '海底', durationMs: 256_000, fee: 'free', sources: ['netease', 'qq'] },
   { title: '漠河舞厅', artists: ['柳爽'], album: '漠河舞厅', durationMs: 268_000, fee: 'free', sources: ['netease', 'kuwo'] },
-  { title: '光年之外', artists: ['邓紫棋'], album: '光年之外', durationMs: 235_000, fee: 'free', sources: ['netease', 'qq', 'kuwo'] },
+  { title: '光年之外', artists: ['邓紫棋'], album: '光年之外', durationMs: 235_000, fee: 'free', sources: ['netease', 'qq', 'kuwo', 'kugou'] },
   { title: '句号', artists: ['邓紫棋'], album: '摩天动物园', durationMs: 244_000, fee: 'vip', sources: ['qq'] },
   { title: '这世界那么多人', artists: ['莫文蔚'], album: '这世界那么多人', durationMs: 285_000, fee: 'free', sources: ['netease', 'qq'] },
   { title: 'Lemon', artists: ['米津玄師'], album: 'Lemon', durationMs: 255_000, fee: 'free', sources: ['netease', 'qq', 'kuwo'] },
@@ -111,6 +111,7 @@ const BITRATE: Record<SourceId, number[]> = {
   netease: [320, 192, 128],
   qq: [320, 128],
   kuwo: [320, 128],
+  kugou: [320, 128],
 }
 
 function buildVariants(seed: Seed, index: number): Variant[] {
@@ -208,6 +209,16 @@ const DEMO_QUALITIES: PlatformQuality[] = [
       { code: '320', label: '高品质', detail: 'MP3 320kbps', level: 'exquisite', bitrate: 320, format: 'mp3', vip: false },
       { code: '128', label: '标准音质', detail: 'MP3 128kbps', level: 'standard', bitrate: 128, format: 'mp3', vip: false },
       { code: '48', label: '流畅音质', detail: 'AAC 48kbps', level: 'standard', bitrate: 48, format: 'aac', vip: false },
+    ],
+  },
+  {
+    source: 'kugou',
+    label: '酷狗音乐',
+    note: '无损与 320k 需要酷狗会员账号；未登录多数歌曲只给 128k',
+    items: [
+      { code: 'sq', label: '无损音质', detail: 'FLAC 44.1kHz', level: 'lossless', bitrate: 1000, format: 'flac', vip: true },
+      { code: 'hq', label: '高品质', detail: 'MP3 320kbps', level: 'exquisite', bitrate: 320, format: 'mp3', vip: false },
+      { code: 'std', label: '标准音质', detail: 'MP3 128kbps', level: 'standard', bitrate: 128, format: 'mp3', vip: false },
     ],
   },
 ]

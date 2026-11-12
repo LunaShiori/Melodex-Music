@@ -8,16 +8,18 @@ pub enum Source {
     Netease,
     Qq,
     Kuwo,
+    Kugou,
 }
 
 impl Source {
-    pub const ALL: [Source; 3] = [Source::Netease, Source::Qq, Source::Kuwo];
+    pub const ALL: [Source; 4] = [Source::Netease, Source::Qq, Source::Kuwo, Source::Kugou];
 
     pub fn id(self) -> &'static str {
         match self {
             Source::Netease => "netease",
             Source::Qq => "qq",
             Source::Kuwo => "kuwo",
+            Source::Kugou => "kugou",
         }
     }
 
@@ -26,6 +28,7 @@ impl Source {
             Source::Netease => "网易云音乐",
             Source::Qq => "QQ 音乐",
             Source::Kuwo => "酷我音乐",
+            Source::Kugou => "酷狗音乐",
         }
     }
 
@@ -35,6 +38,7 @@ impl Source {
             Source::Netease => "#E23B3B",
             Source::Qq => "#2BAE67",
             Source::Kuwo => "#F5A623",
+            Source::Kugou => "#3B9EFF",
         }
     }
 
@@ -45,6 +49,7 @@ impl Source {
             "netease" | "163" | "wyy" => Some(Source::Netease),
             "qq" | "qqmusic" => Some(Source::Qq),
             "kuwo" => Some(Source::Kuwo),
+            "kugou" | "kg" => Some(Source::Kugou),
             _ => None,
         }
     }
@@ -113,6 +118,10 @@ pub struct Variant {
     /// 只用于「按热度排序」，不参与任何业务判断。
     #[serde(default)]
     pub popularity: u32,
+    /// 平台为更高音质单独准备的 id（酷狗的 320k / 无损各有独立 hash）。
+    /// 顺序与平台档位表一致（高 → 低），`resolve` 按档位取用；多数音源为空。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub alt_ids: Vec<String>,
 }
 
 impl Variant {
@@ -132,6 +141,7 @@ impl Variant {
             origin: None,
             media_mid: None,
             popularity: 0,
+            alt_ids: Vec::new(),
         }
     }
 

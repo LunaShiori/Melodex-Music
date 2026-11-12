@@ -583,6 +583,8 @@ async fn execute(
             fee: Fee::Unknown,
             // 下载任务不关心原唱/翻唱标注
             origin: None,
+            // 音质 id 由任务自带的 source_id 决定，不需要额外别名
+            alt_ids: Vec::new(),
             // 下载任务只带 songmid，不带 media_mid：QQ 的 resolve 发现它是 None
             // 会自己去歌曲详情里补真实值，比把搜索结果的 mid 一路传下来更可靠
             // （歌单接口干脆不给 media_mid）。

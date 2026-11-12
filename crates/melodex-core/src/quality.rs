@@ -328,12 +328,43 @@ pub const KUWO: &[Quality] = &[
     ),
 ];
 
+pub const KUGOO: &[Quality] = &[
+    q(
+        "sq",
+        "无损音质",
+        "FLAC 44.1kHz",
+        QualityLevel::Lossless,
+        1_000,
+        "flac",
+        true,
+    ),
+    q(
+        "hq",
+        "高品质",
+        "MP3 320kbps",
+        QualityLevel::Exquisite,
+        320,
+        "mp3",
+        false,
+    ),
+    q(
+        "std",
+        "标准音质",
+        "MP3 128kbps",
+        QualityLevel::Standard,
+        128,
+        "mp3",
+        false,
+    ),
+];
+
 /// 某个平台的全部档位，从高到低。
 pub fn table(source: Source) -> &'static [Quality] {
     match source {
         Source::Netease => NETEASE,
         Source::Qq => QQ,
         Source::Kuwo => KUWO,
+        Source::Kugou => KUGOO,
     }
 }
 
@@ -389,6 +420,7 @@ fn note_of(source: Source) -> &'static str {
             "登录后按账号权益取最高档：普通账号到 320k，绿钻到 SQ 无损，超级会员可试臻品母带/全景声"
         }
         Source::Kuwo => "母带/全景声需要酷我会员账号；未登录多数歌曲只能取到 320k",
+        Source::Kugou => "无损与 320k 需要酷狗会员账号；未登录多数歌曲只给 128k",
     }
 }
 

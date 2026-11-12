@@ -1,4 +1,4 @@
-export type SourceId = 'netease' | 'qq' | 'kuwo'
+export type SourceId = 'netease' | 'qq' | 'kuwo' | 'kugou'
 export type Fee = 'free' | 'vip' | 'paid' | 'unknown'
 
 /** 界面强调色（主题色），与明暗主题正交 */
@@ -258,9 +258,10 @@ export const SOURCE_META: Record<
   netease: { label: '网易云音乐', short: '网易云', color: '#e23b3b', home: 'https://music.163.com' },
   qq: { label: 'QQ 音乐', short: 'QQ', color: '#23a166', home: 'https://y.qq.com' },
   kuwo: { label: '酷我音乐', short: '酷我', color: '#ef9f1f', home: 'https://www.kuwo.cn' },
+  kugou: { label: '酷狗音乐', short: '酷狗', color: '#3b9eff', home: 'https://www.kugou.com' },
 }
 
-export const ALL_SOURCES: SourceId[] = ['netease', 'qq', 'kuwo']
+export const ALL_SOURCES: SourceId[] = ['netease', 'qq', 'kuwo', 'kugou']
 
 /** 发布清单里的一个可下载文件（安装包 / 压缩包） */
 export interface ReleaseAsset {

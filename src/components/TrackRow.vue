@@ -198,7 +198,8 @@ function onPlay() {
 <style scoped>
 .row {
   display: grid;
-  grid-template-columns: 24px 44px minmax(0, 1fr) 172px 76px 48px 72px;
+  /* 可用源这一列要装得下四个音源的胶囊，加宽到 200px */
+  grid-template-columns: 24px 44px minmax(0, 1fr) 200px 76px 48px 72px;
   align-items: center;
   gap: 12px;
   height: 60px;
@@ -382,13 +383,17 @@ function onPlay() {
   display: flex;
   gap: 4px;
   justify-content: flex-start;
+  min-width: 0;
+  overflow: hidden;
 }
 .src-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   height: 21px;
-  padding: 0 7px;
+  /* 四个源同屏时不能再撑，收紧内边距并禁止换行 */
+  padding: 0 6px;
+  white-space: nowrap;
   border-radius: var(--r-full);
   font-size: 10.5px;
   font-weight: 500;
