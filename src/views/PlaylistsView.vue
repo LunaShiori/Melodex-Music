@@ -5,6 +5,7 @@ import { RouterLink } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import TrackRow from '@/components/TrackRow.vue'
 import { coverOf } from '@/lib/artwork'
+import { sourceName, useI18n } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { transport } from '@/lib/transport'
 import { QUALITY_LEVELS } from '@/lib/quality'
@@ -22,6 +23,7 @@ import { usePlayerStore } from '@/stores/player'
 import { useSettingsStore } from '@/stores/settings'
 import { useTasksStore } from '@/stores/tasks'
 
+const { t } = useI18n()
 const accounts = useAccountsStore()
 const tasks = useTasksStore()
 const player = usePlayerStore()
@@ -43,9 +45,9 @@ const ACCOUNT_SOURCES: SourceId[] = ['netease', 'qq']
 type PlaylistView = 'grid' | 'compact' | 'list'
 
 const VIEWS: { id: PlaylistView; label: string; icon: string }[] = [
-  { id: 'grid', label: '大封面', icon: 'grid' },
-  { id: 'compact', label: '小图标', icon: 'compact' },
-  { id: 'list', label: '列表', icon: 'rowlist' },
+  { id: 'grid', label: 'playlists.view.grid', icon: 'grid' },
+  { id: 'compact', label: 'playlists.view.compact', icon: 'compact' },
+  { id: 'list', label: 'playlists.view.list', icon: 'rowlist' },
 ]
 
 const VIEW_KEY = 'melodex.playlists.view'
@@ -86,7 +88,7 @@ const groups = computed(() => {
       : all
     return {
       source,
-      label: SOURCE_META[source].label,
+      label: source,
       loggedIn: Boolean(accounts.accountOf(source)),
       items,
       total: all.length,
@@ -104,10 +106,10 @@ const searching = computed(() => query.value.trim().length > 0 && matchedTotal.v
 type FeeFilter = 'all' | 'free' | 'vip' | 'lossless'
 
 const FEE_FILTERS: { id: FeeFilter; label: string }[] = [
-  { id: 'all', label: '全部' },
-  { id: 'free', label: '免费' },
-  { id: 'vip', label: '会员' },
-  { id: 'lossless', label: '无损' },
+  { id: 'all', label: 'common.all' },
+  { id: 'free', label: 'playlists.fee.free' },
+  { id: 'vip', label: 'playlists.fee.vip' },
+  { id: 'lossless', label: 'playlists.fee.lossless' },
 ]
 
 /** 批量下载的目标音质：默认跟随设置里的全局档位，可在大歌单里临时改 */
@@ -196,7 +198,7 @@ async function open(item: PlaylistSummary) {
   try {
     const detail = await transport.playlist({ source: item.source, id: item.id })
     if (!detail) {
-      error.value = '这个歌单没有取到内容，可能已被删除或需要重新登录'
+      error.value = t('playlists.loadFailed')
       return
     }
     opened.value = detail
@@ -270,10 +272,10 @@ async function exportOpened() {
   exporting.value = true
   try {
     const path = await transport.saveTextFile(
-      exportFileName(`melodex-歌单-${detail.name || detail.id}`),
+      exportFileName(`melodex-playlist-${detail.name || detail.id}`),
       exportPayload([detail]),
     )
-    tasks.pushNotice('success', path ? `已导出到 ${path}` : '已开始下载导出文件')
+    tasks.pushNotice('success', path ? t('playlists.exportedTo', { path }) : t('playlists.exportStarted'))
   } catch (err) {
     tasks.pushNotice('error', err instanceof Error ? err.message : String(err))
   } finally {
@@ -291,12 +293,14 @@ async function exportAll() {
       if (detail) details.push(detail)
     }
     const path = await transport.saveTextFile(
-      exportFileName('melodex-歌单合集'),
+      exportFileName('melodex-playlists'),
       exportPayload(details),
     )
     tasks.pushNotice(
       'success',
-      path ? `已导出 ${details.length} 个歌单到 ${path}` : `已开始下载 ${details.length} 个歌单`,
+      path
+        ? t('playlists.exportAllTo', { n: details.length, path })
+        : t('playlists.exportAllStarted', { n: details.length }),
     )
   } catch (err) {
     tasks.pushNotice('error', err instanceof Error ? err.message : String(err))
@@ -309,7 +313,7 @@ async function exportAll() {
 function tracksFromExport(raw: unknown): Track[] {
   const file = raw as { kind?: string; playlists?: Array<{ items?: Variant[] }> } | null
   if (!file || file.kind !== 'playlist-export' || !Array.isArray(file.playlists)) {
-    throw new Error('这不是 Melodex 导出的歌单文件')
+    throw new Error(t('playlists.badFile'))
   }
   const out: Track[] = []
   const seen = new Set<string>()
@@ -335,13 +339,13 @@ async function onImportFile(event: Event) {
   try {
     const tracks = tracksFromExport(JSON.parse(await file.text()))
     if (!tracks.length) {
-      tasks.pushNotice('warning', '这个文件里没有可以下载的曲目')
+      tasks.pushNotice('warning', t('playlists.emptyFile'))
       return
     }
     await tasks.enqueue(tracks)
-    tasks.pushNotice('success', `已导入 ${tracks.length} 首，开始下载`)
+    tasks.pushNotice('success', t('playlists.imported', { n: tracks.length }))
   } catch (err) {
-    tasks.pushNotice('error', `导入失败：${err instanceof Error ? err.message : String(err)}`)
+    tasks.pushNotice('error', t('playlists.importFailed', { msg: err instanceof Error ? err.message : String(err) }))
   } finally {
     importing.value = false
   }
@@ -358,16 +362,16 @@ onMounted(async () => {
   <div class="view">
     <header class="head">
       <div>
-        <h1>{{ opened ? opened.name : '我的歌单' }}</h1>
+        <h1>{{ opened ? opened.name : t('playlists.mine') }}</h1>
         <p class="muted">
           <template v-if="opened">
-            来自 {{ SOURCE_META[opened.source].label }} · 共 {{ opened.items.length }} 首
+            {{ t('playlists.from', { source: sourceName(opened.source), n: opened.items.length }) }}
             <template v-if="filteredTracks.length !== opened.items.length">
-              · 筛出 {{ filteredTracks.length }} 首
+              · {{ t('playlists.filtered', { n: filteredTracks.length }) }}
             </template>
           </template>
           <template v-else>
-            读取各平台当前登录账号的歌单，点进去就能直接下载
+            {{ t('playlists.subtitle') }}
           </template>
         </p>
       </div>
@@ -376,13 +380,13 @@ onMounted(async () => {
         <template v-if="opened">
           <button class="btn" type="button" @click="back">
             <Icon name="chevron" :size="14" class="flip" />
-            返回
+            {{ t('common.back') }}
           </button>
           <button class="btn" type="button" :disabled="exporting" @click="exportOpened">
             <Icon name="download" :size="14" />
-            导出
+            {{ t('playlists.export') }}
           </button>
-          <select v-model="batchQuality" class="quality-select" title="批量下载音质">
+          <select v-model="batchQuality" class="quality-select" :title="t('playlists.batchQuality')">
             <option v-for="level in QUALITY_LEVELS" :key="level.id" :value="level.id">
               {{ level.label }}
             </option>
@@ -394,26 +398,26 @@ onMounted(async () => {
             @click="downloadAll"
           >
             <Icon name="download" :size="14" />
-            下载{{ feeFilter === 'all' && !trackQuery.trim() ? '全部' : '筛选结果' }}
+            {{ feeFilter === 'all' && !trackQuery.trim() ? t('playlists.downloadAll') : t('playlists.downloadFiltered') }}
           </button>
         </template>
         <template v-else>
           <div class="segmented">
             <button
               v-for="option in [
-                { value: 'all' as const, label: '全部' },
-                { value: 'netease' as const, label: '网易云' },
-                { value: 'qq' as const, label: 'QQ 音乐' },
+                { value: 'all' as const, label: 'common.all' },
+                { value: 'netease' as const, label: 'source.netease.short' },
+                { value: 'qq' as const, label: 'source.qq.label' },
               ]"
               :key="option.value"
               type="button"
               :class="{ on: filter === option.value }"
               @click="filter = option.value"
             >
-              {{ option.label }}
+              {{ t(option.label) }}
             </button>
           </div>
-          <div class="view-switch" role="group" aria-label="显示方式">
+          <div class="view-switch" role="group" :aria-label="t('playlists.viewMode')">
             <button
               v-for="mode in VIEWS"
               :key="mode.id"
@@ -426,13 +430,13 @@ onMounted(async () => {
             </button>
           </div>
           <span class="head-icons">
-            <button class="icon-btn" type="button" title="刷新" @click="load">
+            <button class="icon-btn" type="button" :title="t('common.refresh')" @click="load">
               <Icon name="refresh" :size="15" :class="{ spin: loading }" />
             </button>
             <button
               class="icon-btn"
               type="button"
-              title="导出全部歌单"
+              :title="t('playlists.exportAll')"
               :disabled="exporting || !total"
               @click="exportAll"
             >
@@ -441,7 +445,7 @@ onMounted(async () => {
             <button
               class="icon-btn"
               type="button"
-              title="从导出文件导入并批量下载"
+              :title="t('playlists.importAll')"
               :disabled="importing"
               @click="fileInput?.click()"
             >
@@ -469,7 +473,7 @@ onMounted(async () => {
       <div class="detail-bar">
         <div class="field">
           <Icon name="search" :size="15" />
-          <input v-model="trackQuery" type="search" placeholder="在这个歌单里搜歌名、歌手或专辑" />
+          <input v-model="trackQuery" type="search" :placeholder="t('playlists.detailSearch')" />
           <button v-if="trackQuery" type="button" class="clear" @click="trackQuery = ''">
             <Icon name="close" :size="13" />
           </button>
@@ -483,7 +487,7 @@ onMounted(async () => {
             :class="{ 'is-on': feeFilter === chip.id }"
             @click="feeFilter = chip.id"
           >
-            {{ chip.label }}
+            {{ t(chip.label) }}
           </button>
         </div>
       </div>
@@ -501,20 +505,19 @@ onMounted(async () => {
         />
         <div class="more">
           <button v-if="hasMore" class="btn" type="button" @click="limit += PAGE">
-            再显示 {{ Math.min(PAGE, filteredTracks.length - shownTracks.length) }} 首（剩
-            {{ filteredTracks.length - shownTracks.length }}）
+            {{ t('playlists.showMore', { n: Math.min(PAGE, filteredTracks.length - shownTracks.length), left: filteredTracks.length - shownTracks.length }) }}
           </button>
-          <p v-else class="muted end">已到末尾</p>
+          <p v-else class="muted end">{{ t('search.end') }}</p>
         </div>
       </section>
       <section v-else class="empty">
         <div class="empty-art"><Icon name="music" :size="26" /></div>
-        <h3>{{ allTracks.length ? '没有符合条件的歌' : '这个歌单是空的' }}</h3>
+        <h3>{{ allTracks.length ? t('playlists.noMatch') : t('playlists.emptyPlaylist') }}</h3>
         <p class="muted">
           {{
             allTracks.length
-              ? '换个关键词，或把筛选切回「全部」。'
-              : '换一个歌单试试，或者去搜索页找歌。'
+              ? t('playlists.noMatchHint')
+              : t('playlists.emptyPlaylistHint')
           }}
         </p>
       </section>
@@ -525,13 +528,13 @@ onMounted(async () => {
       <div class="list-bar">
         <div class="field">
           <Icon name="search" :size="15" />
-          <input v-model="query" type="search" placeholder="搜索歌单名" />
+          <input v-model="query" type="search" :placeholder="t('playlists.searchPlaceholder')" />
           <button v-if="query" type="button" class="clear" @click="query = ''">
             <Icon name="close" :size="13" />
           </button>
         </div>
         <span class="muted small">
-          {{ query.trim() ? `匹配 ${matchedTotal} / ${total} 个` : `${total} 个歌单` }}
+          {{ query.trim() ? t('playlists.matched', { n: matchedTotal, total }) : t('playlists.count', { total }) }}
         </span>
       </div>
 
@@ -539,10 +542,10 @@ onMounted(async () => {
         <div class="group-head">
           <h2>
             <i class="dot" :style="{ background: SOURCE_META[group.source].color }" />
-            {{ group.label }}
+            {{ sourceName(group.source) }}
           </h2>
           <span class="muted small">
-            {{ group.items.length ? `${group.items.length} 个歌单` : '' }}
+            {{ group.items.length ? t('playlists.count', { total: group.items.length }) : '' }}
           </span>
         </div>
 
@@ -609,7 +612,7 @@ onMounted(async () => {
               <div class="row-main">
                 <p class="name" :title="item.name">{{ item.name }}</p>
                 <p class="sub">
-                  {{ item.creator || SOURCE_META[item.source].label }} · {{ item.trackCount }} 首
+                  {{ item.creator || sourceName(item.source) }} · {{ t('playlists.trackCount', { n: item.trackCount }) }}
                 </p>
               </div>
               <Icon name="chevron" :size="15" class="row-arrow" />
@@ -619,35 +622,34 @@ onMounted(async () => {
 
         <p v-else class="hint">
           <template v-if="group.total && query.trim()">
-            这一组没有匹配「{{ query.trim() }}」的歌单。
+            {{ t('playlists.noMatchInGroup', { q: query.trim() }) }}
           </template>
           <template v-else-if="!group.loggedIn">
-            还没有登录{{ group.label }}。
-            <RouterLink to="/settings">去登录</RouterLink>
-            后即可看到账号里的歌单。
+            {{ t('playlists.notLoggedIn', { source: sourceName(group.source) }) }}
+            <RouterLink to="/settings">{{ t('playlists.goLogin') }}</RouterLink>
+            {{ t('playlists.afterLogin') }}
           </template>
           <template v-else>
-            没有读到歌单（该账号可能没有自建歌单，或登录状态已过期）。
+            {{ t('playlists.emptyGroup') }}
           </template>
         </p>
       </section>
 
       <section v-if="!loading && !total && !error" class="empty">
         <div class="empty-art"><Icon name="queue" :size="26" /></div>
-        <h3>还没有读到歌单</h3>
+        <h3>{{ t('playlists.emptyTitle') }}</h3>
         <p class="muted">
-          歌单来自你在各平台的账号。先在设置里登录网易云或 QQ 音乐，
-          这里就会列出「我喜欢的音乐」「默认收藏」等歌单。
+          {{ t('playlists.emptyNote') }}
         </p>
         <RouterLink to="/settings" class="btn btn-primary" style="margin-top: 16px">
-          去登录
+          {{ t('playlists.goLogin') }}
         </RouterLink>
       </section>
 
       <section v-else-if="searching" class="empty">
         <div class="empty-art"><Icon name="search" :size="26" /></div>
-        <h3>没有匹配的歌单</h3>
-        <p class="muted">换个关键词试试，或清空搜索框。</p>
+        <h3>{{ t('playlists.noPlaylistMatch') }}</h3>
+        <p class="muted">{{ t('playlists.noPlaylistMatchHint') }}</p>
       </section>
     </template>
   </div>

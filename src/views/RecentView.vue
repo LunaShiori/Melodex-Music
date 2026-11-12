@@ -6,10 +6,12 @@ import Icon from '@/components/Icon.vue'
 import TrackRow from '@/components/TrackRow.vue'
 import { clearKeywords, clearRecent, keywords, loadHistory, recent } from '@/lib/history'
 import { formatDuration } from '@/lib/format'
+import { useI18n } from '@/lib/i18n'
 import type { Track } from '@/lib/types'
 import { usePlayerStore } from '@/stores/player'
 import { useTasksStore } from '@/stores/tasks'
 
+const { t } = useI18n()
 const player = usePlayerStore()
 const tasks = useTasksStore()
 const router = useRouter()
@@ -45,22 +47,22 @@ function clearAll() {
   <div class="view">
     <header class="head">
       <div>
-        <h1>最近播放</h1>
+        <h1>{{ t('recent.title') }}</h1>
         <p class="muted">
-          {{ tracks.length }} 首<template v-if="totalMs"> · 共 {{ formatDuration(totalMs) }}</template>
-          · 只存在本机，点一条就能直接重播
+          {{ t('recent.count', { n: tracks.length }) }}<template v-if="totalMs"> · {{ t('recent.total', { length: formatDuration(totalMs) }) }}</template>
+          · {{ t('recent.hint') }}
         </p>
       </div>
       <button v-if="tracks.length || keywords.length" class="ghost-btn" type="button" @click="clearAll">
         <Icon name="trash" :size="15" />
-        清空记录
+        {{ t('recent.clearAll') }}
       </button>
     </header>
 
     <section v-if="keywords.length" class="block">
       <div class="block-head">
-        <p class="title">最近搜索</p>
-        <button class="link-btn" type="button" @click="clearKeywords()">清空</button>
+        <p class="title">{{ t('recent.keywords') }}</p>
+        <button class="link-btn" type="button" @click="clearKeywords()">{{ t('common.clear') }}</button>
       </div>
       <div class="chips">
         <button
@@ -77,8 +79,8 @@ function clearAll() {
 
     <section v-if="tracks.length" class="block">
       <div class="block-head">
-        <p class="title">播放记录</p>
-        <span class="hint">新的在前，最多留 20 首</span>
+        <p class="title">{{ t('recent.plays') }}</p>
+        <span class="hint">{{ t('recent.playsHint') }}</span>
       </div>
       <div class="rows">
         <TrackRow
@@ -96,10 +98,10 @@ function clearAll() {
 
     <div v-else class="empty">
       <span class="empty-icon"><Icon name="music" :size="26" /></span>
-      <p class="empty-title">还没有播放记录</p>
-      <p class="empty-note">在搜索页点一首歌播一下，这里就会留下记录，下次直接点着重播。</p>
+      <p class="empty-title">{{ t('recent.emptyTitle') }}</p>
+      <p class="empty-note">{{ t('recent.emptyNote') }}</p>
       <button class="primary-btn" type="button" @click="router.push({ name: 'search' })">
-        去搜索
+        {{ t('recent.goSearch') }}
       </button>
     </div>
   </div>
