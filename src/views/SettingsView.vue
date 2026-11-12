@@ -238,6 +238,15 @@ onMounted(async () => {
     <template v-if="settings">
       <AccountPanel />
 
+      <!-- 手机上没有侧边栏，这里给个入口进「更多平台」 -->
+      <RouterLink class="card link-card" to="/platforms">
+        <div>
+          <h2>{{ t('nav.platforms') }}</h2>
+          <p class="muted">{{ t('settings.platformsHint') }}</p>
+        </div>
+        <Icon name="external" :size="16" />
+      </RouterLink>
+
       <section class="card">
         <h2>{{ t('settings.language.title') }}</h2>
 
@@ -938,6 +947,17 @@ onMounted(async () => {
   opacity: 1;
 }
 
+.link-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+.link-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
 .card {
   border: 1px solid var(--line);
   border-radius: var(--r-md);

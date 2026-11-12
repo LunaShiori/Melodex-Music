@@ -22,6 +22,7 @@ const navs = computed(() => [
   { name: 'recent', path: '/recent', label: t('nav.recent'), icon: 'history', badge: 0 },
   { name: 'downloads', path: '/downloads', label: t('nav.downloads'), icon: 'download', badge: tasks.counts.active },
   { name: 'library', path: '/library', label: t('nav.library'), icon: 'library', badge: tasks.completed.length },
+  { name: 'platforms', path: '/platforms', label: 'nav.platforms', icon: 'external' },
   { name: 'playlists', path: '/playlists', label: t('nav.playlists'), icon: 'queue', badge: 0 },
   { name: 'settings', path: '/settings', label: t('nav.settings'), icon: 'settings', badge: 0 },
 ])
@@ -48,7 +49,7 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
         :class="{ active: route.name === item.name }"
       >
         <Icon :name="item.icon" :size="17" />
-        <span class="nav-label">{{ item.label }}</span>
+        <span class="nav-label">{{ t(item.label) }}</span>
         <span v-if="item.badge" class="nav-badge mono">{{ item.badge }}</span>
       </RouterLink>
     </nav>

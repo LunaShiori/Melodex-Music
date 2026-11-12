@@ -36,6 +36,12 @@ const router = createRouter({
       meta: { title: 'nav.playlists' },
     },
     {
+      path: '/platforms',
+      name: 'platforms',
+      component: () => import('@/views/PlatformsView.vue'),
+      meta: { title: 'nav.platforms' },
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),
