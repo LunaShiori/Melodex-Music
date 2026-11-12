@@ -388,7 +388,7 @@ onMounted(async () => {
           </button>
           <select v-model="batchQuality" class="quality-select" :title="t('playlists.batchQuality')">
             <option v-for="level in QUALITY_LEVELS" :key="level.id" :value="level.id">
-              {{ level.label }}
+              {{ t(level.label) }}
             </option>
           </select>
           <button

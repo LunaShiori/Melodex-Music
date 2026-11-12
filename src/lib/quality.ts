@@ -7,12 +7,12 @@ import type { QualityLevel } from './types'
  * 但都需要回答「这个平台最高能给到哪一档」。具体档位表由后端下发。
  */
 export const QUALITY_LEVELS: { id: QualityLevel; label: string }[] = [
-  { id: 'standard', label: '标准' },
-  { id: 'high', label: '较高' },
-  { id: 'exquisite', label: '极高' },
-  { id: 'lossless', label: '无损' },
+  { id: 'standard', label: 'quality.standard' },
+  { id: 'high', label: 'quality.high' },
+  { id: 'exquisite', label: 'quality.exquisite' },
+  { id: 'lossless', label: 'quality.lossless' },
   { id: 'hiRes', label: 'Hi-Res' },
-  { id: 'master', label: '母带' },
+  { id: 'master', label: 'quality.master' },
 ]
 
 /** 等级序号，用于「不高于某等级」这类比较 */

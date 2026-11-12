@@ -10,7 +10,7 @@ import {
   LYRIC_MODES,
   LYRIC_THEMES,
 } from '@/lib/lyric-style'
-import { sourceShort, useI18n } from '@/lib/i18n'
+import { sourceName, sourceShort, useI18n } from '@/lib/i18n'
 import type { LocaleChoice } from '@/lib/i18n'
 import { renderNaming } from '@/lib/naming'
 import { nominalBitrate, QUALITY_LEVELS, qualityRank } from '@/lib/quality'
@@ -118,7 +118,7 @@ async function browseDir() {
 type ProxyScheme = 'direct' | 'http' | 'https' | 'socks5' | 'socks5h' | 'socks4'
 
 const PROXY_SCHEMES: { value: ProxyScheme; label: string }[] = [
-  { value: 'direct', label: '直连' },
+  { value: 'direct', label: 'settings.proxy.direct' },
   { value: 'http', label: 'HTTP' },
   { value: 'https', label: 'HTTPS' },
   { value: 'socks5', label: 'SOCKS5' },
@@ -128,10 +128,10 @@ const PROXY_SCHEMES: { value: ProxyScheme; label: string }[] = [
 
 /** 核心只认这几种协议头，其余一律当直连，所以下拉里不给别的选项。 */
 const PROXY_SCOPE_ITEMS: { key: keyof ProxyScopes; label: string; hint: string }[] = [
-  { key: 'search', label: '搜索与浏览', hint: '搜索、歌词、歌单、登录' },
-  { key: 'link', label: '取播放链接', hint: 'vkey / song-url' },
-  { key: 'download', label: '下载', hint: '歌曲与封面' },
-  { key: 'update', label: '检查更新', hint: '版本检查与安装包' },
+  { key: 'search', label: 'settings.scope.search', hint: 'settings.scope.searchHint' },
+  { key: 'link', label: 'settings.scope.link', hint: 'settings.scope.linkHint' },
+  { key: 'download', label: 'settings.scope.download', hint: 'settings.scope.downloadHint' },
+  { key: 'update', label: 'settings.scope.update', hint: 'settings.scope.updateHint' },
 ]
 
 const proxyScheme = ref<ProxyScheme>('direct')
@@ -185,8 +185,8 @@ const proxyHint = computed(() => {
   if (proxyScheme.value === 'direct') return ''
   const addr = proxyAddr.value.trim()
   if (!addr) return ''
-  if (/\s/.test(addr)) return '地址里不要有空格。'
-  if (!/:[0-9]{1,5}$/.test(addr)) return '看起来少了端口，一般写成 127.0.0.1:7890。'
+  if (/\s/.test(addr)) return t('settings.proxy.space')
+  if (!/:[0-9]{1,5}$/.test(addr)) return t('settings.proxy.port')
   return ''
 })
 
@@ -228,13 +228,11 @@ onMounted(async () => {
   <div class="view">
     <header class="head">
       <div>
-        <h1>设置</h1>
-        <p class="muted">改动即时生效并持久化，无需手动保存。</p>
+        <h1>{{ t('settings.a1') }}</h1>
+        <p class="muted">{{ t('settings.a2') }}</p>
       </div>
       <span class="saved" :class="{ show: saving }">
-        <Icon name="check" :size="13" />
-        已保存
-      </span>
+        <Icon name="check" :size="13" />{{ t('settings.a3') }}</span>
     </header>
 
     <template v-if="settings">
@@ -261,7 +259,7 @@ onMounted(async () => {
                 :class="{ on: localeChoice === option.value }"
                 @click="setLocale(option.value as LocaleChoice)"
               >
-                {{ option.label }}
+                {{ t(option.label) }}
               </button>
             </div>
           </div>
@@ -269,12 +267,12 @@ onMounted(async () => {
       </section>
 
       <section class="card">
-        <h2>网络</h2>
+        <h2>{{ t('settings.a4') }}</h2>
 
         <div class="row">
           <div class="label">
-            <p>代理</p>
-            <small>先选协议再填地址。选错协议不会让请求变慢，而是直接连不上。</small>
+            <p>{{ t('settings.a5') }}</p>
+            <small>{{ t('settings.a6') }}</small>
           </div>
           <div class="control wide">
             <div class="proxy-line">
@@ -284,7 +282,7 @@ onMounted(async () => {
                 @change="proxyScheme = ($event.target as HTMLSelectElement).value as ProxyScheme; commitProxy()"
               >
                 <option v-for="item in PROXY_SCHEMES" :key="item.value" :value="item.value">
-                  {{ item.label }}
+                  {{ t(item.label) }}
                 </option>
               </select>
               <input
@@ -303,8 +301,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>用在哪些地方</p>
-            <small>没勾的用途走直连。只给下载挂代理是常见用法。</small>
+            <p>{{ t('settings.a7') }}</p>
+            <small>{{ t('settings.a8') }}</small>
           </div>
           <div class="control wide">
             <div class="scope-list">
@@ -319,7 +317,7 @@ onMounted(async () => {
                   :checked="settings.proxyScopes?.[item.key] ?? true"
                   @change="toggleScope(item.key, ($event.target as HTMLInputElement).checked)"
                 />
-                <span>{{ item.label }}</span>
+                <span>{{ t(item.label) }}</span>
               </label>
             </div>
           </div>
@@ -328,12 +326,12 @@ onMounted(async () => {
       </section>
 
       <section class="card">
-        <h2>下载</h2>
+        <h2>{{ t('settings.a9') }}</h2>
 
         <div class="row">
           <div class="label">
-            <p>下载目录</p>
-            <small>留空则使用系统默认目录</small>
+            <p>{{ t('settings.a10') }}</p>
+            <small>{{ t('settings.a11') }}</small>
           </div>
           <div class="control wide">
             <input
@@ -342,19 +340,15 @@ onMounted(async () => {
               :placeholder="defaultDir"
               @change="update({ downloadDir: ($event.target as HTMLInputElement).value })"
             />
-            <button class="btn btn-sm" type="button" @click="browseDir">
-              浏览…
-            </button>
-            <button class="btn btn-sm" type="button" @click="update({ downloadDir: '' })">
-              用默认
-            </button>
+            <button class="btn btn-sm" type="button" @click="browseDir">{{ t('settings.a12') }}</button>
+            <button class="btn btn-sm" type="button" @click="update({ downloadDir: '' })">{{ t('settings.a13') }}</button>
           </div>
         </div>
 
         <div class="row">
           <div class="label">
-            <p>同时下载数</p>
-            <small>建议 2–4，过高容易被音源限速</small>
+            <p>{{ t('settings.a14') }}</p>
+            <small>{{ t('settings.a15') }}</small>
           </div>
           <div class="control">
             <input
@@ -371,8 +365,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>单任务限速</p>
-            <small>清空或填 0 = 不限；也能直接输入数字（上限 1 GB/s）。按每个任务算，想卡总带宽把并发一起调小</small>
+            <p>{{ t('settings.a16') }}</p>
+            <small>{{ t('settings.a17') }}</small>
           </div>
           <div class="control speed-control">
             <input
@@ -392,7 +386,7 @@ onMounted(async () => {
                 min="0"
                 :max="SPEED_LIMIT_MAX"
                 step="1"
-                placeholder="不限"
+                :placeholder="t('settings.b70')"
                 :value="settings.speedLimitKbps || ''"
                 @input="onSpeedLimitInput"
                 @change="onSpeedLimitInput"
@@ -404,23 +398,23 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>重复文件</p>
-            <small>目标文件已存在时的处理方式</small>
+            <p>{{ t('settings.a18') }}</p>
+            <small>{{ t('settings.a19') }}</small>
           </div>
           <div class="control">
             <div class="segmented">
               <button
                 v-for="option in [
-                  { value: 'keepBoth', label: '保留两份' },
-                  { value: 'overwrite', label: '覆盖' },
-                  { value: 'skip', label: '跳过' },
+                  { value: 'keepBoth', label: 'settings.dupe.keepBoth' },
+                  { value: 'overwrite', label: 'settings.dupe.overwrite' },
+                  { value: 'skip', label: 'settings.dupe.skip' },
                 ]"
                 :key="option.value"
                 type="button"
                 :class="{ on: settings.duplicatePolicy === option.value }"
                 @click="update({ duplicatePolicy: option.value as Settings['duplicatePolicy'] })"
               >
-                {{ option.label }}
+                {{ t(option.label) }}
               </button>
             </div>
           </div>
@@ -428,12 +422,12 @@ onMounted(async () => {
       </section>
 
       <section class="card">
-        <h2>音质</h2>
+        <h2>{{ t('settings.a20') }}</h2>
 
         <div class="row">
           <div class="label">
-            <p>默认音质</p>
-            <small>没单独设置过的平台都用这一档；各平台具体落到哪一档见下方</small>
+            <p>{{ t('settings.a21') }}</p>
+            <small>{{ t('settings.a22') }}</small>
           </div>
           <div class="control">
             <div class="segmented">
@@ -444,7 +438,7 @@ onMounted(async () => {
                 :class="{ on: settings.quality === level.id }"
                 @click="update({ quality: level.id })"
               >
-                {{ level.label }}
+                {{ t(level.label) }}
               </button>
             </div>
           </div>
@@ -460,10 +454,8 @@ onMounted(async () => {
                 class="link"
                 type="button"
                 @click="resetQuality(platform.source)"
-              >
-                跟随默认
-              </button>
-              <span v-else class="muted tiny">跟随默认</span>
+              >{{ t('settings.a23') }}</button>
+              <span v-else class="muted tiny">{{ t('settings.a23') }}</span>
             </header>
             <p class="muted tiny note">{{ platform.note }}</p>
             <div class="tiers">
@@ -477,7 +469,7 @@ onMounted(async () => {
               >
                 <span class="tier-name">
                   {{ tier.label }}
-                  <span v-if="tier.vip" class="vip">会员</span>
+                  <span v-if="tier.vip" class="vip">{{ t('settings.a24') }}</span>
                 </span>
                 <span class="tier-detail mono">{{ tier.detail }}</span>
               </button>
@@ -487,8 +479,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>自动降级</p>
-            <small>目标档位取不到链接时，自动降到同平台的下一档</small>
+            <p>{{ t('settings.a25') }}</p>
+            <small>{{ t('settings.a26') }}</small>
           </div>
           <div class="control">
             <button
@@ -503,14 +495,12 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>优先音源</p>
-            <small>同一首歌在多个平台都能取到时按此排序</small>
+            <p>{{ t('settings.a27') }}</p>
+            <small>{{ t('settings.a28') }}</small>
           </div>
           <div class="control">
             <div class="segmented">
-              <button type="button" :class="{ on: !settings.preferSource }" @click="update({ preferSource: null })">
-                自动
-              </button>
+              <button type="button" :class="{ on: !settings.preferSource }" @click="update({ preferSource: null })">{{ t('settings.a29') }}</button>
               <button
                 v-for="source in ALL_SOURCES"
                 :key="source"
@@ -526,11 +516,11 @@ onMounted(async () => {
       </section>
 
       <section class="card">
-        <h2>文件与标签</h2>
+        <h2>{{ t('settings.a30') }}</h2>
 
         <div class="row">
           <div class="label">
-            <p>命名模板</p>
+            <p>{{ t('settings.a31') }}</p>
             <small>可用占位符：{artist} {title} {album} {source} {bitrate} {index:02}</small>
           </div>
           <div class="control wide">
@@ -543,7 +533,7 @@ onMounted(async () => {
         </div>
 
         <div class="row preview-row">
-          <div class="label"><p class="muted">预览</p></div>
+          <div class="label"><p class="muted">{{ t('settings.a32') }}</p></div>
           <div class="control wide">
             <code class="preview mono">{{ preview }}.mp3</code>
           </div>
@@ -551,8 +541,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>多歌手分隔符</p>
-            <small>写入标签与文件名时使用</small>
+            <p>{{ t('settings.a33') }}</p>
+            <small>{{ t('settings.a34') }}</small>
           </div>
           <div class="control">
             <input
@@ -565,8 +555,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>写入 ID3 标签</p>
-            <small>标题 / 歌手 / 专辑 / 音源来源</small>
+            <p>{{ t('settings.a35') }}</p>
+            <small>{{ t('settings.a36') }}</small>
           </div>
           <div class="control">
             <button
@@ -580,8 +570,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>内嵌封面</p>
-            <small>从音源抓取专辑封面写入音频</small>
+            <p>{{ t('settings.a37') }}</p>
+            <small>{{ t('settings.a38') }}</small>
           </div>
           <div class="control">
             <button
@@ -596,8 +586,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>另存 .lrc 歌词</p>
-            <small>与音频同目录，文件名相同</small>
+            <p>{{ t('settings.a39') }}</p>
+            <small>{{ t('settings.a40') }}</small>
           </div>
           <div class="control">
             <button
@@ -611,26 +601,26 @@ onMounted(async () => {
       </section>
 
       <section class="card">
-        <h2>外观</h2>
+        <h2>{{ t('settings.a41') }}</h2>
         <div class="row">
           <div class="label">
-            <p>主题</p>
-            <small>默认跟随系统</small>
+            <p>{{ t('settings.a42') }}</p>
+            <small>{{ t('settings.a43') }}</small>
           </div>
           <div class="control">
             <div class="segmented">
               <button
                 v-for="option in [
-                  { value: 'light', label: '浅色' },
-                  { value: 'dark', label: '深色' },
-                  { value: 'system', label: '跟随系统' },
+                  { value: 'light', label: 'theme.light' },
+                  { value: 'dark', label: 'theme.dark' },
+                  { value: 'system', label: 'theme.system' },
                 ]"
                 :key="option.value"
                 type="button"
                 :class="{ on: settings.theme === option.value }"
                 @click="update({ theme: option.value as Settings['theme'] })"
               >
-                {{ option.label }}
+                {{ t(option.label) }}
               </button>
             </div>
           </div>
@@ -638,8 +628,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>主题色</p>
-            <small>强调色，与明暗主题自由搭配</small>
+            <p>{{ t('settings.a44') }}</p>
+            <small>{{ t('settings.a45') }}</small>
           </div>
           <div class="control accent-row">
             <button
@@ -648,7 +638,7 @@ onMounted(async () => {
               class="accent-dot"
               :class="{ on: settings.accent === accent.id }"
               type="button"
-              :title="accent.label"
+              :title="t(accent.label)"
               :style="{ '--sw': accent.accent }"
               @click="update({ accent: accent.id })"
             >
@@ -659,8 +649,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>界面风格</p>
-            <small>换质感不改配色，与明暗主题、主题色互不影响</small>
+            <p>{{ t('settings.a46') }}</p>
+            <small>{{ t('settings.a47') }}</small>
           </div>
           <div class="control style-row">
             <button
@@ -669,26 +659,26 @@ onMounted(async () => {
               class="style-card"
               :class="{ on: store.uiStyle === item.id }"
               type="button"
-              :title="item.desc"
+              :title="t(item.desc)"
               @click="store.setUiStyle(item.id)"
             >
               <span
                 class="style-swatch"
                 :style="{ '--sw-a': item.preview[0], '--sw-b': item.preview[1] }"
               />
-              <span class="style-name">{{ item.label }}</span>
+              <span class="style-name">{{ t(item.label) }}</span>
             </button>
           </div>
         </div>
       </section>
 
       <section class="card">
-        <h2>歌词</h2>
+        <h2>{{ t('settings.a48') }}</h2>
 
         <div class="row">
           <div class="label">
-            <p>歌词字号</p>
-            <small>歌词页的字号，手机与电脑共用这一个值</small>
+            <p>{{ t('settings.a49') }}</p>
+            <small>{{ t('settings.a50') }}</small>
           </div>
           <div class="control">
             <input
@@ -705,7 +695,7 @@ onMounted(async () => {
         </div>
 
         <div class="row lyric-preview-row">
-          <div class="label"><p class="muted">预览</p></div>
+          <div class="label"><p class="muted">{{ t('settings.a32') }}</p></div>
           <div class="control wide">
             <div class="lyric-preview">
               <p class="line" :style="{ fontSize: `${lyricStore.fontSize}px` }">是谁打翻前世柜 惹尘埃是非</p>
@@ -716,16 +706,14 @@ onMounted(async () => {
                 Who knocked over the cupboard of a previous life
               </p>
             </div>
-            <button class="btn btn-sm" type="button" @click="lyricStore.setFontSize(22)">
-              重置
-            </button>
+            <button class="btn btn-sm" type="button" @click="lyricStore.setFontSize(22)">{{ t('settings.a51') }}</button>
           </div>
         </div>
 
         <div class="row">
           <div class="label">
-            <p>延迟偏移</p>
-            <small>歌比歌词慢就往正调，歌词比歌慢就往负调；歌词页里也能边听边调</small>
+            <p>{{ t('settings.a52') }}</p>
+            <small>{{ t('settings.a53') }}</small>
           </div>
           <div class="control">
             <input
@@ -738,14 +726,14 @@ onMounted(async () => {
               @input="lyricStore.setOffset(Number(($event.target as HTMLInputElement).value))"
             />
             <span class="value mono offset-value">{{ formatOffset(lyricStore.offsetMs) }}</span>
-            <button class="btn btn-sm" type="button" @click="lyricStore.setOffset(0)">归零</button>
+            <button class="btn btn-sm" type="button" @click="lyricStore.setOffset(0)">{{ t('settings.a54') }}</button>
           </div>
         </div>
 
         <div class="row">
           <div class="label">
-            <p>播放条显示歌词</p>
-            <small>没进歌词页时，在歌名旁边滚动显示当前这句</small>
+            <p>{{ t('settings.a55') }}</p>
+            <small>{{ t('settings.a56') }}</small>
           </div>
           <div class="control">
             <button
@@ -760,8 +748,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>默认模式</p>
-            <small>进入歌词页时的版面，进去后右上角也能随时切</small>
+            <p>{{ t('settings.a57') }}</p>
+            <small>{{ t('settings.a58') }}</small>
           </div>
           <div class="control">
             <div class="segmented">
@@ -772,7 +760,7 @@ onMounted(async () => {
                 :class="{ on: lyricStore.mode === item.id }"
                 @click="lyricStore.setMode(item.id)"
               >
-                {{ item.label }}
+                {{ t(item.label) }}
               </button>
             </div>
           </div>
@@ -780,8 +768,8 @@ onMounted(async () => {
 
         <div class="row">
           <div class="label">
-            <p>歌词主题</p>
-            <small>底色与质感，与明暗主题、主题色互不影响</small>
+            <p>{{ t('settings.a59') }}</p>
+            <small>{{ t('settings.a60') }}</small>
           </div>
           <div class="control style-row">
             <button
@@ -790,24 +778,24 @@ onMounted(async () => {
               class="style-card"
               :class="{ on: lyricStore.theme === item.id }"
               type="button"
-              :title="item.desc"
+              :title="t(item.desc)"
               @click="lyricStore.setTheme(item.id)"
             >
               <span
                 class="style-swatch"
                 :style="{ '--sw-a': item.preview[0], '--sw-b': item.preview[1] }"
               />
-              <span class="style-name">{{ item.label }}</span>
+              <span class="style-name">{{ t(item.label) }}</span>
             </button>
           </div>
         </div>
       </section>
 
       <section class="card">
-        <h2>音源</h2>
+        <h2>{{ t('settings.a61') }}</h2>
         <div v-for="source in ALL_SOURCES" :key="source" class="row">
           <div class="label">
-            <p>{{ SOURCE_META[source].label }}</p>
+            <p>{{ sourceName(source) }}</p>
             <small>{{ SOURCE_META[source].home }}</small>
           </div>
           <div class="control">
@@ -822,11 +810,11 @@ onMounted(async () => {
       </section>
 
       <section class="card">
-        <h2>调试</h2>
+        <h2>{{ t('settings.a62') }}</h2>
         <div class="row">
           <div class="label">
-            <p>调试模式</p>
-            <small>开发调试用：打开后可以重放新手引导、查看界面状态</small>
+            <p>{{ t('settings.a63') }}</p>
+            <small>{{ t('settings.a64') }}</small>
           </div>
           <div class="control">
             <button
@@ -843,21 +831,19 @@ onMounted(async () => {
         <template v-if="store.debugMode">
           <div class="row">
             <div class="label">
-              <p>新手引导</p>
-              <small>重放首装引导：欢迎 → 登录 → 搜索 → 下载</small>
+              <p>{{ t('settings.a65') }}</p>
+              <small>{{ t('settings.a66') }}</small>
             </div>
             <div class="control">
               <button class="btn btn-sm" type="button" @click="onboarding.replay()">
-                <Icon name="play" :size="13" />
-                重放引导
-              </button>
+                <Icon name="play" :size="13" />{{ t('settings.a67') }}</button>
             </div>
           </div>
 
           <div class="row">
             <div class="label">
-              <p>界面状态</p>
-              <small>排查样式 / 环境问题时看这里</small>
+              <p>{{ t('settings.a68') }}</p>
+              <small>{{ t('settings.a69') }}</small>
             </div>
             <div class="control debug-chips">
               <span class="chip mono">风格 {{ store.uiStyle }}</span>

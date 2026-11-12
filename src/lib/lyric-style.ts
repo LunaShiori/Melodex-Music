@@ -23,14 +23,14 @@ export interface LyricModeDef {
 export const LYRIC_MODES: LyricModeDef[] = [
   {
     id: 'cover',
-    label: '歌词 + 封面',
-    desc: '封面在上、歌词在下，桌面端左右分栏',
+    label: 'lyric.mode.cover.label',
+    desc: 'lyric.mode.cover.desc',
     icon: 'disc',
   },
   {
     id: 'pure',
-    label: '纯歌词',
-    desc: '只留歌词，屏幕全给文字',
+    label: 'lyric.mode.pure.label',
+    desc: 'lyric.mode.pure.desc',
     icon: 'lyric',
   },
 ]
@@ -50,27 +50,27 @@ export interface LyricThemeDef {
 export const LYRIC_THEMES: LyricThemeDef[] = [
   {
     id: 'aurora',
-    label: '极光',
-    desc: '封面放大成背景光晕，当前行发光',
+    label: 'lyric.theme.aurora.label',
+    desc: 'lyric.theme.aurora.desc',
     preview: ['#0b1220', '#7c6cff'],
   },
   {
     id: 'glass',
-    label: '玻璃',
-    desc: '浅色磨砂 + 主题色光斑，白天更清爽',
+    label: 'lyric.theme.glass.label',
+    desc: 'lyric.theme.glass.desc',
     preview: ['#eef2ff', '#c7d3ff'],
     light: true,
   },
   {
     id: 'vinyl',
-    label: '黑胶',
-    desc: '唱片旋转，暖色高亮，像一台老唱机',
+    label: 'lyric.theme.vinyl.label',
+    desc: 'lyric.theme.vinyl.desc',
     preview: ['#07070a', '#e0a94f'],
   },
   {
     id: 'ink',
-    label: '词卡',
-    desc: '纸面衬线字，歌词像印在卡片上',
+    label: 'lyric.theme.ink.label',
+    desc: 'lyric.theme.ink.desc',
     preview: ['#f6f1e7', '#3d3325'],
     light: true,
   },

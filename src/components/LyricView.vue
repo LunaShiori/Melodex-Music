@@ -285,8 +285,8 @@ function startScrub(event: PointerEvent) {
               >
                 <Icon :name="item.icon" :size="16" />
                 <span class="mode-text">
-                  <strong>{{ item.label }}</strong>
-                  <small>{{ item.desc }}</small>
+                  <strong>{{ t(item.label) }}</strong>
+                  <small>{{ t(item.desc) }}</small>
                 </span>
               </button>
             </div>
@@ -307,7 +307,7 @@ function startScrub(event: PointerEvent) {
                 >
                   <Icon v-if="lyric.theme === item.id" name="check" :size="13" />
                 </span>
-                <span class="theme-name">{{ item.label }}</span>
+                <span class="theme-name">{{ t(item.label) }}</span>
               </button>
             </div>
 

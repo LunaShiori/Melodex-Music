@@ -26,26 +26,26 @@ export interface UiStyleDef {
 export const UI_STYLES: UiStyleDef[] = [
   {
     id: 'classic',
-    label: '经典',
-    desc: '原本的样子，克制的卡片与阴影',
+    label: 'uiStyle.classic.label',
+    desc: 'uiStyle.classic.desc',
     preview: ['#1b1b24', '#6b5bf0'],
   },
   {
     id: 'glass',
-    label: '液态玻璃',
-    desc: '半透明毛玻璃、大圆角、边缘高光',
+    label: 'uiStyle.glass.label',
+    desc: 'uiStyle.glass.desc',
     preview: ['#dbe6ff', '#9fb6ff'],
   },
   {
     id: 'aurora',
-    label: '极光科技',
-    desc: '深空底色、霓虹描边、流动光晕',
+    label: 'uiStyle.aurora.label',
+    desc: 'uiStyle.aurora.desc',
     preview: ['#05070f', '#22d3ee'],
   },
   {
     id: 'minimal',
-    label: '极简',
-    desc: '去阴影去渐变，细线高对比',
+    label: 'uiStyle.minimal.label',
+    desc: 'uiStyle.minimal.desc',
     preview: ['#ffffff', '#111318'],
   },
 ]

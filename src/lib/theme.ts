@@ -16,12 +16,12 @@ export interface AccentDef {
 }
 
 export const ACCENTS: AccentDef[] = [
-  { id: 'violet', label: '紫罗兰', accent: '#6b5bf0', soft: '#8f82ff', ink: '#ffffff' },
-  { id: 'indigo', label: '靛蓝', accent: '#3d6bf0', soft: '#6f96ff', ink: '#ffffff' },
-  { id: 'teal', label: '青碧', accent: '#0d9e8c', soft: '#2fc7b2', ink: '#ffffff' },
-  { id: 'rose', label: '玫红', accent: '#e0447a', soft: '#f4739e', ink: '#ffffff' },
-  { id: 'amber', label: '琥珀', accent: '#e08a18', soft: '#f2ac47', ink: '#1a1206' },
-  { id: 'green', label: '翠绿', accent: '#1fa86a', soft: '#43c98a', ink: '#ffffff' },
+  { id: 'violet', label: 'theme.accent.violet', accent: '#6b5bf0', soft: '#8f82ff', ink: '#ffffff' },
+  { id: 'indigo', label: 'theme.accent.indigo', accent: '#3d6bf0', soft: '#6f96ff', ink: '#ffffff' },
+  { id: 'teal', label: 'theme.accent.teal', accent: '#0d9e8c', soft: '#2fc7b2', ink: '#ffffff' },
+  { id: 'rose', label: 'theme.accent.rose', accent: '#e0447a', soft: '#f4739e', ink: '#ffffff' },
+  { id: 'amber', label: 'theme.accent.amber', accent: '#e08a18', soft: '#f2ac47', ink: '#1a1206' },
+  { id: 'green', label: 'theme.accent.green', accent: '#1fa86a', soft: '#43c98a', ink: '#ffffff' },
 ]
 
 export function accentOf(id: AccentId): AccentDef {
