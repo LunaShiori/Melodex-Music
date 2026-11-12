@@ -3,7 +3,7 @@ import { computed } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
-import { artistName } from '@/lib/i18n'
+import { artistName, sourceShort } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatDuration } from '@/lib/format'
 import { originLabel } from '@/lib/origin'
@@ -149,7 +149,7 @@ function onPlay() {
         @click.stop="emit('download', track, variant)"
       >
         <i />
-        {{ SOURCE_META[variant.source].short }}
+        {{ sourceShort(variant.source) }}
       </button>
     </div>
 

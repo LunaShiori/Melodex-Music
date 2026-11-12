@@ -76,6 +76,10 @@ export function artistName(artists: readonly string[] | undefined): string {
 }
 
 /** 音源显示名，跟着界面语言走 */
+export function sourceShort(id: string): string {
+  return t(`source.${id}.short`)
+}
+
 export function sourceName(id: string): string {
   return t(`source.${id}`)
 }

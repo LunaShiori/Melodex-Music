@@ -7,7 +7,7 @@ import TrackRow from '@/components/TrackRow.vue'
 import DownloadPicker from '@/components/DownloadPicker.vue'
 import { coverOf } from '@/lib/artwork'
 import { clearKeywords, clearRecent, keywords, pushKeyword, recent } from '@/lib/history'
-import { sourceName, useI18n } from '@/lib/i18n'
+import { sourceName, sourceShort, useI18n } from '@/lib/i18n'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
 import { SORT_MODES, useSearchStore } from '@/stores/search'
@@ -236,7 +236,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           :title="report.error ?? ''"
         >
           <i :style="{ background: report.ok ? SOURCE_META[report.source].color : 'var(--danger)' }" />
-          {{ SOURCE_META[report.source].short }}
+          {{ sourceShort(report.source) }}
           {{ report.ok ? report.count : '超时' }}
         </span>
       </div>

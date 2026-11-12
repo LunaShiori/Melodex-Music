@@ -10,7 +10,7 @@ import {
   LYRIC_MODES,
   LYRIC_THEMES,
 } from '@/lib/lyric-style'
-import { useI18n } from '@/lib/i18n'
+import { sourceShort, useI18n } from '@/lib/i18n'
 import type { LocaleChoice } from '@/lib/i18n'
 import { renderNaming } from '@/lib/naming'
 import { nominalBitrate, QUALITY_LEVELS, qualityRank } from '@/lib/quality'
@@ -518,7 +518,7 @@ onMounted(async () => {
                 :class="{ on: settings.preferSource === source }"
                 @click="update({ preferSource: source })"
               >
-                {{ SOURCE_META[source].short }}
+                {{ sourceShort(source) }}
               </button>
             </div>
           </div>

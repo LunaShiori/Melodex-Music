@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import { formatBytes } from '@/lib/format'
 import { renderMarkdown } from '@/lib/markdown'
+import { useI18n } from '@/lib/i18n'
 import { transport } from '@/lib/transport'
 import { IS_ANDROID, useUpdateStore } from '@/stores/update'
 
@@ -12,6 +13,7 @@ const open = ref(false)
 /** 手动挑选安装包 / 打开发布页，默认收起 */
 const more = ref(false)
 const failed = ref('')
+const { t } = useI18n()
 
 const version = __APP_VERSION__
 const info = computed(() => update.info)
@@ -21,7 +23,7 @@ const info = computed(() => update.info)
  * `## 本次更新`、`**Melodex Music**` 这些符号。这里渲染成 HTML。
  */
 const notesHtml = computed(() =>
-  renderMarkdown(info.value?.notes?.trim() || '本次更新没有附带说明。'),
+  renderMarkdown(info.value?.notes?.trim() || t('update.noNotes')),
 )
 
 /** v-html 里的链接点不动：拦下来交给系统浏览器，不要污染 WebView 本身 */
@@ -37,10 +39,10 @@ const KIND_LABEL: Record<string, string> = {
   msi: 'Windows 安装包 · msi',
   apk: 'Android 安装包',
   aab: 'Android 应用包',
-  dmg: 'macOS 安装包',
-  appimage: 'Linux 安装包',
-  zip: '压缩包',
-  other: '附件',
+  dmg: 'update.kind.dmg',
+  appimage: 'update.kind.appimage',
+  zip: 'update.kind.zip',
+  other: 'update.kind.other',
 }
 
 /** 按当前平台把最合适的安装包排在最前 */
@@ -55,21 +57,21 @@ const primaryLabel = computed(() => {
   switch (update.stage) {
     case 'downloading':
       return update.totalBytes
-        ? `下载中 ${update.percent}%`
-        : `下载中 ${formatBytes(update.downloaded)}`
+        ? t('update.downloadingPercent', { percent: update.percent })
+        : t('update.downloadingSize', { size: formatBytes(update.downloaded) })
     case 'ready':
       // 安卓不会「装完自动重启」，拉起的是系统安装界面
-      return IS_ANDROID ? '开始安装' : '立即安装并重启'
+      return IS_ANDROID ? t('update.startInstall') : t('update.installRestart')
     case 'installing':
-      return IS_ANDROID ? '正在调起安装程序…' : '正在退出…'
+      return IS_ANDROID ? t('update.installingAndroid') : t('update.quitting')
     default:
-      return '立即更新'
+      return t('update.updateNow')
   }
 })
 
 const progressHint = computed(() => {
   if (update.stage !== 'downloading') return ''
-  if (!update.totalBytes) return `已下载 ${formatBytes(update.downloaded)}`
+  if (!update.totalBytes) return t('update.downloaded', { size: formatBytes(update.downloaded) })
   return `${formatBytes(update.downloaded)} / ${formatBytes(update.totalBytes)}`
 })
 
@@ -113,11 +115,11 @@ async function openUrl(url: string) {
     <div v-if="update.showBanner && !open" class="notice">
       <span class="ico"><Icon name="cloud" :size="15" /></span>
       <div class="txt">
-        <p class="title">发现新版本 <span class="mono">{{ info?.latest }}</span></p>
-        <p class="sub muted">当前 v{{ version }}，可直接在应用内更新</p>
+        <p class="title">{{ t('update.found') }} <span class="mono">{{ info?.latest }}</span></p>
+        <p class="sub muted">{{ t('update.current', { version }) }}</p>
       </div>
-      <button class="btn btn-primary btn-sm" type="button" @click="open = true">更新</button>
-      <button class="icon-btn" type="button" title="稍后提醒" @click="update.dismiss()">
+      <button class="btn btn-primary btn-sm" type="button" @click="open = true">{{ t('update.update') }}</button>
+      <button class="icon-btn" type="button" :title="t('update.later')" @click="update.dismiss()">
         <Icon name="close" :size="14" />
       </button>
     </div>
@@ -131,8 +133,8 @@ async function openUrl(url: string) {
             <div>
               <h3>Melodex Music {{ info.latest }}</h3>
               <p class="muted">
-                当前版本 v{{ info.current }}
-                <span v-if="info.publishedAt"> · 发布于 {{ info.publishedAt.slice(0, 10) }}</span>
+                {{ t('update.currentVersion', { version: info.current }) }}
+                <span v-if="info.publishedAt">{{ t('update.publishedAt', { date: info.publishedAt.slice(0, 10) }) }}</span>
               </p>
             </div>
             <button
@@ -158,14 +160,12 @@ async function openUrl(url: string) {
           <!-- 下载完成 -->
           <p v-else-if="update.stage === 'ready'" class="ready small">
             {{
-              IS_ANDROID
-                ? '安装包已下载完成。点「开始安装」会弹出系统安装界面；首次可能需要允许「安装未知应用」。'
-                : '安装包已下载完成，点「立即安装并重启」即可完成升级。'
+              IS_ANDROID ? t('update.readyAndroid') : t('update.readyDesktop')
             }}
           </p>
           <p v-else-if="update.stage === 'installing'" class="ready small">
-            <template v-if="IS_ANDROID">正在调起系统安装程序…</template>
-            <template v-else>正在启动安装程序，Melodex 即将退出，安装完成后会自动重新打开。</template>
+            <template v-if="IS_ANDROID">{{ t('update.installingAndroid') }}</template>
+            <template v-else>{{ t('update.installingDesktop') }}</template>
           </p>
 
           <p v-if="update.installError || failed" class="err">
@@ -175,7 +175,7 @@ async function openUrl(url: string) {
           <!-- 备用入口：手动挑安装包 / 去发布页 -->
           <button class="more-toggle" type="button" @click="more = !more">
             <Icon name="chevron" :size="13" :class="more ? 'flip' : ''" />
-            手动下载与其他格式
+            {{ t('update.manual') }}
           </button>
 
           <div v-if="more" class="more">
@@ -188,21 +188,21 @@ async function openUrl(url: string) {
                 :disabled="update.busy"
                 @click="downloadSpecific(asset.name)"
               >
-                <span class="kind">{{ KIND_LABEL[asset.kind] ?? KIND_LABEL.other }}</span>
+                <span class="kind">{{ t(KIND_LABEL[asset.kind] ?? KIND_LABEL.other) }}</span>
                 <span class="name mono">{{ asset.name }}</span>
                 <span class="size mono">{{ formatBytes(asset.size) }}</span>
                 <Icon name="download" :size="15" />
               </button>
             </div>
-            <p v-else class="muted small">这次发布没有附带安装包。</p>
+            <p v-else class="muted small">{{ t('update.noAssets') }}</p>
             <button class="link-btn" type="button" @click="openUrl(info.pageUrl)">
-              在浏览器中打开发布页
+              {{ t('update.openPage') }}
             </button>
           </div>
 
           <footer class="d-foot">
             <button class="btn btn-ghost" type="button" :disabled="update.busy" @click="open = false">
-              稍后提醒
+              {{ t('update.later') }}
             </button>
             <button class="btn btn-primary" type="button" :disabled="update.busy" @click="primary">
               {{ primaryLabel }}

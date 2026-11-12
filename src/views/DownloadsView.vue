@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import Icon from '@/components/Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { sourceShort, useI18n } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { formatBytes, formatRelative, formatSpeed } from '@/lib/format'
 import { reasonMeta } from '@/lib/reason'
@@ -11,24 +12,26 @@ import { SOURCE_META } from '@/lib/types'
 import type { DownloadTask, TaskState } from '@/lib/types'
 import { useTasksStore } from '@/stores/tasks'
 
+const { t } = useI18n()
 const tasks = useTasksStore()
 const router = useRouter()
 
-const STATE_TEXT: Record<TaskState, string> = {
-  queued: '排队中',
-  resolving: '解析链接',
-  downloading: '下载中',
-  tagging: '写入标签',
-  completed: '已完成',
-  failed: '失败',
-  paused: '已暂停',
-  canceled: '已取消',
+const STATE_KEY: Record<TaskState, string> = {
+  queued: 'state.queued',
+  resolving: 'state.resolving',
+  downloading: 'state.downloading',
+  tagging: 'state.tagging',
+  completed: 'state.completed',
+  failed: 'state.failed',
+  paused: 'state.paused',
+  canceled: 'state.canceled',
 }
+const stateText = (state: TaskState) => t(STATE_KEY[state])
 
 const tabs = computed(() => [
-  { key: 'all' as const, label: '全部', count: tasks.counts.all },
-  { key: 'active' as const, label: '进行中', count: tasks.counts.active },
-  { key: 'done' as const, label: '已结束', count: tasks.counts.done },
+  { key: 'all' as const, label: t('downloads.tabAll'), count: tasks.counts.all },
+  { key: 'active' as const, label: t('downloads.tabActive'), count: tasks.counts.active },
+  { key: 'done' as const, label: t('downloads.tabDone'), count: tasks.counts.done },
 ])
 
 function ratio(task: DownloadTask) {
@@ -59,21 +62,21 @@ function goLogin() {
   <div class="view">
     <header class="head">
       <div>
-        <h1>下载中心</h1>
-        <p class="muted">多任务并发、断点续传、音质自动降级，失败可单条重试。</p>
+        <h1>{{ t('downloads.title') }}</h1>
+        <p class="muted">{{ t('downloads.subtitle') }}</p>
       </div>
       <div class="stats">
         <div class="stat">
           <span class="num mono">{{ tasks.counts.active }}</span>
-          <span class="lab">进行中</span>
+          <span class="lab">{{ t('downloads.inProgress') }}</span>
         </div>
         <div class="stat">
           <span class="num mono">{{ tasks.counts.done }}</span>
-          <span class="lab">已结束</span>
+          <span class="lab">{{ t('downloads.finished') }}</span>
         </div>
         <div class="stat">
           <span class="num mono">{{ formatSpeed(tasks.totalSpeed) }}</span>
-          <span class="lab">总速度</span>
+          <span class="lab">{{ t('downloads.totalSpeed') }}</span>
         </div>
       </div>
     </header>
@@ -94,7 +97,7 @@ function goLogin() {
       </div>
       <button class="btn btn-sm" type="button" :disabled="!tasks.counts.done" @click="tasks.clearFinished()">
         <Icon name="trash" :size="14" />
-        清理已结束
+        {{ t('downloads.clearDone') }}
       </button>
     </div>
 
@@ -107,7 +110,7 @@ function goLogin() {
         <div class="body">
           <div class="line">
             <p class="title">{{ task.title }}</p>
-            <span class="badge" :class="task.state">{{ STATE_TEXT[task.state] }}</span>
+            <span class="badge" :class="task.state">{{ stateText(task.state) }}</span>
             <span
               v-if="task.state === 'failed' && reasonMeta(task.failReason)"
               class="badge reason"
@@ -118,14 +121,14 @@ function goLogin() {
               class="src"
               :style="{ color: SOURCE_META[task.resolvedSource ?? task.source].color }"
             >
-              {{ SOURCE_META[task.resolvedSource ?? task.source].short }}
+              {{ sourceShort(task.resolvedSource ?? task.source) }}
             </span>
             <span
               v-if="task.resolvedSource && task.resolvedSource !== task.source"
               class="badge swapped"
-              title="原音源拿不到链接，已自动改用其它音源"
+              title="{{ t('downloads.switchedSource') }}"
             >
-              自动换源
+              {{ t('downloads.autoSource') }}
             </span>
           </div>
           <p class="sub">
@@ -146,21 +149,21 @@ function goLogin() {
                 {{ formatBytes(task.total) }}
               </span>
               <span v-else-if="task.state === 'completed'">
-                {{ formatBytes(task.total || task.downloaded) }} · 已保存
+                {{ formatBytes(task.total || task.downloaded) }} · {{ t('downloads.saved') }}
               </span>
               <span v-else-if="task.state === 'failed'" class="err">{{ failText(task) }}</span>
-              <span v-else>{{ STATE_TEXT[task.state] }}</span>
+              <span v-else>{{ stateText(task.state) }}</span>
               <!-- 登录提示紧跟在失败原因后面，不再塞进右侧操作区：
                    手机上操作区是绝对定位的，长文案会被按钮压住。 -->
               <button
                 v-if="task.state === 'failed' && needsLogin(task)"
                 class="btn btn-sm login-cta"
                 type="button"
-                title="前往设置登录该音源"
+                title="{{ t('downloads.loginSource') }}"
                 @click="goLogin()"
               >
                 <Icon name="user" :size="12" />
-                去登录
+                {{ t('downloads.goLogin') }}
               </button>
             </div>
           </div>
@@ -170,7 +173,7 @@ function goLogin() {
           <button
             v-if="!isActive(task) && task.state !== 'completed'"
             class="icon-btn"
-            title="重试"
+            title="{{ t('downloads.retry') }}"
             type="button"
             @click="tasks.resume(task.id)"
           >
@@ -179,7 +182,7 @@ function goLogin() {
           <button
             v-if="task.state === 'downloading' || task.state === 'queued'"
             class="icon-btn"
-            title="暂停"
+            title="{{ t('downloads.pause') }}"
             type="button"
             @click="tasks.pause(task.id)"
           >
@@ -188,7 +191,7 @@ function goLogin() {
           <button
             v-if="task.state === 'paused'"
             class="icon-btn"
-            title="继续"
+            title="{{ t('downloads.resume') }}"
             type="button"
             @click="tasks.resume(task.id)"
           >
@@ -197,13 +200,13 @@ function goLogin() {
           <button
             v-if="task.state === 'completed' && task.path"
             class="icon-btn"
-            title="打开文件位置"
+            title="{{ t('downloads.reveal') }}"
             type="button"
             @click="tasks.reveal(task.path!)"
           >
             <Icon name="folder" :size="16" />
           </button>
-          <button class="icon-btn" title="删除任务" type="button" @click="tasks.remove(task.id)">
+          <button class="icon-btn" title="{{ t('downloads.remove') }}" type="button" @click="tasks.remove(task.id)">
             <Icon name="close" :size="16" />
           </button>
         </div>
@@ -212,9 +215,9 @@ function goLogin() {
 
     <section v-else class="empty">
       <div class="empty-art"><Icon name="download" :size="26" /></div>
-      <h3>还没有下载任务</h3>
-      <p class="muted">在搜索结果里点右侧的下载按钮，或直接点音源标签从指定平台取文件。</p>
-      <RouterLink to="/search" class="btn btn-primary" style="margin-top: 16px">去搜索</RouterLink>
+      <h3>{{ t('downloads.emptyTitle') }}</h3>
+      <p class="muted">{{ t('downloads.emptyDesc') }}</p>
+      <RouterLink to="/search" class="btn btn-primary" style="margin-top: 16px">{{ t('downloads.goSearch') }}</RouterLink>
     </section>
   </div>
 </template>

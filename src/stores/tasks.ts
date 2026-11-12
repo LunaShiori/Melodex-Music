@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+import { sourceShort, t } from '@/lib/i18n'
 import { transport } from '@/lib/transport'
-import { SOURCE_META } from '@/lib/types'
 import type { DownloadTask, EngineEvent, EnqueueInput, QualityLevel, Track, Variant } from '@/lib/types'
 import { bestVariant, fallbacksOf } from '@/lib/track'
 import { useLibraryStore } from '@/stores/library'
@@ -109,7 +109,7 @@ export const useTasksStore = defineStore('tasks', () => {
     }
     const ids = await transport.enqueue(inputs)
     if (inputs.length) {
-      pushNotice('info', `已加入 ${inputs.length} 个下载任务`)
+      pushNotice('info', t('tasks.enqueuedMany', { n: inputs.length }))
     }
     return ids
   }
@@ -140,7 +140,7 @@ export const useTasksStore = defineStore('tasks', () => {
     const ids = await transport.enqueue([input])
     // 明确回到用户刚才选了什么，否则看起来像「点了没反应、还是默认档」
     const tier = label ? ` · ${label}` : ''
-    pushNotice('info', `已加入下载${tier} · ${SOURCE_META[variant.source].label}：${track.title}`)
+    pushNotice('info', t('tasks.enqueued', { tier, source: sourceShort(variant.source), title: track.title }))
     return ids
   }
 
@@ -158,7 +158,7 @@ export const useTasksStore = defineStore('tasks', () => {
     tasks.value = tasks.value.filter(
       (task) => !['completed', 'failed', 'canceled'].includes(task.state),
     )
-    if (removed) pushNotice('info', `已清理 ${removed} 条记录`)
+    if (removed) pushNotice('info', t('tasks.cleared', { n: removed }))
   }
   async function reveal(path: string) {
     try {

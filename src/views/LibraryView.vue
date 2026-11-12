@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 
 import Icon from '@/components/Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { sourceShort, useI18n } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatBytes, formatDuration } from '@/lib/format'
 import { transport } from '@/lib/transport'
@@ -20,6 +21,7 @@ type SortKey = 'recent' | 'title' | 'artist' | 'size' | 'duration'
 const STORE_KEY = 'melodex.library.view'
 
 const tasks = useTasksStore()
+const { t } = useI18n()
 const library = useLibraryStore()
 const player = usePlayerStore()
 const keyword = ref('')
@@ -67,7 +69,7 @@ watch([mode, size, sort], () => {
 })
 
 const items = computed(() => {
-  // 曲库来自独立持久化的条目，而不是下载任务列表：清空下载记录不影响这里。
+  // 曲库来自独立持久化的条目，而不是下载任务{{ t('library.viewList') }}：清空下载记录不影响这里。
   const list = library.sorted
   const key = keyword.value.trim().toLowerCase()
   const filtered = !key
@@ -103,7 +105,7 @@ const items = computed(() => {
 
 const totalSize = computed(() => items.value.reduce((sum, task) => sum + (task.total || 0), 0))
 
-/** 封面网格的列宽：小/中/大三档，用 CSS 变量驱动 auto-fill */
+/** {{ t('library.viewGrid') }}的列宽：小/中/大三档，用 CSS 变量驱动 auto-fill */
 const gridMin = computed(() =>
   size.value === 'sm' ? '132px' : size.value === 'lg' ? '248px' : '186px',
 )
@@ -144,11 +146,11 @@ function play(task: LibraryEntry) {
 }
 
 const sortOptions: Array<{ value: SortKey; label: string }> = [
-  { value: 'recent', label: '最近添加' },
-  { value: 'title', label: '标题' },
-  { value: 'artist', label: '歌手' },
-  { value: 'size', label: '文件大小' },
-  { value: 'duration', label: '时长' },
+  { value: 'recent', label: 'library.sort.recent' },
+  { value: 'title', label: 'library.colTitle' },
+  { value: 'artist', label: 'library.sort.artist' },
+  { value: 'size', label: 'library.sort.size' },
+  { value: 'duration', label: 'library.sort.duration' },
 ]
 </script>
 
@@ -156,14 +158,14 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
   <div class="view">
     <header class="head">
       <div>
-        <h1>本地曲库</h1>
+        <h1>{{ t('library.title') }}</h1>
         <p class="muted">
           已下载 {{ items.length }} 首 · 共 {{ formatBytes(totalSize) }} · 文件按命名模板落盘
         </p>
       </div>
       <div class="search">
         <Icon name="search" :size="15" />
-        <input v-model="keyword" type="search" placeholder="在曲库中查找" />
+        <input v-model="keyword" type="search" placeholder="{{ t('library.searchPlaceholder') }}" />
       </div>
     </header>
 
@@ -176,7 +178,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
           :class="{ on: sort === option.value }"
           @click="sort = option.value"
         >
-          {{ option.label }}
+          {{ t(option.label) }}
         </button>
       </div>
 
@@ -221,7 +223,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
       <article v-for="task in items" :key="task.id" class="card">
         <div class="cover" @click="play(task)">
           <img :src="coverOf(task.cover, task.id)" alt="" loading="lazy" @error="onCoverError($event, task.id)" />
-          <button class="play" type="button" title="播放">
+          <button class="play" type="button" title="{{ t('player.play') }}">
             <Icon name="play" :size="16" :filled="true" />
           </button>
         </div>
@@ -230,7 +232,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
           <p class="sub">{{ task.artists.join(' / ') || '未知歌手' }}</p>
           <p class="meta mono">
             <span :style="{ color: SOURCE_META[task.source].color }">
-              {{ SOURCE_META[task.source].short }}
+              {{ sourceShort(task.source) }}
             </span>
             <span>{{ formatBitrate(task.bitrate) }}</span>
             <span>{{ formatDuration(task.durationMs) }}</span>
@@ -241,12 +243,12 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
             v-if="task.path"
             class="icon-btn"
             type="button"
-            title="打开文件位置"
+            title="{{ t('downloads.reveal') }}"
             @click="tasks.reveal(task.path!)"
           >
             <Icon name="folder" :size="15" />
           </button>
-          <button class="icon-btn" type="button" title="移出列表" @click="library.remove(task.id)">
+          <button class="icon-btn" type="button" title="{{ t('library.remove') }}" @click="library.remove(task.id)">
             <Icon name="close" :size="15" />
           </button>
         </div>
@@ -279,7 +281,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
           </button>
         </div>
         <span class="cell mono" :style="{ color: SOURCE_META[task.source].color }">
-          {{ SOURCE_META[task.source].short }}
+          {{ sourceShort(task.source) }}
         </span>
         <span class="cell mono">{{ formatBitrate(task.bitrate) }}</span>
         <span class="cell mono">{{ formatBytes(task.total || 0) }}</span>
@@ -305,9 +307,9 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
       <div class="empty-art"><Icon name="library" :size="26" /></div>
       <h3>{{ keyword ? '没有匹配的歌曲' : '曲库还是空的' }}</h3>
       <p class="muted">
-        下载完成的歌曲会自动出现在这里。桌面端可以直接播放本地文件，移动端会打开系统播放器。
+        {{ t('library.emptyDesc') }}
       </p>
-      <RouterLink to="/search" class="btn btn-primary" style="margin-top: 16px">去搜索</RouterLink>
+      <RouterLink to="/search" class="btn btn-primary" style="margin-top: 16px">{{ t('downloads.goSearch') }}</RouterLink>
     </section>
   </div>
 </template>
