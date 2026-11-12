@@ -27,8 +27,8 @@ export function formatSpeed(bytesPerSecond: number): string {
 }
 
 export function formatBitrate(kbps: number): string {
-  if (!kbps) return '未知'
-  if (kbps >= 900) return '无损'
+  if (!kbps) return t('format.unknownBitrate')
+  if (kbps >= 900) return t('format.lossless')
   return `${kbps}k`
 }
 

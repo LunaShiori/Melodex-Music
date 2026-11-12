@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 
 import Icon from '@/components/Icon.vue'
 import { coverOf } from '@/lib/artwork'
-import { sourceShort, useI18n } from '@/lib/i18n'
+import { sourceShort, useI18n, artistName } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { formatBytes, formatRelative, formatSpeed } from '@/lib/format'
 import { reasonMeta } from '@/lib/reason'
@@ -126,13 +126,13 @@ function goLogin() {
             <span
               v-if="task.resolvedSource && task.resolvedSource !== task.source"
               class="badge swapped"
-              title="{{ t('downloads.switchedSource') }}"
+              :title="t('downloads.switchedSource')"
             >
               {{ t('downloads.autoSource') }}
             </span>
           </div>
           <p class="sub">
-            {{ task.artists.join(' / ') || '未知歌手' }}
+            {{ artistName(task.artists) }}
             <span class="dot">·</span>
             {{ task.bitrate }}k {{ task.format.toUpperCase() }}
             <span class="dot">·</span>
@@ -159,7 +159,7 @@ function goLogin() {
                 v-if="task.state === 'failed' && needsLogin(task)"
                 class="btn btn-sm login-cta"
                 type="button"
-                title="{{ t('downloads.loginSource') }}"
+                :title="t('downloads.loginSource')"
                 @click="goLogin()"
               >
                 <Icon name="user" :size="12" />
@@ -173,7 +173,7 @@ function goLogin() {
           <button
             v-if="!isActive(task) && task.state !== 'completed'"
             class="icon-btn"
-            title="{{ t('downloads.retry') }}"
+            :title="t('downloads.retry')"
             type="button"
             @click="tasks.resume(task.id)"
           >
@@ -182,7 +182,7 @@ function goLogin() {
           <button
             v-if="task.state === 'downloading' || task.state === 'queued'"
             class="icon-btn"
-            title="{{ t('downloads.pause') }}"
+            :title="t('downloads.pause')"
             type="button"
             @click="tasks.pause(task.id)"
           >
@@ -191,7 +191,7 @@ function goLogin() {
           <button
             v-if="task.state === 'paused'"
             class="icon-btn"
-            title="{{ t('downloads.resume') }}"
+            :title="t('downloads.resume')"
             type="button"
             @click="tasks.resume(task.id)"
           >
@@ -200,13 +200,13 @@ function goLogin() {
           <button
             v-if="task.state === 'completed' && task.path"
             class="icon-btn"
-            title="{{ t('downloads.reveal') }}"
+            :title="t('downloads.reveal')"
             type="button"
             @click="tasks.reveal(task.path!)"
           >
             <Icon name="folder" :size="16" />
           </button>
-          <button class="icon-btn" title="{{ t('downloads.remove') }}" type="button" @click="tasks.remove(task.id)">
+          <button class="icon-btn" :title="t('downloads.remove')" type="button" @click="tasks.remove(task.id)">
             <Icon name="close" :size="16" />
           </button>
         </div>

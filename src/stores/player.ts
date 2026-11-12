@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia'
+
+import { t } from '@/lib/i18n'
 import { computed, ref } from 'vue'
 
 import { pushRecent } from '@/lib/history'
@@ -23,18 +25,18 @@ export function toPlayerError(err: unknown, source: SourceId): PlayerError {
     const raw = err as Partial<PlayerError>
     return {
       reason: (raw.reason as FailReason) ?? 'unknown',
-      label: raw.label ?? '无法播放',
-      message: raw.message ?? '音源没有返回可用链接',
-      hint: raw.hint ?? '稍后重试或换一个音源',
+      label: raw.label ?? t('player.err.label'),
+      message: raw.message ?? t('player.err.noLink'),
+      hint: raw.hint ?? t('player.err.hint'),
       source: raw.source ?? source,
     }
   }
   const message = err instanceof Error ? err.message : String(err)
   return {
     reason: 'unknown',
-    label: '无法播放',
+    label: t('player.err.label'),
     message,
-    hint: '稍后重试或换一个音源',
+    hint: t('player.err.hint'),
     source,
   }
 }
@@ -43,12 +45,9 @@ export function toPlayerError(err: unknown, source: SourceId): PlayerError {
 function mediaError(reason: FailReason, detail: string, source: SourceId): PlayerError {
   return {
     reason,
-    label: reason === 'linkRejected' ? '链接已失效' : '无法播放',
+    label: t(reason === 'linkRejected' ? 'player.err.expired' : 'player.err.label'),
     message: detail,
-    hint:
-      reason === 'linkRejected'
-        ? '音源给的地址被它自己的服务器拒绝了，重新点一次播放会重新取链接'
-        : '当前播放器可能解不了这个格式，试试换一个音源',
+    hint: t(reason === 'linkRejected' ? 'player.err.hintExpired' : 'player.err.hintFormat'),
     source,
   }
 }
@@ -221,11 +220,11 @@ export const usePlayerStore = defineStore('player', () => {
       loading.value = false
       // 先「观望」再展示：换源瞬间的假错误不能弹窗
       if (code === 2) {
-        armError(mediaError('linkRejected', '音频请求失败或被服务器中断', target))
+        armError(mediaError('linkRejected', t('player.err.detailAborted'), target))
       } else if (code === 3 || code === 4) {
-        armError(mediaError('qualityMissing', '当前播放器无法解码这个音频格式', target))
+        armError(mediaError('qualityMissing', t('player.err.detailFormat'), target))
       } else {
-        armError(mediaError('unknown', '音频加载失败，可能链接已过期', target))
+        armError(mediaError('unknown', t('player.err.detailLoad'), target))
       }
     })
   }

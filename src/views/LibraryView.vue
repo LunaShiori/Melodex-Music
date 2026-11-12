@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 
 import Icon from '@/components/Icon.vue'
 import { coverOf } from '@/lib/artwork'
-import { sourceShort, useI18n } from '@/lib/i18n'
+import { sourceShort, useI18n, artistName } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatBytes, formatDuration } from '@/lib/format'
 import { transport } from '@/lib/transport'
@@ -160,12 +160,12 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
       <div>
         <h1>{{ t('library.title') }}</h1>
         <p class="muted">
-          已下载 {{ items.length }} 首 · 共 {{ formatBytes(totalSize) }} · 文件按命名模板落盘
+          {{ t('library.summary', { n: items.length, size: formatBytes(totalSize) }) }}
         </p>
       </div>
       <div class="search">
         <Icon name="search" :size="15" />
-        <input v-model="keyword" type="search" placeholder="{{ t('library.searchPlaceholder') }}" />
+        <input v-model="keyword" type="search" :placeholder="t('library.searchPlaceholder')" />
       </div>
     </header>
 
@@ -186,23 +186,23 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
         <div v-if="mode === 'grid'" class="segmented size">
           <button
             v-for="option in [
-              { value: 'sm' as const, label: '小' },
-              { value: 'md' as const, label: '中' },
-              { value: 'lg' as const, label: '大' },
+              { value: 'sm' as const, label: 'library.sizeSm' },
+              { value: 'md' as const, label: 'library.sizeMd' },
+              { value: 'lg' as const, label: 'library.sizeLg' },
             ]"
             :key="option.value"
             type="button"
             :class="{ on: size === option.value }"
             @click="size = option.value"
           >
-            {{ option.label }}
+            {{ t(option.label) }}
           </button>
         </div>
         <div class="segmented view-toggle">
           <button
             type="button"
             :class="{ on: mode === 'grid' }"
-            title="封面网格"
+            :title="t('libraryview.b6')"
             @click="mode = 'grid'"
           >
             <Icon name="disc" :size="14" />
@@ -210,7 +210,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
           <button
             type="button"
             :class="{ on: mode === 'list' }"
-            title="列表"
+            :title="t('libraryview.b7')"
             @click="mode = 'list'"
           >
             <Icon name="queue" :size="14" />
@@ -223,13 +223,13 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
       <article v-for="task in items" :key="task.id" class="card">
         <div class="cover" @click="play(task)">
           <img :src="coverOf(task.cover, task.id)" alt="" loading="lazy" @error="onCoverError($event, task.id)" />
-          <button class="play" type="button" title="{{ t('player.play') }}">
+          <button class="play" type="button" :title="t('player.play')">
             <Icon name="play" :size="16" :filled="true" />
           </button>
         </div>
         <div class="info">
           <p class="title" :title="task.title">{{ task.title }}</p>
-          <p class="sub">{{ task.artists.join(' / ') || '未知歌手' }}</p>
+          <p class="sub">{{ artistName(task.artists) }}</p>
           <p class="meta mono">
             <span :style="{ color: SOURCE_META[task.source].color }">
               {{ sourceShort(task.source) }}
@@ -243,12 +243,12 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
             v-if="task.path"
             class="icon-btn"
             type="button"
-            title="{{ t('downloads.reveal') }}"
+            :title="t('downloads.reveal')"
             @click="tasks.reveal(task.path!)"
           >
             <Icon name="folder" :size="15" />
           </button>
-          <button class="icon-btn" type="button" title="{{ t('library.remove') }}" @click="library.remove(task.id)">
+          <button class="icon-btn" type="button" :title="t('library.remove')" @click="library.remove(task.id)">
             <Icon name="close" :size="15" />
           </button>
         </div>
@@ -257,11 +257,11 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
 
     <section v-else-if="items.length" class="rows">
       <div class="row-head">
-        <span>标题</span>
-        <span>音源</span>
-        <span>音质</span>
-        <span>大小</span>
-        <span>时长</span>
+        <span>{{ t('libraryview.a1') }}</span>
+        <span>{{ t('libraryview.a2') }}</span>
+        <span>{{ t('libraryview.a3') }}</span>
+        <span>{{ t('libraryview.a4') }}</span>
+        <span>{{ t('libraryview.a5') }}</span>
         <span />
       </div>
       <article
@@ -274,9 +274,9 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
           <img class="thumb" :src="coverOf(task.cover, task.id)" alt="" loading="lazy" @error="onCoverError($event, task.id)" />
           <div class="row-text">
             <p class="title" :title="task.title">{{ task.title }}</p>
-            <p class="sub">{{ task.artists.join(' / ') || '未知歌手' }}</p>
+            <p class="sub">{{ artistName(task.artists) }}</p>
           </div>
-          <button class="icon-btn row-play" type="button" title="播放" @click="play(task)">
+          <button class="icon-btn row-play" type="button" :title="t('libraryview.b8')" @click="play(task)">
             <Icon name="play" :size="14" :filled="true" />
           </button>
         </div>
@@ -291,12 +291,12 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
             v-if="task.path"
             class="icon-btn"
             type="button"
-            title="打开文件位置"
+            :title="t('libraryview.b9')"
             @click="tasks.reveal(task.path!)"
           >
             <Icon name="folder" :size="15" />
           </button>
-          <button class="icon-btn" type="button" title="移出列表" @click="library.remove(task.id)">
+          <button class="icon-btn" type="button" :title="t('libraryview.b10')" @click="library.remove(task.id)">
             <Icon name="close" :size="15" />
           </button>
         </div>
@@ -305,7 +305,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
 
     <section v-else class="empty">
       <div class="empty-art"><Icon name="library" :size="26" /></div>
-      <h3>{{ keyword ? '没有匹配的歌曲' : '曲库还是空的' }}</h3>
+      <h3>{{ keyword ? t('library.noMatch') : t('library.emptyTitle') }}</h3>
       <p class="muted">
         {{ t('library.emptyDesc') }}
       </p>

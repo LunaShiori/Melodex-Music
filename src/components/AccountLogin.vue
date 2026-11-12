@@ -304,7 +304,7 @@ onBeforeUnmount(() => {
                   }}
                 </p>
                 <p v-if="remain > 0 && qrState !== 'confirmed'" class="countdown mono">
-                  {{ Math.floor(remain / 60) }}:{{ String(remain % 60).padStart(2, '0') }} 后过期
+                  {{ t('login.qr.countdown', { time: `${Math.floor(remain / 60)}:${String(remain % 60).padStart(2, '0')}` }) }}
                 </p>
                 <ol class="steps">
                   <li>{{ t('login.a6') }}</li>

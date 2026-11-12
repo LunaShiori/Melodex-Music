@@ -846,7 +846,7 @@ onMounted(async () => {
               <small>{{ t('settings.a69') }}</small>
             </div>
             <div class="control debug-chips">
-              <span class="chip mono">风格 {{ store.uiStyle }}</span>
+              <span class="chip mono">{{ t('debug.style', { style: store.uiStyle }) }}</span>
               <span class="chip mono">{{ transport.mode }}</span>
             </div>
           </div>
@@ -862,17 +862,16 @@ onMounted(async () => {
           </div>
           <div>
             <p class="k">运行模式</p>
-            <p class="v muted">{{ transport.mode === 'tauri' ? '本地 Rust 引擎' : '浏览器演示数据' }}</p>
+            <p class="v muted">{{ transport.mode === 'tauri' ? t('about.engine.local') : t('about.engine.demo') }}</p>
           </div>
           <div>
-            <p class="k">开源协议</p>
-            <p class="v muted">仅用于学习与研究，请遵守各音源版权规定</p>
+            <p class="k">{{ t('about.license') }}</p>
+            <p class="v muted">{{ t('about.licenseNote') }}</p>
           </div>
         </div>
 
         <p class="capabilities">
-          一个应用里完成「搜 → 试听 → 下载 → 整理」：三平台聚合搜索、逐行滚动歌词（含双语翻译）、
-          热门/时长/音源数排序、账号歌单读取、批量下载与断点续传、ID3 标签与封面内嵌。
+          {{ t('about.capabilities') }}
         </p>
 
         <div class="update-row">

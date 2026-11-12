@@ -6,7 +6,7 @@ import ScrollText from './ScrollText.vue'
 import { coverOf } from '@/lib/artwork'
 import { onCoverError } from '@/lib/cover'
 import { formatDuration } from '@/lib/format'
-import { artistName, useI18n } from '@/lib/i18n'
+import { artistName, useI18n, sourceShort } from '@/lib/i18n'
 import { SOURCE_META } from '@/lib/types'
 import { useLyricStore } from '@/stores/lyric'
 import { usePlayerStore } from '@/stores/player'
@@ -132,7 +132,7 @@ function openDetail() {
               <span :key="'meta'">
                 {{ player.current ? player.current.artists.join(' / ') || t('common.unknownArtist') : t('player.idleHint') }}
                 <span v-if="sourceMeta" class="src" :style="{ color: sourceMeta.color }">
-                  · {{ sourceMeta.short }}
+                  · {{ sourceShort(player.variant?.source ?? 'netease') }}
                 </span>
               </span>
             </template>
@@ -140,7 +140,7 @@ function openDetail() {
           <template v-else>
             {{ player.current ? artistName(player.current.artists) : t('player.idleHint') }}
             <span v-if="sourceMeta" class="src" :style="{ color: sourceMeta.color }">
-              · {{ sourceMeta.short }}
+              · {{ sourceShort(player.variant?.source ?? 'netease') }}
             </span>
           </template>
         </p>

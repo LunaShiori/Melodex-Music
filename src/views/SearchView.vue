@@ -7,7 +7,7 @@ import TrackRow from '@/components/TrackRow.vue'
 import DownloadPicker from '@/components/DownloadPicker.vue'
 import { coverOf } from '@/lib/artwork'
 import { clearKeywords, clearRecent, keywords, pushKeyword, recent } from '@/lib/history'
-import { sourceName, sourceShort, useI18n } from '@/lib/i18n'
+import { sourceName, sourceShort, useI18n, artistName } from '@/lib/i18n'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
 import { SORT_MODES, useSearchStore } from '@/stores/search'
@@ -237,7 +237,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         >
           <i :style="{ background: report.ok ? SOURCE_META[report.source].color : 'var(--danger)' }" />
           {{ sourceShort(report.source) }}
-          {{ report.ok ? report.count : '超时' }}
+          {{ report.ok ? report.count : t('search.timeout') }}
         </span>
       </div>
 
@@ -329,7 +329,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           :disabled="search.loadingMore"
           @click="search.run(search.page + 1, true)"
         >
-          {{ search.loadingMore ? '加载中…' : '加载更多' }}
+          {{ search.loadingMore ? t('common.loading') : t('search.loadMore') }}
         </button>
         <p v-else class="muted end">{{ t('search.end') }}</p>
       </div>
@@ -337,7 +337,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
     <section v-else-if="search.searched" class="empty">
       <div class="empty-art"><Icon name="search" :size="26" /></div>
-      <h3>没有找到「{{ search.activeKeyword }}」</h3>
+      <h3>{{ t('search.noResult', { keyword: search.activeKeyword }) }}</h3>
       <p class="muted">{{ t('search.emptyHint') }}</p>
     </section>
 
@@ -350,7 +350,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <div v-if="recent.length" class="history-block">
         <div class="history-head">
           <span>{{ t('search.recentPlays') }}</span>
-          <button class="link-btn" type="button" @click="clearRecent()">清空</button>
+          <button class="link-btn" type="button" @click="clearRecent()">{{ t('searchview.a1') }}</button>
         </div>
         <ul class="recent-list">
           <li v-for="track in recent.slice(0, 5)" :key="track.fingerprint">
@@ -358,7 +358,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
               <img class="recent-cover" :src="coverOf(track.cover, track.fingerprint)" alt="" loading="lazy" />
               <span class="recent-text">
                 <span class="recent-title">{{ track.title }}</span>
-                <span class="recent-meta">{{ track.artists.join(' / ') || '未知歌手' }}</span>
+                <span class="recent-meta">{{ artistName(track.artists) }}</span>
               </span>
               <Icon name="play" :size="14" />
             </button>
@@ -366,7 +366,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         </ul>
       </div>
 
-      <div class="hot-label">{{ recent.length ? '或者试试' : '热门搜索' }}</div>
+      <div class="hot-label">{{ recent.length ? t('search.tryInstead') : t('search.hot') }}</div>
       <div class="hot">
         <button v-for="word in hot" :key="word" class="chip chip-btn" type="button" @click="pick(word)">
           {{ word }}
@@ -383,7 +383,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           </span>
           {{ t('search.selectAll') }}
         </button>
-        <span class="bulk-count mono">已选 {{ picked.size }} 首</span>
+        <span class="bulk-count mono">{{ t('search.picked', { n: picked.size }) }}</span>
         <button class="btn btn-sm" type="button" @click="exitSelect">{{ t('common.cancel') }}</button>
         <button
           class="btn btn-primary btn-sm"
@@ -391,9 +391,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           :disabled="!picked.size"
           @click="downloadPicked"
         >
-          <Icon name="download" :size="14" />
-          下载
-        </button>
+          <Icon name="download" :size="14" />{{ t('searchview.a2') }}</button>
       </div>
     </Transition>
 

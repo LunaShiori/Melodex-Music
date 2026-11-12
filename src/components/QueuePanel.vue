@@ -44,7 +44,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
           <header class="q-head">
             <div class="q-title">
               <strong>{{ t('queuepanel.a1') }}</strong>
-              <span class="q-count mono">{{ player.queue.length }} 首</span>
+              <span class="q-count mono">{{ t('queue.count', { n: player.queue.length }) }}</span>
             </div>
             <button class="q-close" :title="t('queuepanel.b3')" @click="player.closeQueue()">
               <Icon name="close" :size="16" />
