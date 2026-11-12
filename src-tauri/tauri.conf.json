@@ -102,13 +102,21 @@
       },
       {
         "ext": [
-          "ogg",
-          "opus"
+          "ogg"
         ],
         "name": "OGG audio",
-        "description": "OGG / Opus 音频",
+        "description": "OGG 音频",
         "role": "Viewer",
         "mimeType": "audio/ogg"
+      },
+      {
+        "ext": [
+          "opus"
+        ],
+        "name": "Opus audio",
+        "description": "Opus 音频",
+        "role": "Viewer",
+        "mimeType": "audio/opus"
       }
     ]
   }
