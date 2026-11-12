@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
-import { artistName } from '@/lib/i18n'
+import { artistName, useI18n } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { usePlayerStore } from '@/stores/player'
 
@@ -14,6 +14,7 @@ import { usePlayerStore } from '@/stores/player'
  * 只是一直没有地方看得见。手机上从底部升起，桌面上从右侧滑出，
  * 两者共用同一份 DOM：拖动排序在桌面端用原生拖放，触屏则靠每行的上下箭头。
  */
+const { t } = useI18n()
 const player = usePlayerStore()
 
 const dragFrom = ref(-1)
@@ -39,20 +40,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   <Teleport to="body">
     <Transition name="queue">
       <div v-if="player.queueOpen" class="q-mask" @click.self="player.closeQueue()">
-        <aside class="q-panel" role="dialog" aria-label="播放队列">
+        <aside class="q-panel" role="dialog" :aria-label="t('queuepanel.a1')">
           <header class="q-head">
             <div class="q-title">
-              <strong>播放队列</strong>
+              <strong>{{ t('queuepanel.a1') }}</strong>
               <span class="q-count mono">{{ player.queue.length }} 首</span>
             </div>
-            <button class="q-close" title="关闭" @click="player.closeQueue()">
+            <button class="q-close" :title="t('queuepanel.b3')" @click="player.closeQueue()">
               <Icon name="close" :size="16" />
             </button>
           </header>
 
-          <p v-if="!player.queue.length" class="q-empty">
-            还没有队列。从搜索结果或最近播放里点一首，接下来的歌就会排在这里。
-          </p>
+          <p v-if="!player.queue.length" class="q-empty">{{ t('queuepanel.a2') }}</p>
 
           <ol v-else class="q-list">
             <li
@@ -87,7 +86,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
                 <button
                   class="q-btn"
                   type="button"
-                  title="上移"
+                  :title="t('queuepanel.b4')"
                   :disabled="index === 0"
                   @click.stop="player.move(index, index - 1)"
                 >
@@ -96,13 +95,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
                 <button
                   class="q-btn"
                   type="button"
-                  title="下移"
+                  :title="t('queuepanel.b5')"
                   :disabled="index === player.queue.length - 1"
                   @click.stop="player.move(index, index + 1)"
                 >
                   <Icon name="chevron" :size="13" class="down" />
                 </button>
-                <button class="q-btn" type="button" title="移出队列" @click.stop="player.removeAt(index)">
+                <button class="q-btn" type="button" :title="t('queuepanel.b6')" @click.stop="player.removeAt(index)">
                   <Icon name="close" :size="13" />
                 </button>
               </span>

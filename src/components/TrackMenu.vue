@@ -3,10 +3,12 @@ import { computed, onMounted, onUnmounted } from 'vue'
 
 import Icon from './Icon.vue'
 import { artistName } from '@/lib/i18n'
+import { useI18n } from '@/lib/i18n'
 import { useMenuStore } from '@/stores/trackMenu'
 import { usePlayerStore } from '@/stores/player'
 import { useTasksStore } from '@/stores/tasks'
 
+const { t } = useI18n()
 const menu = useMenuStore()
 const player = usePlayerStore()
 const tasks = useTasksStore()
@@ -26,31 +28,31 @@ const actions = computed<Action[]>(() => {
   return [
     {
       key: 'play',
-      label: '立即播放',
+      label: 'menu.play',
       icon: 'play',
       run: () => void player.playTrack(target),
     },
     {
       key: 'next',
-      label: '下一首播放',
+      label: 'menu.playNext',
       icon: 'next',
       run: () => player.playNext(target),
     },
     {
       key: 'queue',
-      label: '加入播放队列',
+      label: 'menu.addQueue',
       icon: 'queue',
       run: () => player.appendToQueue(target),
     },
     {
       key: 'download',
-      label: '下载这首',
+      label: 'menu.download',
       icon: 'download',
       run: () => void tasks.enqueue([target]),
     },
     {
       key: 'copy',
-      label: '复制「歌名 - 歌手」',
+      label: 'menu.copy',
       icon: 'external',
       run: () => {
         const text = `${target.title} - ${artistName(target.artists)}`
@@ -99,7 +101,7 @@ onUnmounted(() => {
             @click="run(action)"
           >
             <Icon :name="action.icon" :size="15" />
-            {{ action.label }}
+            {{ t(action.label) }}
           </button>
         </div>
       </div>

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import Icon from './Icon.vue'
-import { useI18n } from '@/lib/i18n'
+import { sourceName, useI18n } from '@/lib/i18n'
 import { SOURCE_META, type QrStatus, type SourceId } from '@/lib/types'
 import { transport } from '@/lib/transport'
 import { useAccountsStore } from '@/stores/accounts'
@@ -50,19 +50,19 @@ const cookiePlaceholder = computed(() => {
 
 const modes = computed(() => {
   const list: { id: LoginMode; label: string; icon: string }[] = []
-  if (webSupported.value) list.push({ id: 'web', label: '内置登录', icon: 'external' })
-  if (supportsQr.value) list.push({ id: 'qr', label: '扫码登录', icon: 'qr' })
-  list.push({ id: 'cookie', label: '粘贴 Cookie', icon: 'music' })
+  if (webSupported.value) list.push({ id: 'web', label: 'login.tab.web', icon: 'external' })
+  if (supportsQr.value) list.push({ id: 'qr', label: 'login.tab.qr', icon: 'qr' })
+  list.push({ id: 'cookie', label: 'login.tab.cookie', icon: 'music' })
   return list
 })
 
 const STATUS_TEXT: Record<string, string> = {
-  loading: '正在获取二维码…',
-  waiting: '请用手机扫码',
-  scanned: '已扫描，请在手机上确认',
-  confirmed: '登录成功',
-  expired: '二维码已过期',
-  error: '获取二维码失败',
+  loading: 'login.qr.loading',
+  waiting: 'login.qr.waiting',
+  scanned: 'login.qr.scanned',
+  confirmed: 'login.qr.confirmed',
+  expired: 'login.qr.expired',
+  error: 'login.qr.error',
 }
 
 function stopTimers() {
@@ -103,7 +103,7 @@ async function openWeb() {
   if (!opened) {
     webBusy.value = false
     teardownWeb()
-    failure.value = accounts.error || '无法打开登录窗口'
+    failure.value = accounts.error || t('login.fail.window')
   }
 }
 
@@ -161,14 +161,14 @@ async function submitCookie() {
   failure.value = ''
   const cookie = cookieInput.value.trim()
   if (!cookie.includes('=')) {
-    failure.value = '这看起来不是 Cookie，请粘贴「name=value」形式的完整内容'
+    failure.value = t('login.fail.notCookie')
     return
   }
   submitting.value = true
   try {
     const account = await accounts.saveCookie(props.source, cookie, nickname.value.trim() || null)
     if (account) emit('close')
-    else failure.value = accounts.error || '保存失败'
+    else failure.value = accounts.error || t('login.fail.save')
   } finally {
     submitting.value = false
   }
@@ -233,7 +233,7 @@ onBeforeUnmount(() => {
             <div class="who">
               <span class="dot" :style="{ background: meta.color }" />
               <div>
-                <h3>登录 {{ meta.label }}</h3>
+                <h3>{{ t('login.title', { source: sourceName(source) }) }}</h3>
                 <p class="muted">{{ t('login.a1') }}</p>
               </div>
             </div>
@@ -254,7 +254,7 @@ onBeforeUnmount(() => {
                 type="button"
                 @click="mode = item.id"
               >
-                <Icon :name="item.icon" :size="14" /> {{ item.label }}
+                <Icon :name="item.icon" :size="14" /> {{ t(item.label) }}
               </button>
             </div>
 
@@ -263,20 +263,16 @@ onBeforeUnmount(() => {
               <div class="web-side">
                 <p class="qr-state" :class="webBusy ? 'waiting' : 'idle'">
                   <span class="bulb" />
-                  {{ webBusy ? '已打开登录窗口，等你在里面完成登录' : '在自己的登录页里登录，不用碰 Cookie' }}
+                  {{ webBusy ? t('login.web.busy') : t('login.web.idle') }}
                 </p>
                 <ol class="steps">
-                  <li>点下面的按钮，弹出一个 {{ meta.short }} 的登录窗口</li>
-                  <li>
-                    在窗口里用
-                    {{ source === 'qq' ? 'QQ、微信或扫码' : '账号或扫码' }}
-                    登录
-                  </li>
+                  <li>{{ t('login.web.step1') }}</li>
+                  <li>{{ t('login.web.step2', { methods: source === 'qq' ? t('login.web.methodQq') : t('login.web.method') }) }}</li>
                   <li>{{ t('login.a3') }}</li>
                 </ol>
                 <button class="btn btn-primary btn-sm web-btn" type="button" :disabled="webBusy" @click="openWeb">
                   <Icon name="external" :size="14" />
-                  {{ webBusy ? '等待登录…' : '打开登录窗口' }}
+                  {{ webBusy ? t('login.web.waiting') : t('login.web.open') }}
                 </button>
                 <p v-if="webBusy" class="muted small">{{ t('login.a4') }}</p>
               </div>
@@ -286,7 +282,7 @@ onBeforeUnmount(() => {
             <section v-else-if="mode === 'qr'" class="qr-wrap">
               <div class="qr-box" :class="qrState">
                 <div v-if="qrSvg" class="qr-svg" v-html="qrSvg" />
-                <img v-else-if="qrImage" class="qr-img" :src="qrImage" alt="扫码登录二维码" />
+                <img v-else-if="qrImage" class="qr-img" :src="qrImage" :alt="t('login.qr.alt')" />
                 <div v-if="qrState === 'expired' || qrState === 'error'" class="qr-mask">
                   <button class="btn btn-ghost btn-sm" type="button" @click="startQr">
                     <Icon name="refresh" :size="14" />{{ t('login.a5') }}</button>
@@ -303,8 +299,8 @@ onBeforeUnmount(() => {
                 <p v-if="qrState === 'waiting' || qrState === 'scanned'" class="muted small">
                   {{
                     props.source === 'qq'
-                      ? '用 QQ、微信或 QQ 音乐 App 扫描，并在手机上确认'
-                      : '打开网易云音乐 App → 右上角「扫一扫」'
+                      ? t('login.qr.tipQq')
+                      : t('login.qr.tipNetease')
                   }}
                 </p>
                 <p v-if="remain > 0 && qrState !== 'confirmed'" class="countdown mono">
@@ -344,10 +340,10 @@ onBeforeUnmount(() => {
 
           <footer class="d-foot">
             <span class="muted tiny">
-              <Icon name="lock" :size="12" /> AES-256-GCM 本地加密
+              <Icon name="lock" :size="12" /> {{ t('login.foot.encrypted') }}
             </span>
             <div class="acts">
-              <button class="btn btn-ghost" type="button" @click="emit('close')">取消</button>
+              <button class="btn btn-ghost" type="button" @click="emit('close')">{{ t('common.cancel') }}</button>
               <button
                 v-if="mode === 'cookie'"
                 class="btn btn-primary"
@@ -355,7 +351,7 @@ onBeforeUnmount(() => {
                 :disabled="submitting || !cookieInput.trim()"
                 @click="submitCookie"
               >
-                {{ submitting ? '保存中…' : '保存并登录' }}
+                {{ submitting ? t('login.cookie.saving') : t('login.cookie.save') }}
               </button>
             </div>
           </footer>
@@ -418,6 +414,7 @@ onBeforeUnmount(() => {
   margin: 14px 0 12px;
 }
 .tab {
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 5px;

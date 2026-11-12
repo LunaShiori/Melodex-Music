@@ -3,10 +3,10 @@ import { computed } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
-import { artistName, sourceShort } from '@/lib/i18n'
+import { artistName, sourceShort, useI18n } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatDuration } from '@/lib/format'
-import { originLabel } from '@/lib/origin'
+import { originLabelKey, trackOrigin } from '@/lib/origin'
 import { useMenuStore } from '@/stores/trackMenu'
 import { SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
@@ -58,10 +58,12 @@ function cancelPress() {
 const cover = computed(() => coverOf(props.track.cover, props.track.fingerprint))
 const bestBitrate = computed(() => Math.max(...props.track.variants.map((v) => v.bitrate)))
 /** 标题自带「原唱 / 翻唱」说明时给个小标签，扫一眼就知道这条是什么版本 */
-const origin = computed(() => originLabel(props.track))
+const { t } = useI18n()
+const originKey = computed(() => originLabelKey(props.track))
+const originKind = computed(() => trackOrigin(props.track))
 const feeLabel = computed(() => {
-  if (props.track.fee === 'vip') return '会员'
-  if (props.track.fee === 'paid') return '付费'
+  if (props.track.fee === 'vip') return t('badge.vip')
+  if (props.track.fee === 'paid') return t('badge.paid')
   return ''
 })
 
@@ -114,7 +116,7 @@ function onPlay() {
 
     <div class="cover" @click.stop="onPlay">
       <img :src="cover" alt="" loading="lazy" @error="onCoverError($event, track.fingerprint)" />
-      <button class="cover-play" type="button" :title="playing && active ? '暂停' : '播放'">
+      <button class="cover-play" type="button" :title="playing && active ? t('player.pause') : t('player.play')">
         <Icon
           :name="playing && active ? 'pause' : 'play'"
           :size="15"
@@ -126,10 +128,10 @@ function onPlay() {
     <div class="main">
       <p class="title" :title="track.title">
         <span
-          v-if="origin"
+          v-if="originKey"
           class="origin-tag"
-          :class="origin === '原唱' ? 'tag-orig' : 'tag-cover'"
-        >{{ origin }}</span>
+          :class="originKind === 'original' ? 'tag-orig' : 'tag-cover'"
+        >{{ t(originKey) }}</span>
         <span class="title-text">{{ track.title }}</span>
       </p>
       <p class="sub">
@@ -144,7 +146,7 @@ function onPlay() {
         :key="variant.source + variant.id"
         class="src-chip"
         type="button"
-        :title="`从${SOURCE_META[variant.source].label}下载`"
+        :title="t('list.downloadFrom', { source: sourceShort(variant.source) })"
         :style="{ '--src': SOURCE_META[variant.source].color }"
         @click.stop="emit('download', track, variant)"
       >
@@ -161,16 +163,16 @@ function onPlay() {
     <span class="dur mono">{{ formatDuration(track.durationMs) }}</span>
 
     <div class="actions">
-      <button class="icon-btn" type="button" title="播放" @click.stop="emit('play', track)">
+      <button class="icon-btn" type="button" :title="t('player.play')" @click.stop="emit('play', track)">
         <Icon name="play" :size="15" />
       </button>
-      <button class="icon-btn dl" type="button" title="下载" @click.stop="emit('download', track)">
+      <button class="icon-btn dl" type="button" :title="t('common.download')" @click.stop="emit('download', track)">
         <Icon name="download" :size="15" />
       </button>
     </div>
 
     <!-- 手机端没有 hover，下载入口必须常驻可见 -->
-    <button class="m-dl" type="button" title="下载" @click.stop="emit('download', track)">
+    <button class="m-dl" type="button" :title="t('common.download')" @click.stop="emit('download', track)">
       <Icon name="download" :size="17" />
     </button>
   </article>

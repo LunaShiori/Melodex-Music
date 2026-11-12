@@ -126,7 +126,7 @@ function startScrub(event: PointerEvent) {
       </div>
 
       <header class="lv-head">
-        <button class="round" type="button" aria-label="收起" @click="close">
+        <button class="round" type="button" :aria-label="t('lyricview.b9')" @click="close">
           <Icon name="chevron" :size="20" />
         </button>
 
@@ -144,8 +144,8 @@ function startScrub(event: PointerEvent) {
           <button
             class="round"
             type="button"
-            :aria-label="showCover ? '切换为纯歌词' : '切换为歌词加封面'"
-            :title="showCover ? '切换为纯歌词' : '切换为歌词加封面'"
+            :aria-label="t(showCover ? 'lyric.toggle.pure' : 'lyric.toggle.cover')"
+            :title="t(showCover ? 'lyric.toggle.pure' : 'lyric.toggle.cover')"
             @click="lyric.toggleMode()"
           >
             <Icon :name="showCover ? 'lyric' : 'disc'" :size="18" />
@@ -153,8 +153,8 @@ function startScrub(event: PointerEvent) {
           <button
             class="round"
             type="button"
-            aria-label="歌词主题"
-            title="歌词主题"
+            :aria-label="t('lyricview.b11')"
+            :title="t('lyricview.b11')"
             :class="{ on: panelOpen }"
             @click="panelOpen = !panelOpen"
           >
@@ -179,9 +179,7 @@ function startScrub(event: PointerEvent) {
 
         <div ref="box" class="lv-scroll" :class="{ solo: !showCover }">
           <p v-if="!hasLyric" class="no-lyric">
-            <Icon name="lyric" :size="20" />
-            这个音源没有提供歌词
-          </p>
+            <Icon name="lyric" :size="20" />{{ t('lyricview.a1') }}</p>
           <p
             v-for="(line, index) in player.lyricLines"
             :key="index"
@@ -202,17 +200,17 @@ function startScrub(event: PointerEvent) {
           <p class="err-label">{{ player.error.label }}</p>
           <p class="err-hint">{{ player.error.hint }}</p>
         </div>
-        <button class="btn btn-sm" type="button" @click="player.toggle()">重试</button>
+        <button class="btn btn-sm" type="button" @click="player.toggle()">{{ t('lyricview.a2') }}</button>
       </div>
 
       <footer class="lv-foot">
         <!-- 偏移快调：边听边对齐，不用跑一趟设置页 -->
         <div v-if="hasLyric" class="offset">
-          <span class="offset-hint">歌词偏移</span>
+          <span class="offset-hint">{{ t('lyricview.a3') }}</span>
           <button
             class="offset-btn"
             type="button"
-            title="歌词提前 0.1 秒"
+            :title="t('lyricview.b12')"
             :disabled="!lyric.canNudgeEarlier"
             @click="lyric.nudgeOffset(-1)"
           >
@@ -222,15 +220,13 @@ function startScrub(event: PointerEvent) {
           <button
             class="offset-btn"
             type="button"
-            title="歌词延后 0.1 秒"
+            :title="t('lyricview.b13')"
             :disabled="!lyric.canNudgeLater"
             @click="lyric.nudgeOffset(1)"
           >
             +
           </button>
-          <button v-if="lyric.offsetMs" class="offset-reset" type="button" @click="lyric.setOffset(0)">
-            归零
-          </button>
+          <button v-if="lyric.offsetMs" class="offset-reset" type="button" @click="lyric.setOffset(0)">{{ t('lyricview.a4') }}</button>
         </div>
 
         <div class="timeline">
@@ -267,13 +263,13 @@ function startScrub(event: PointerEvent) {
         <div v-if="panelOpen" class="lv-panel" @click.self="panelOpen = false">
           <div class="panel-card">
             <header>
-              <p class="panel-title">歌词显示</p>
+              <p class="panel-title">{{ t('lyricview.a5') }}</p>
               <button class="icon-btn" type="button" @click="panelOpen = false">
                 <Icon name="close" :size="16" />
               </button>
             </header>
 
-            <p class="panel-label">模式</p>
+            <p class="panel-label">{{ t('lyricview.a6') }}</p>
             <div class="modes">
               <button
                 v-for="item in LYRIC_MODES"
@@ -291,7 +287,7 @@ function startScrub(event: PointerEvent) {
               </button>
             </div>
 
-            <p class="panel-label">主题</p>
+            <p class="panel-label">{{ t('lyricview.a7') }}</p>
             <div class="themes">
               <button
                 v-for="item in LYRIC_THEMES"
@@ -311,7 +307,7 @@ function startScrub(event: PointerEvent) {
               </button>
             </div>
 
-            <p class="panel-tip">字号在「设置 → 歌词」里调，手机端同样生效</p>
+            <p class="panel-tip">{{ t('lyricview.a8') }}</p>
           </div>
         </div>
       </Transition>

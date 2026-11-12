@@ -97,7 +97,7 @@ function openDetail() {
           <p class="pe-title">{{ player.error.label }}</p>
           <p class="pe-hint">{{ player.error.hint }}</p>
         </div>
-        <button class="btn btn-sm" type="button" @click="player.toggle()">重试</button>
+        <button class="btn btn-sm" type="button" @click="player.toggle()">{{ player.playing ? t('player.pause') : t('player.play') }}</button>
       </div>
     </Transition>
 
@@ -106,7 +106,7 @@ function openDetail() {
     </div>
 
     <div class="now" @click="openDetail">
-      <div class="thumb" :title="player.current ? '打开歌词详情' : ''">
+      <div class="thumb" :title="player.current ? t('playerbar.b2') : ''">
         <img v-if="cover" :src="cover" alt="" @error="onCoverError($event, player.current?.fingerprint ?? 'melodex')" />
         <span v-else class="placeholder"><Icon name="disc" :size="20" /></span>
         <span v-if="player.playing" class="eq" aria-hidden="true">

@@ -35,10 +35,10 @@ function onNotesClick(event: MouseEvent) {
 }
 
 const KIND_LABEL: Record<string, string> = {
-  nsis: 'Windows 安装包 · exe',
-  msi: 'Windows 安装包 · msi',
-  apk: 'Android 安装包',
-  aab: 'Android 应用包',
+  nsis: 'update.kind.nsis',
+  msi: 'update.kind.msi',
+  apk: 'update.kind.apk',
+  aab: 'update.kind.aab',
   dmg: 'update.kind.dmg',
   appimage: 'update.kind.appimage',
   zip: 'update.kind.zip',

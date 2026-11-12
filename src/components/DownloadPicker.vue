@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import Icon from './Icon.vue'
-import { artistName } from '@/lib/i18n'
+import { artistName, useI18n } from '@/lib/i18n'
 import { transport } from '@/lib/transport'
 import { SOURCE_META } from '@/lib/types'
 import type { PlatformQuality, QualityLevel, QualityTier, SourceId, Track, Variant } from '@/lib/types'
@@ -18,6 +18,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
+const { t } = useI18n()
 const accounts = useAccountsStore()
 
 /** 各平台的档位表，后端唯一维护 */
@@ -55,9 +56,9 @@ onMounted(async () => {
  */
 function tierState(source: SourceId, tier: QualityTier): { text: string; warn: boolean } {
   const logged = !!accounts.accountOf(source)
-  if (tier.vip) return { text: logged ? '需会员' : '需登录 + 会员', warn: true }
-  if (source === 'qq' && !logged) return { text: '需登录', warn: true }
-  return { text: '可直接下', warn: false }
+  if (tier.vip) return { text: logged ? t('picker.vip') : t('picker.vipLogin'), warn: true }
+  if (source === 'qq' && !logged) return { text: t('picker.login'), warn: true }
+  return { text: t('picker.ready'), warn: false }
 }
 
 /** 当前选中档位；没有可选项时为 null */
@@ -121,16 +122,13 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
           <h3>{{ track.title }}</h3>
           <p class="sub">{{ artistName(track.artists) }}</p>
         </div>
-        <button class="icon-btn" type="button" title="关闭" @click="emit('close')">
+        <button class="icon-btn" type="button" :title="t('downloadpicker.b7')" @click="emit('close')">
           <Icon name="close" :size="16" />
         </button>
       </header>
 
       <div class="body">
-        <p class="hint muted">
-          选平台和音质。每档后面标了当前账号能不能下：带「需登录」「需会员」的档位取不到时会自动降到下一档，
-          不会卡住整首。
-        </p>
+        <p class="hint muted">{{ t('downloadpicker.a1') }}</p>
 
         <div class="platforms">
           <article
@@ -143,8 +141,8 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
             <header class="p-head">
               <span class="dot" :style="{ background: SOURCE_META[variant.source].color }" />
               <strong>{{ SOURCE_META[variant.source].label }}</strong>
-              <span v-if="variant.fee === 'vip'" class="vip">会员</span>
-              <span v-else-if="variant.fee === 'paid'" class="vip">付费</span>
+              <span v-if="variant.fee === 'vip'" class="vip">{{ t('downloadpicker.a2') }}</span>
+              <span v-else-if="variant.fee === 'paid'" class="vip">{{ t('downloadpicker.a3') }}</span>
               <span v-if="selectedSource === variant.source" class="tick">
                 <Icon name="check" :size="13" />
               </span>
@@ -161,7 +159,7 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
               >
                 <span class="tier-name">
                   {{ tier.label }}
-                  <span v-if="tier.vip" class="vip mini">会员</span>
+                  <span v-if="tier.vip" class="vip mini">{{ t('downloadpicker.a2') }}</span>
                 </span>
                 <span class="tier-detail mono">{{ tier.detail }}</span>
                 <span class="tier-state" :class="{ warn: tierState(variant.source, tier).warn }">
@@ -179,13 +177,11 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
           <span class="sep">·</span>
           <strong>{{ activeTier.label }}</strong>
           <span class="mono muted">{{ tierCaption(activeTier) }}</span>
-          <span v-if="activeNeedsRights" class="foot-warn">账号没有这档权益时会自动降级</span>
+          <span v-if="activeNeedsRights" class="foot-warn">{{ t('downloadpicker.a4') }}</span>
         </p>
-        <button class="btn" type="button" @click="emit('close')">取消</button>
+        <button class="btn" type="button" @click="emit('close')">{{ t('downloadpicker.a5') }}</button>
         <button class="btn btn-primary" type="button" :disabled="!selectedVariant" @click="confirm">
-          <Icon name="download" :size="15" />
-          下载
-        </button>
+          <Icon name="download" :size="15" />{{ t('downloadpicker.a6') }}</button>
       </footer>
     </div>
   </div>

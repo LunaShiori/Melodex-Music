@@ -33,10 +33,14 @@ export function trackOrigin(track: {
   return 'unknown'
 }
 
-/** 列表上的小标签；平台没标就返回空串 */
-export function originLabel(track: { variants?: { origin?: OriginMark | null }[] }): string {
+/**
+ * 列表上的小标签词条键；平台没标就返回空串。
+ *
+ * 返回的是键而不是成品文案：调用方在渲染时 `t()`，这样切换语言不用重建列表。
+ */
+export function originLabelKey(track: { variants?: { origin?: OriginMark | null }[] }): string {
   const kind = trackOrigin(track)
-  if (kind === 'original') return '原唱'
-  if (kind === 'cover') return '翻唱'
+  if (kind === 'original') return 'badge.original'
+  if (kind === 'cover') return 'badge.cover'
   return ''
 }
