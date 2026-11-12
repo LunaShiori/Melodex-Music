@@ -12,6 +12,7 @@ pub mod aggregator;
 pub mod cookie;
 pub mod download;
 pub mod error;
+pub mod local_audio;
 #[cfg(feature = "net")]
 pub mod login;
 pub mod lyric;

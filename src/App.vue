@@ -12,7 +12,9 @@ import TabBar from '@/components/TabBar.vue'
 import ToastStack from '@/components/ToastStack.vue'
 import UpdateNotice from '@/components/UpdateNotice.vue'
 import { loadHistory } from '@/lib/history'
+import { transport } from '@/lib/transport'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { usePlayerStore } from '@/stores/player'
 import { useSettingsStore } from '@/stores/settings'
 import { useTasksStore } from '@/stores/tasks'
 import { useUpdateStore } from '@/stores/update'
@@ -21,6 +23,7 @@ const settings = useSettingsStore()
 const tasks = useTasksStore()
 const update = useUpdateStore()
 const onboarding = useOnboardingStore()
+const player = usePlayerStore()
 
 /**
  * 移动端软键盘弹出时，可视高度会明显小于窗口高度。
@@ -41,6 +44,11 @@ onMounted(async () => {
   // 演示模式也跑一次——demo 里备了一份写好的更新清单，这样浏览器里也能走查
   // 更新弹窗（Markdown 说明、手动挑安装包）而不用装 Tauri 外壳。
   void update.check({ silent: true })
+
+  // 「用 Melodex 打开」：双击音频文件时系统把路径作为参数传进来，直接开播
+  void transport.startupAudioFiles().then((paths) => {
+    if (paths.length) player.playLocalFile(paths[0])
+  })
 
   window.visualViewport?.addEventListener('resize', syncKeyboard)
   window.visualViewport?.addEventListener('scroll', syncKeyboard)

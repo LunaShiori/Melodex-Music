@@ -160,6 +160,14 @@ export function createTauriTransport(): Transport {
       await invoke('open_url', { url })
     },
 
+    async pickAudioFiles() {
+      return invoke<string[]>('pick_audio_files')
+    },
+
+    async startupAudioFiles() {
+      return invoke<string[]>('startup_audio_files')
+    },
+
     localUrl(path: string) {
       return convertFileSrc(path)
     },

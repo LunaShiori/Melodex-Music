@@ -607,4 +607,6 @@ export const zh: Record<string, string> = {
   'platforms.bilibili.title': '哔哩哔哩音乐区',
   'platforms.bilibili.desc': '预留给 2.2 的接口位：登录后用「音乐」分区搜索视频。B 站没有独立的音乐检索接口，需要自建解析，先不接。',
   'settings.platformsHint': 'Apple Music 能搜能试听，Spotify / YouTube / B 站写清边界',
+  'library.openLocal': '打开本地文件',
+  'library.localOnlyDesktop': '「打开本地文件」用桌面端的系统文件框，浏览器演示模式里没有',
 }

@@ -397,6 +397,31 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
+  /**
+   * 播一个本地文件（「打开方式」或曲库里的「打开本地文件」）。
+   *
+   * 这里没有平台信息可用，标题先用文件名，时长等解码器报出来后由
+   * `loadedmetadata` 补上；歌词区留空，不去源站乱猜。
+   */
+  function playLocalFile(path: string) {
+    const name = path.split(/[\/]/).pop() ?? path
+    const dot = name.lastIndexOf('.')
+    const track: Track = {
+      fingerprint: `local:${path}`,
+      title: dot > 0 ? name.slice(0, dot) : name,
+      artists: [],
+      album: '',
+      durationMs: 0,
+      cover: null,
+      bitrate: 0,
+      format: dot > 0 ? name.slice(dot + 1).toLowerCase() : '',
+      fee: 'free',
+      variants: [],
+    }
+    void playLocal(track, transport.localUrl(path))
+    return track
+  }
+
   async function playList(tracks: Track[], startIndex = 0) {
     queue.value = tracks
     index.value = startIndex
@@ -655,6 +680,7 @@ export const usePlayerStore = defineStore('player', () => {
     isDemo,
     playTrack,
     playLocal,
+    playLocalFile,
     playList,
     playNext,
     appendToQueue,

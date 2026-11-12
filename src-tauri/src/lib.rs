@@ -1011,6 +1011,37 @@ fn save_text_file(
     Ok(path.to_string_lossy().into_owned())
 }
 
+
+/// 打开系统文件选择框挑音频文件，返回绝对路径。
+///
+/// 阻塞式对话框跑在 spawn_blocking 里，避免 macOS 上主线程被卡住
+/// （和网页登录窗读 Cookie 是同一个坑）。
+#[tauri::command]
+async fn pick_audio_files(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .add_filter("音频文件", &["mp3", "flac", "m4a", "aac", "wav", "ogg", "opus", "wma"])
+            .blocking_pick_files()
+    })
+    .await
+    .map_err(|err| format!("打开文件选择框失败：{err}"))?;
+
+    Ok(picked
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|item| item.into_path().ok())
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect())
+}
+
+/// 启动时「用 Melodex 打开」传进来的音频路径（双击文件、右键打开方式都会走这里）。
+#[tauri::command]
+fn startup_audio_files() -> Vec<String> {
+    melodex_core::local_audio::audio_files_from_args(std::env::args())
+}
+
 #[tauri::command]
 fn reveal_path(path: String) -> Result<(), String> {
     let raw = path.trim().trim_matches('"').to_string();
@@ -1218,6 +1249,8 @@ pub fn run() {
             pick_download_dir,
             reveal_path,
             save_text_file,
+            pick_audio_files,
+            startup_audio_files,
             check_update,
             update_download,
             update_install,

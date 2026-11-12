@@ -603,4 +603,6 @@ export const en: Record<string, string> = {
   'platforms.bilibili.title': 'Bilibili music section',
   'platforms.bilibili.desc': 'A placeholder slot for 2.2: sign in and search videos in the music section. Bilibili has no standalone music API, so this waits for a custom resolver.',
   'settings.platformsHint': 'Apple Music search and previews; Spotify, YouTube and Bilibili are documented by boundary',
+  'library.openLocal': 'Open local file',
+  'library.localOnlyDesktop': 'Opening local files uses the desktop file picker; the browser demo has none',
 }

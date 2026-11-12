@@ -26,6 +26,33 @@ const library = useLibraryStore()
 const player = usePlayerStore()
 const keyword = ref('')
 
+/**
+ * 打开本地音频文件。
+ *
+ * 桌面端弹系统文件框，选中的第一首立刻播、其余顺序接在后面；
+ * 浏览器演示模式没有系统对话框，给一句说明而不是静默失败。
+ */
+async function openLocalFiles() {
+  const paths = await transport.pickAudioFiles()
+  if (!paths.length) {
+    if (transport.mode === 'demo') pushNotice('info', t('library.localOnlyDesktop'))
+    return
+  }
+  const tracks = paths.map((path) => player.playLocalFile(path))
+  if (tracks.length > 1) player.queue = [...tracks]
+}
+
+const notices = ref<{ id: number; text: string }[]>([])
+let noticeSeq = 0
+
+function pushNotice(_level: string, text: string) {
+  const id = ++noticeSeq
+  notices.value = [...notices.value, { id, text }]
+  window.setTimeout(() => {
+    notices.value = notices.value.filter((item) => item.id !== id)
+  }, 4000)
+}
+
 function readPrefs(): { mode: ViewMode; size: CoverSize; sort: SortKey } {
   // 手机上一列大封面太占屏：窄屏默认小图（两列），桌面仍用中图。
   // 只是「没存过偏好」时的默认值，用户点过小/中/大之后照他自己的来。
@@ -183,6 +210,9 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
       </div>
 
       <div class="right">
+        <button class="btn btn-sm" type="button" :title="t('library.openLocal')" @click="openLocalFiles">
+          {{ t('library.openLocal') }}
+        </button>
         <div v-if="mode === 'grid'" class="segmented size">
           <button
             v-for="option in [

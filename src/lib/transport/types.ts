@@ -84,6 +84,13 @@ export interface Transport {
   openUrl(url: string): Promise<void>
   /** 把本地文件路径转成播放器可用的地址 */
   localUrl(path: string): string
+  /**
+   * 打开系统文件选择框挑本地音频，返回绝对路径。
+   * 浏览器演示模式没有系统对话框，直接返回空数组。
+   */
+  pickAudioFiles(): Promise<string[]>
+  /** 启动时「用 Melodex 打开」传进来的音频路径 */
+  startupAudioFiles(): Promise<string[]>
 
   /* ---- 账号与本地加密凭据 ---- */
   vaultStatus(): Promise<VaultStatus>

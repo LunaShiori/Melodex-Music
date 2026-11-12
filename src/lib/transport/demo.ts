@@ -669,6 +669,15 @@ export function createDemoTransport(): Transport {
       return ''
     },
 
+    // 浏览器里没有系统文件对话框：「打开本地文件」在演示模式下不可用
+    async pickAudioFiles() {
+      return []
+    },
+
+    async startupAudioFiles() {
+      return []
+    },
+
     /* ---- 账号：浏览器里用内存模拟，方便走查扫码流程 ---- */
 
     async vaultStatus() {
