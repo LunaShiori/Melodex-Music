@@ -3,23 +3,25 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
 import Icon from './Icon.vue'
+import { useI18n } from '@/lib/i18n'
 import { useTasksStore } from '@/stores/tasks'
 
 const route = useRoute()
 const tasks = useTasksStore()
+const { t } = useI18n()
 
-const items = [
-  { name: 'search', path: '/search', label: '搜索', icon: 'search' },
-  { name: 'recent', path: '/recent', label: '最近', icon: 'history' },
-  { name: 'downloads', path: '/downloads', label: '下载', icon: 'download' },
-  { name: 'library', path: '/library', label: '曲库', icon: 'library' },
-  { name: 'playlists', path: '/playlists', label: '歌单', icon: 'queue' },
-  { name: 'settings', path: '/settings', label: '设置', icon: 'settings' },
-]
+const items = computed(() => [
+  { name: 'search', path: '/search', label: t('nav.search'), icon: 'search' },
+  { name: 'recent', path: '/recent', label: t('nav.recent'), icon: 'history' },
+  { name: 'downloads', path: '/downloads', label: t('nav.downloads'), icon: 'download' },
+  { name: 'library', path: '/library', label: t('nav.library'), icon: 'library' },
+  { name: 'playlists', path: '/playlists', label: t('nav.playlists'), icon: 'queue' },
+  { name: 'settings', path: '/settings', label: t('nav.settings'), icon: 'settings' },
+])
 
 /** 选中项的下标，用来把高亮胶囊滑过去 */
 const activeIndex = computed(() => {
-  const found = items.findIndex((item) => item.name === route.name)
+  const found = items.value.findIndex((item) => item.name === route.name)
   return found < 0 ? 0 : found
 })
 </script>

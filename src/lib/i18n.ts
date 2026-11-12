@@ -1,0 +1,64 @@
+import { computed, ref } from 'vue'
+
+import { en } from '@/i18n/en'
+import { zh } from '@/i18n/zh'
+
+export type Locale = 'zh' | 'en'
+/** auto = 跟随系统语言，实际解析结果见 resolvedLocale */
+export type LocaleChoice = Locale | 'auto'
+
+const STORE_KEY = 'melodex.locale'
+
+const dicts: Record<Locale, Record<string, string>> = { zh, en }
+
+function detect(): Locale {
+  if (typeof navigator === 'undefined') return 'zh'
+  const lang = (navigator.language || '').toLowerCase()
+  return lang.startsWith('zh') ? 'zh' : 'en'
+}
+
+function readChoice(): LocaleChoice {
+  if (typeof localStorage === 'undefined') return 'auto'
+  try {
+    const raw = localStorage.getItem(STORE_KEY)
+    if (raw === 'zh' || raw === 'en' || raw === 'auto') return raw
+  } catch {
+    // 隐私模式下读不到就按跟随系统处理
+  }
+  return 'auto'
+}
+
+/** 用户的选择（可持久化），实际生效语言由 resolvedLocale 给出 */
+export const localeChoice = ref<LocaleChoice>(readChoice())
+export const systemLocale = ref<Locale>(detect())
+
+export const resolvedLocale = computed<Locale>(() =>
+  localeChoice.value === 'auto' ? systemLocale.value : localeChoice.value,
+)
+
+export function setLocale(next: LocaleChoice) {
+  localeChoice.value = next
+  try {
+    localStorage.setItem(STORE_KEY, next)
+  } catch {
+    // 存不下时只影响下次启动的默认值
+  }
+}
+
+/**
+ * 取词条。`key` 用点号分级，`{name}` 占位符按 params 替换；
+ * 缺词条时回落到中文，再缺就原样返回 key（便于发现漏翻）。
+ */
+export function t(key: string, params?: Record<string, string | number>): string {
+  const locale = resolvedLocale.value
+  const template = dicts[locale][key] ?? dicts.zh[key] ?? key
+  if (!params) return template
+  return template.replace(/\{(\w+)\}/g, (match, name: string) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match,
+  )
+}
+
+/** 组件里用：`const { t, locale, setLocale } = useI18n()` */
+export function useI18n() {
+  return { t, locale: resolvedLocale, choice: localeChoice, setLocale }
+}

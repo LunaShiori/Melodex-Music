@@ -6,6 +6,7 @@ import ScrollText from './ScrollText.vue'
 import { coverOf } from '@/lib/artwork'
 import { onCoverError } from '@/lib/cover'
 import { formatDuration } from '@/lib/format'
+import { useI18n } from '@/lib/i18n'
 import { SOURCE_META } from '@/lib/types'
 import { useLyricStore } from '@/stores/lyric'
 import { usePlayerStore } from '@/stores/player'
@@ -16,13 +17,16 @@ const bar = ref<HTMLElement | null>(null)
 const scrubbing = ref(false)
 /** 鼠标停在音量区时显示百分比；移开就收起来，避免一直占位 */
 const volumeHot = ref(false)
+const { t } = useI18n()
 
-const MODE_TITLE: Record<string, string> = {
-  order: '顺序播放',
-  'repeat-one': '单曲循环',
-  shuffle: '随机播放',
+const MODE_KEY: Record<string, string> = {
+  order: 'player.mode.order',
+  'repeat-one': 'player.mode.repeatOne',
+  shuffle: 'player.mode.shuffle',
 }
-const modeTitle = computed(() => `${MODE_TITLE[player.mode] ?? '顺序播放'}（点击切换）`)
+const modeTitle = computed(() =>
+  t('player.modeHint', { mode: t(MODE_KEY[player.mode] ?? 'player.mode.order') }),
+)
 
 /** 滚轮一格 5%：往下滚调小，往上滚调大 */
 function onVolumeWheel(event: WheelEvent) {
@@ -112,7 +116,7 @@ function openDetail() {
       </div>
       <div class="meta">
         <p class="title-row">
-          <span class="title">{{ player.current?.title ?? '未在播放' }}</span>
+          <span class="title">{{ player.current?.title ?? t('player.idle') }}</span>
           <Transition v-if="!isNarrow" name="lyric-swap" mode="out-in">
             <span v-if="barLyric" :key="player.activeLyricIndex" class="bar-lyric">
               <ScrollText :text="barLyric" />
@@ -126,7 +130,7 @@ function openDetail() {
             </span>
             <template v-else>
               <span :key="'meta'">
-                {{ player.current ? player.current.artists.join(' / ') || '未知歌手' : '从搜索结果里点一下播放' }}
+                {{ player.current ? player.current.artists.join(' / ') || t('common.unknownArtist') : t('player.idleHint') }}
                 <span v-if="sourceMeta" class="src" :style="{ color: sourceMeta.color }">
                   · {{ sourceMeta.short }}
                 </span>
@@ -145,7 +149,7 @@ function openDetail() {
 
     <div class="center">
       <div class="controls">
-        <button class="icon-btn" title="上一首" :disabled="!player.current" @click="player.prev()">
+        <button class="icon-btn" :title="t('player.prev')" :disabled="!player.current" @click="player.prev()">
           <Icon name="prev" :size="18" />
         </button>
         <button
@@ -162,7 +166,7 @@ function openDetail() {
             :filled="!player.playing"
           />
         </button>
-        <button class="icon-btn" title="下一首" :disabled="!player.current" @click="player.next()">
+        <button class="icon-btn" :title="t('player.next')" :disabled="!player.current" @click="player.next()">
           <Icon name="next" :size="18" />
         </button>
         <button
@@ -188,7 +192,7 @@ function openDetail() {
       <button
         class="icon-btn"
         :class="{ 'is-active': player.queueOpen }"
-        title="播放队列"
+        :title="t('player.queue')"
         :disabled="!player.queue.length"
         @click="player.toggleQueue()"
       >
@@ -197,7 +201,7 @@ function openDetail() {
       <button
         class="icon-btn"
         :class="{ 'is-active': player.detailOpen }"
-        title="歌词详情"
+        :title="t('player.lyrics')"
         :disabled="!player.current"
         @click="openDetail"
       >
@@ -210,7 +214,7 @@ function openDetail() {
         @mouseleave="volumeHot = false"
         @wheel.prevent="onVolumeWheel"
       >
-        <button class="icon-btn" title="静音" @click="player.setVolume(player.volume > 0 ? 0 : 0.8)">
+        <button class="icon-btn" :title="t('player.mute')" @click="player.setVolume(player.volume > 0 ? 0 : 0.8)">
           <Icon :name="player.volume > 0 ? 'volume' : 'mute'" :size="17" />
         </button>
         <input
@@ -220,7 +224,7 @@ function openDetail() {
           max="1"
           step="0.01"
           :value="player.volume"
-          :title="`音量 ${Math.round(player.volume * 100)}%`"
+          :title="t('player.volume', { percent: Math.round(player.volume * 100) })"
           @input="player.setVolume(Number(($event.target as HTMLInputElement).value))"
         />
         <span v-if="volumeHot" class="volume-pct mono">{{ Math.round(player.volume * 100) }}%</span>
@@ -248,7 +252,7 @@ function openDetail() {
         class="m-btn"
         :class="{ 'is-active': player.queueOpen }"
         :disabled="!player.queue.length"
-        title="播放队列"
+        :title="t('player.queue')"
         @click="player.toggleQueue()"
       >
         <Icon name="queue" :size="18" />

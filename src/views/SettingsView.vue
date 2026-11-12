@@ -10,6 +10,8 @@ import {
   LYRIC_MODES,
   LYRIC_THEMES,
 } from '@/lib/lyric-style'
+import { useI18n } from '@/lib/i18n'
+import type { LocaleChoice } from '@/lib/i18n'
 import { renderNaming } from '@/lib/naming'
 import { nominalBitrate, QUALITY_LEVELS, qualityRank } from '@/lib/quality'
 import { ACCENTS } from '@/lib/theme'
@@ -29,6 +31,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useUpdateStore } from '@/stores/update'
 
 const store = useSettingsStore()
+const { t, choice: localeChoice, setLocale } = useI18n()
 const lyricStore = useLyricStore()
 const updateStore = useUpdateStore()
 const onboarding = useOnboardingStore()
@@ -236,6 +239,34 @@ onMounted(async () => {
 
     <template v-if="settings">
       <AccountPanel />
+
+      <section class="card">
+        <h2>{{ t('settings.language.title') }}</h2>
+
+        <div class="row">
+          <div class="label">
+            <p>{{ t('settings.language.title') }}</p>
+            <small>{{ t('settings.language.hint') }}</small>
+          </div>
+          <div class="control">
+            <div class="segmented">
+              <button
+                v-for="option in [
+                  { value: 'auto', label: t('settings.language.auto') },
+                  { value: 'zh', label: t('settings.language.zh') },
+                  { value: 'en', label: t('settings.language.en') },
+                ]"
+                :key="option.value"
+                type="button"
+                :class="{ on: localeChoice === option.value }"
+                @click="setLocale(option.value as LocaleChoice)"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section class="card">
         <h2>网络</h2>

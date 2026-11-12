@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 
 import BrandMark from './BrandMark.vue'
 import Icon from './Icon.vue'
+import { useI18n } from '@/lib/i18n'
 import { transport } from '@/lib/transport'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import { useSearchStore } from '@/stores/search'
@@ -12,16 +13,17 @@ import { useTasksStore } from '@/stores/tasks'
 
 const route = useRoute()
 const tasks = useTasksStore()
+const { t } = useI18n()
 const search = useSearchStore()
 const settings = useSettingsStore()
 
 const navs = computed(() => [
-  { name: 'search', path: '/search', label: '搜索', icon: 'search', badge: 0 },
-  { name: 'recent', path: '/recent', label: '最近', icon: 'history', badge: 0 },
-  { name: 'downloads', path: '/downloads', label: '下载', icon: 'download', badge: tasks.counts.active },
-  { name: 'library', path: '/library', label: '曲库', icon: 'library', badge: tasks.completed.length },
-  { name: 'playlists', path: '/playlists', label: '歌单', icon: 'queue', badge: 0 },
-  { name: 'settings', path: '/settings', label: '设置', icon: 'settings', badge: 0 },
+  { name: 'search', path: '/search', label: t('nav.search'), icon: 'search', badge: 0 },
+  { name: 'recent', path: '/recent', label: t('nav.recent'), icon: 'history', badge: 0 },
+  { name: 'downloads', path: '/downloads', label: t('nav.downloads'), icon: 'download', badge: tasks.counts.active },
+  { name: 'library', path: '/library', label: t('nav.library'), icon: 'library', badge: tasks.completed.length },
+  { name: 'playlists', path: '/playlists', label: t('nav.playlists'), icon: 'queue', badge: 0 },
+  { name: 'settings', path: '/settings', label: t('nav.settings'), icon: 'settings', badge: 0 },
 ])
 
 const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
@@ -54,7 +56,7 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
     <div class="divider" />
 
     <section class="sources">
-      <p class="section-title">音源</p>
+      <p class="section-title">{{ t('nav.sources') }}</p>
       <div
         v-for="source in ALL_SOURCES"
         :key="source"
