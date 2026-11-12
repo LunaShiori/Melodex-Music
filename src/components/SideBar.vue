@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 
 import BrandMark from './BrandMark.vue'
 import Icon from './Icon.vue'
-import { useI18n } from '@/lib/i18n'
+import { sourceName, useI18n } from '@/lib/i18n'
 import { transport } from '@/lib/transport'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import { useSearchStore } from '@/stores/search'
@@ -64,7 +64,7 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
         :class="{ off: !activeSources.includes(source) }"
       >
         <i class="dot" :style="{ background: SOURCE_META[source].color }" />
-        <span>{{ SOURCE_META[source].label }}</span>
+        <span>{{ sourceName(source) }}</span>
       </div>
     </section>
 

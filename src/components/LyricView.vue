@@ -5,6 +5,7 @@ import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
 import { onCoverError } from '@/lib/cover'
 import { formatDuration } from '@/lib/format'
+import { artistName, useI18n } from '@/lib/i18n'
 import { formatOffset, LYRIC_MODES, LYRIC_THEMES } from '@/lib/lyric-style'
 import { SOURCE_META } from '@/lib/types'
 import { useLyricStore } from '@/stores/lyric'
@@ -21,6 +22,7 @@ import { usePlayerStore } from '@/stores/player'
  */
 const player = usePlayerStore()
 const lyric = useLyricStore()
+const { t } = useI18n()
 
 const box = ref<HTMLElement | null>(null)
 const rows = ref<HTMLElement[]>([])
@@ -129,9 +131,9 @@ function startScrub(event: PointerEvent) {
         </button>
 
         <div class="lv-meta">
-          <p class="lv-title" :title="track?.title ?? ''">{{ track?.title ?? '未在播放' }}</p>
+          <p class="lv-title" :title="track?.title ?? ''">{{ track?.title ?? t('player.idle') }}</p>
           <p class="lv-sub">
-            {{ track?.artists.join(' / ') || '未知歌手' }}
+            {{ artistName(track?.artists) }}
             <span v-if="sourceMeta" class="lv-src" :style="{ color: sourceMeta.color }">
               · {{ sourceMeta.short }}
             </span>

@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { artistName } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { usePlayerStore } from '@/stores/player'
 
@@ -76,7 +77,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
                 />
                 <span class="q-text">
                   <span class="q-name">{{ track.title }}</span>
-                  <span class="q-artist">{{ track.artists.join(' / ') || '未知歌手' }}</span>
+                  <span class="q-artist">{{ artistName(track.artists) }}</span>
                 </span>
                 <span v-if="index === player.index" class="q-live" aria-hidden="true">
                   <i /><i /><i />

@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 
 import Icon from './Icon.vue'
+import { artistName } from '@/lib/i18n'
 import { useMenuStore } from '@/stores/trackMenu'
 import { usePlayerStore } from '@/stores/player'
 import { useTasksStore } from '@/stores/tasks'
@@ -52,7 +53,7 @@ const actions = computed<Action[]>(() => {
       label: '复制「歌名 - 歌手」',
       icon: 'external',
       run: () => {
-        const text = `${target.title} - ${target.artists.join(' / ') || '未知歌手'}`
+        const text = `${target.title} - ${artistName(target.artists)}`
         void navigator.clipboard?.writeText(text)
       },
     },
@@ -86,7 +87,7 @@ onUnmounted(() => {
         <div class="menu" :style="{ left: `${menu.x}px`, top: `${menu.y}px` }" role="menu">
           <p class="menu-title">
             <span class="menu-name">{{ track.title }}</span>
-            <span class="menu-sub">{{ track.artists.join(' / ') || '未知歌手' }}</span>
+            <span class="menu-sub">{{ artistName(track.artists) }}</span>
           </p>
           <button
             v-for="action in actions"

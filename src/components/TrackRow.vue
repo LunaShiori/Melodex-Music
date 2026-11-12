@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { artistName } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatDuration } from '@/lib/format'
 import { originLabel } from '@/lib/origin'
@@ -132,7 +133,7 @@ function onPlay() {
         <span class="title-text">{{ track.title }}</span>
       </p>
       <p class="sub">
-        <span class="artist">{{ track.artists.join(' / ') || '未知歌手' }}</span>
+        <span class="artist">{{ artistName(track.artists) }}</span>
         <span v-if="track.album" class="album">· {{ track.album }}</span>
       </p>
     </div>

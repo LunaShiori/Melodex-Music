@@ -10,10 +10,10 @@ const PAGE_SIZE = 20
 export type SortMode = 'default' | 'hot' | 'duration' | 'sources'
 
 export const SORT_MODES: { value: SortMode; label: string; hint: string }[] = [
-  { value: 'default', label: '默认', hint: '按平台相关度合并后的原始顺序' },
-  { value: 'hot', label: '热度', hint: '按平台人气值从高到低（没有热度数据的排在后面）' },
-  { value: 'duration', label: '时长', hint: '短的在前，找试听片段方便' },
-  { value: 'sources', label: '音源数', hint: '可下载平台多的在前，成功率更高' },
+  { value: 'default', label: 'search.sort.default', hint: 'search.sort.defaultHint' },
+  { value: 'hot', label: 'search.sort.hot', hint: 'search.sort.hotHint' },
+  { value: 'duration', label: 'search.sort.duration', hint: 'search.sort.durationHint' },
+  { value: 'sources', label: 'search.sort.sources', hint: 'search.sort.sourcesHint' },
 ]
 
 const PREF_KEY = 'melodex.search.prefs'

@@ -7,6 +7,7 @@ import TrackRow from '@/components/TrackRow.vue'
 import DownloadPicker from '@/components/DownloadPicker.vue'
 import { coverOf } from '@/lib/artwork'
 import { clearKeywords, clearRecent, keywords, pushKeyword, recent } from '@/lib/history'
+import { sourceName, useI18n } from '@/lib/i18n'
 import { ALL_SOURCES, SOURCE_META } from '@/lib/types'
 import type { Track, Variant } from '@/lib/types'
 import { SORT_MODES, useSearchStore } from '@/stores/search'
@@ -14,6 +15,7 @@ import { usePlayerStore } from '@/stores/player'
 import { useTasksStore } from '@/stores/tasks'
 
 const route = useRoute()
+const { t } = useI18n()
 const search = useSearchStore()
 const player = usePlayerStore()
 const tasks = useTasksStore()
@@ -30,7 +32,7 @@ const list = computed(() => search.visible)
 
 const summary = computed(() => {
   if (!search.searched) return ''
-  return `${search.tracks.length} 首 · ${search.elapsed}ms`
+  return t('search.summary', { count: search.tracks.length, ms: search.elapsed })
 })
 
 const pickedTracks = computed(() => list.value.filter((item) => picked.has(item.fingerprint)))
@@ -72,7 +74,7 @@ function playTrack(track: Track) {
   void player.playList(list.value, index < 0 ? 0 : index)
 }
 
-/** 从「最近播放」起播：整个最近列表就是队列，位置对应该曲 */
+/** 从「{{ t('search.recentPlays') }}」起播：整个最近列表就是队列，位置对应该曲 */
 function playRecent(track: Track) {
   const index = recent.value.findIndex((item) => item.fingerprint === track.fingerprint)
   void player.playList(recent.value, index < 0 ? 0 : index)
@@ -161,8 +163,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   <div class="view">
     <header class="head">
       <div class="head-text">
-        <h1>聚合搜索</h1>
-        <p class="muted">一次输入，同时检索网易云、QQ 音乐与酷我，同曲自动合并。</p>
+        <h1>{{ t('search.title') }}</h1>
+        <p class="muted">{{ t('search.subtitle') }}</p>
       </div>
       <div class="head-stat mono" v-if="search.searched">
         <span>{{ summary }}</span>
@@ -175,7 +177,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         ref="inputEl"
         v-model="search.keyword"
         type="search"
-        placeholder="搜索歌曲、歌手，或粘贴歌单链接"
+        :placeholder="t('search.placeholder')"
         autocomplete="off"
         spellcheck="false"
         @keydown.enter="submit"
@@ -186,8 +188,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <Transition name="drop">
         <div v-if="historyOpen && keywords.length" class="history-drop">
           <div class="drop-head">
-            <span>最近搜索</span>
-            <button class="link-btn" type="button" @mousedown.prevent="clearKeywords()">清空</button>
+            <span>{{ t('search.recentKeywords') }}</span>
+            <button class="link-btn" type="button" @mousedown.prevent="clearKeywords()">{{ t('common.clear') }}</button>
           </div>
           <button
             v-for="word in keywords"
@@ -206,7 +208,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </button>
       <kbd class="hint mono">Ctrl K</kbd>
       <button class="submit" type="button" :disabled="!search.keyword.trim() || search.loading" @click="submit">
-        {{ search.loading ? '搜索中' : '搜索' }}
+        {{ search.loading ? t('common.searching') : t('common.search') }}
       </button>
     </div>
 
@@ -221,7 +223,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           @click="search.toggleSource(source)"
         >
           <i class="dot" :style="{ background: SOURCE_META[source].color }" />
-          {{ SOURCE_META[source].label }}
+          {{ sourceName(source) }}
         </button>
       </div>
 
@@ -246,7 +248,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         @click="enterSelect"
       >
         <Icon name="check" :size="14" />
-        多选
+        {{ t('search.multiSelect') }}
       </button>
 
       <button
@@ -256,7 +258,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         @click="downloadAll"
       >
         <Icon name="download" :size="14" />
-        全部下载
+        {{ t('search.downloadAll') }}
       </button>
     </div>
 
@@ -268,22 +270,22 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           :key="mode.value"
           type="button"
           :class="{ on: search.sortMode === mode.value }"
-          :title="mode.hint"
+          :title="t(mode.hint)"
           @click="search.setSort(mode.value)"
         >
-          {{ mode.label }}
+          {{ t(mode.label) }}
         </button>
       </div>
 
       <span class="muted small sort-hint">
-        {{ SORT_MODES.find((m) => m.value === search.sortMode)?.hint }}
+        {{ t(SORT_MODES.find((m) => m.value === search.sortMode)?.hint ?? 'search.sort.defaultHint') }}
       </span>
     </div>
 
     <div v-if="search.error" class="banner error">
       <Icon name="alert" :size="16" />
       <span>{{ search.error }}</span>
-      <button class="btn btn-sm" type="button" @click="submit">重试</button>
+      <button class="btn btn-sm" type="button" @click="submit">{{ t('search.retry') }}</button>
     </div>
 
     <section v-if="search.loading" class="list">
@@ -300,10 +302,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <div class="list-head">
         <span>#</span>
         <span />
-        <span>歌曲</span>
-        <span>可用音源</span>
-        <span class="ta-r">音质</span>
-        <span class="ta-r">时长</span>
+        <span>{{ t('search.colSong') }}</span>
+        <span>{{ t('search.colSources') }}</span>
+        <span class="ta-r">{{ t('search.colQuality') }}</span>
+        <span class="ta-r">{{ t('search.colDuration') }}</span>
         <span />
       </div>
       <TrackRow
@@ -329,25 +331,25 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         >
           {{ search.loadingMore ? '加载中…' : '加载更多' }}
         </button>
-        <p v-else class="muted end">已到末尾</p>
+        <p v-else class="muted end">{{ t('search.end') }}</p>
       </div>
     </section>
 
     <section v-else-if="search.searched" class="empty">
       <div class="empty-art"><Icon name="search" :size="26" /></div>
       <h3>没有找到「{{ search.activeKeyword }}」</h3>
-      <p class="muted">换个关键词，或检查上方的音源是否全部关闭。</p>
+      <p class="muted">{{ t('search.emptyHint') }}</p>
     </section>
 
     <section v-else class="empty">
       <div class="empty-art"><Icon name="music" :size="26" /></div>
-      <h3>搜索你想听的歌</h3>
-      <p class="muted">结果会按音源合并，同一首歌只出现一次，右侧标签表示可从哪些平台取到。</p>
+      <h3>{{ t('search.emptyTitle') }}</h3>
+      <p class="muted">{{ t('search.emptyDesc') }}</p>
 
-      <!-- 最近播放：点一条直接起播，曲库里有过的歌不用再搜 -->
+      <!-- {{ t('search.recentPlays') }}：点一条直接起播，曲库里有过的歌不用再搜 -->
       <div v-if="recent.length" class="history-block">
         <div class="history-head">
-          <span>最近播放</span>
+          <span>{{ t('search.recentPlays') }}</span>
           <button class="link-btn" type="button" @click="clearRecent()">清空</button>
         </div>
         <ul class="recent-list">
@@ -379,10 +381,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           <span class="bulk-box" :class="{ on: allPicked }">
             <Icon v-if="allPicked" name="check" :size="12" />
           </span>
-          全选
+          {{ t('search.selectAll') }}
         </button>
         <span class="bulk-count mono">已选 {{ picked.size }} 首</span>
-        <button class="btn btn-sm" type="button" @click="exitSelect">取消</button>
+        <button class="btn btn-sm" type="button" @click="exitSelect">{{ t('common.cancel') }}</button>
         <button
           class="btn btn-primary btn-sm"
           type="button"
@@ -776,7 +778,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   margin-top: 10px;
 }
 
-/* 最近播放 / 最近搜索 */
+/* 空态里的最近播放 / 最近搜索 */
 .history-block {
   width: 100%;
   max-width: 440px;

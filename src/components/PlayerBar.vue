@@ -6,7 +6,7 @@ import ScrollText from './ScrollText.vue'
 import { coverOf } from '@/lib/artwork'
 import { onCoverError } from '@/lib/cover'
 import { formatDuration } from '@/lib/format'
-import { useI18n } from '@/lib/i18n'
+import { artistName, useI18n } from '@/lib/i18n'
 import { SOURCE_META } from '@/lib/types'
 import { useLyricStore } from '@/stores/lyric'
 import { usePlayerStore } from '@/stores/player'
@@ -138,7 +138,7 @@ function openDetail() {
             </template>
           </Transition>
           <template v-else>
-            {{ player.current ? player.current.artists.join(' / ') || '未知歌手' : '从搜索结果里点一下播放' }}
+            {{ player.current ? artistName(player.current.artists) : t('player.idleHint') }}
             <span v-if="sourceMeta" class="src" :style="{ color: sourceMeta.color }">
               · {{ sourceMeta.short }}
             </span>

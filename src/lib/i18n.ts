@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { en } from '@/i18n/en'
 import { zh } from '@/i18n/zh'
@@ -45,6 +45,17 @@ export function setLocale(next: LocaleChoice) {
   }
 }
 
+// 让 <html lang> 跟着语言走：读屏软件据此选发音，浏览器也会换字体
+if (typeof document !== 'undefined') {
+  watch(
+    resolvedLocale,
+    (next) => {
+      document.documentElement.lang = next === 'zh' ? 'zh-CN' : 'en'
+    },
+    { immediate: true },
+  )
+}
+
 /**
  * 取词条。`key` 用点号分级，`{name}` 占位符按 params 替换；
  * 缺词条时回落到中文，再缺就原样返回 key（便于发现漏翻）。
@@ -56,6 +67,17 @@ export function t(key: string, params?: Record<string, string | number>): string
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
     Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match,
   )
+}
+
+/** 歌手名单：空列表时显示「未知歌手 / Unknown artist」，避免每处各写一遍 */
+export function artistName(artists: readonly string[] | undefined): string {
+  const joined = (artists ?? []).join(' / ')
+  return joined || t('common.unknownArtist')
+}
+
+/** 音源显示名，跟着界面语言走 */
+export function sourceName(id: string): string {
+  return t(`source.${id}`)
 }
 
 /** 组件里用：`const { t, locale, setLocale } = useI18n()` */

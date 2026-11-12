@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import Icon from './Icon.vue'
+import { artistName } from '@/lib/i18n'
 import { transport } from '@/lib/transport'
 import { SOURCE_META } from '@/lib/types'
 import type { PlatformQuality, QualityLevel, QualityTier, SourceId, Track, Variant } from '@/lib/types'
@@ -118,7 +119,7 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
       <header class="head">
         <div class="head-text">
           <h3>{{ track.title }}</h3>
-          <p class="sub">{{ track.artists.join(' / ') || '未知歌手' }}</p>
+          <p class="sub">{{ artistName(track.artists) }}</p>
         </div>
         <button class="icon-btn" type="button" title="关闭" @click="emit('close')">
           <Icon name="close" :size="16" />
