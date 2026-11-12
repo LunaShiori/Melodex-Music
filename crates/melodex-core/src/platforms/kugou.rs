@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::Value;
 
+use super::shared::{num_field, split_artists, str_field};
 use crate::error::{Error, Reason, Result};
 use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
 use crate::net::{Net, ProxyFor};
@@ -170,19 +171,19 @@ impl MusicPlatform for Kugou {
 
 /// 把一条搜索结果转成 [`Variant`]。缺 hash 的记录直接丢掉——没有 hash 就取不到链接。
 fn variant_of(item: &Value) -> Option<Variant> {
-    let id = str_of(item, "FileHash");
+    let id = str_field(item, "FileHash");
     if id.is_empty() {
         return None;
     }
-    let mut variant = Variant::new(Source::Kugou, id, str_of(item, "SongName"));
-    variant.artists = split_artists(&str_of(item, "SingerName"));
-    variant.album = str_of(item, "AlbumName");
+    let mut variant = Variant::new(Source::Kugou, id, str_field(item, "SongName"));
+    variant.artists = split_artists(&str_field(item, "SingerName"));
+    variant.album = str_field(item, "AlbumName");
     variant.duration_ms = item
         .get("Duration")
         .and_then(Value::as_u64)
         .unwrap_or(0)
         .saturating_mul(1000);
-    variant.fee = if num_of(item, "Privilege") >= 10 || num_of(item, "PayType") > 0 {
+    variant.fee = if num_field(item, "Privilege") >= 10 || num_field(item, "PayType") > 0 {
         Fee::Vip
     } else {
         Fee::Free
@@ -190,11 +191,11 @@ fn variant_of(item: &Value) -> Option<Variant> {
     variant.cover = cover_of(item);
 
     // 320k / 无损的独立 hash，带上档位标记存进 alt_ids
-    let hq = str_of(item, "HQFileHash");
+    let hq = str_field(item, "HQFileHash");
     if !hq.is_empty() {
         variant.alt_ids.push(format!("hq:{hq}"));
     }
-    let sq = str_of(item, "SQFileHash");
+    let sq = str_field(item, "SQFileHash");
     if !sq.is_empty() {
         variant.alt_ids.push(format!("sq:{sq}"));
     }
@@ -207,40 +208,20 @@ fn variant_of(item: &Value) -> Option<Variant> {
         variant.bitrate = 320;
         variant.format = "mp3".into();
     } else {
-        variant.bitrate = num_of(item, "Bitrate") as u32;
+        variant.bitrate = num_field(item, "Bitrate") as u32;
         variant.format = "mp3".into();
     }
-    variant.size = num_of(item, "FileSize");
+    variant.size = num_field(item, "FileSize");
     Some(variant)
 }
 
 /// 封面地址里带 `{size}` 占位符，换成接口认的尺寸。
 fn cover_of(item: &Value) -> Option<String> {
-    let raw = str_of(item, "Image");
+    let raw = str_field(item, "Image");
     if raw.is_empty() {
         return None;
     }
     Some(raw.replace("{size}", "480"))
-}
-
-fn str_of(item: &Value, key: &str) -> String {
-    item.get(key)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim()
-        .to_string()
-}
-
-fn num_of(item: &Value, key: &str) -> u64 {
-    item.get(key).and_then(Value::as_u64).unwrap_or(0)
-}
-
-/// 酷狗用 `、` 分隔多个歌手，偶尔混进 `/`。
-fn split_artists(raw: &str) -> Vec<String> {
-    raw.split(['、', '/', '&'])
-        .map(|part| part.trim().to_string())
-        .filter(|part| !part.is_empty())
-        .collect()
 }
 
 #[cfg(test)]

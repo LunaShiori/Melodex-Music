@@ -245,6 +245,9 @@ onBeforeUnmount(() => {
           <p v-if="!ready" class="muted small preparing">{{ t('login.a2') }}</p>
 
           <template v-else>
+            <!-- 酷我没有公开扫码接口，说明白，别让人以为入口丢了 -->
+            <p v-if="source === 'kuwo'" class="qr-note">{{ t('login.kuwoNoQr') }}</p>
+
             <div v-if="modes.length > 1" class="tabs">
               <button
                 v-for="item in modes"
@@ -362,6 +365,13 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.qr-note {
+  margin: 8px 0 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
 .mask {
   position: fixed;
   inset: 0;

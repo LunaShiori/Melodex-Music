@@ -8,3 +8,4 @@ pub mod kuwo;
 pub mod kuwo_des;
 pub mod netease;
 pub mod qq;
+pub mod shared;

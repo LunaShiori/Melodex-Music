@@ -530,6 +530,7 @@ export const zh: Record<string, string> = {
   'lyric.toggle.cover': '切换为歌词加封面',
   'playerbar.a1': '播放',
   'playerbar.b2': '打开歌词页',
+  'login.kuwoNoQr': '酷我不提供扫码登录（客户端那个二维码是私有协议）。桌面端用「内置登录」，手机端粘贴 kw_token。',
   'login.tab.web': '内置登录',
   'login.tab.qr': '扫码登录',
   'login.tab.cookie': '粘贴 Cookie',

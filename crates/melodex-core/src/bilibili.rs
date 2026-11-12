@@ -14,6 +14,7 @@ use serde_json::Value;
 
 use crate::error::{Error, Result};
 use crate::net::Net;
+use crate::platforms::shared::decode_entities;
 
 const SEARCH_API: &str = "https://api.bilibili.com/x/web-interface/search/type";
 const FINGER_API: &str = "https://api.bilibili.com/x/frontend/finger/spi";
@@ -166,14 +167,6 @@ fn strip_em(raw: &str) -> String {
         }
     }
     decode_entities(out.trim())
-}
-
-fn decode_entities(raw: &str) -> String {
-    raw.replace("&quot;", "\"")
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&#39;", "'")
 }
 
 /// `04:52` / `1:02:33` → 秒。

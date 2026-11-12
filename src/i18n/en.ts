@@ -526,6 +526,7 @@ export const en: Record<string, string> = {
   'lyric.toggle.cover': 'Switch to lyrics with cover',
   'playerbar.a1': 'Play',
   'playerbar.b2': 'Open the lyrics page',
+  'login.kuwoNoQr': 'Kuwo has no public QR sign-in (the app’s QR uses a private protocol). Use Built-in on desktop, or paste kw_token on mobile.',
   'login.tab.web': 'Built-in',
   'login.tab.qr': 'QR',
   'login.tab.cookie': 'Cookie',

@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
+use super::shared::{decode_entities, split_artists};
 use crate::error::{Error, Reason, Result};
 use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
 use crate::net::{Net, ProxyFor};
@@ -79,9 +80,10 @@ impl MusicPlatform for Kuwo {
                 if id.is_empty() {
                     return None;
                 }
-                let mut variant = Variant::new(Source::Kuwo, id, clean(&item.str_of("SONGNAME")));
-                variant.artists = split_artists(&clean(&item.str_of("ARTIST")));
-                variant.album = clean(&item.str_of("ALBUM"));
+                let mut variant =
+                    Variant::new(Source::Kuwo, id, decode_entities(&item.str_of("SONGNAME")));
+                variant.artists = split_artists(&decode_entities(&item.str_of("ARTIST")));
+                variant.album = decode_entities(&item.str_of("ALBUM"));
                 variant.duration_ms = (item.num_of("DURATION") as u64).saturating_mul(1000);
                 let formats = item.str_of("FORMATS");
                 variant.bitrate = bitrate_of(&formats);
@@ -225,25 +227,6 @@ fn kuwo_token(cookie: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-/// 酷我返回的文本里带 HTML 实体，统一还原。
-fn clean(raw: &str) -> String {
-    raw.replace("&nbsp;", " ")
-        .replace("&amp;", "&")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .trim()
-        .to_string()
-}
-
-fn split_artists(raw: &str) -> Vec<String> {
-    raw.split(['&', ',', '、', '/'])
-        .map(|part| part.trim().to_string())
-        .filter(|part| !part.is_empty())
-        .collect()
-}
-
 /// `FORMATS` 里 MP3H 表示 320kbps，MP3128 表示 128kbps。
 fn bitrate_of(formats: &str) -> u32 {
     if formats.contains("MP3H") {
@@ -290,8 +273,8 @@ mod tests {
 
     #[test]
     fn cleans_entities() {
-        assert_eq!(clean("晴天&nbsp;(KTV版伴奏)"), "晴天 (KTV版伴奏)");
-        assert_eq!(clean(" A&amp;B "), "A&B");
+        assert_eq!(decode_entities("晴天&nbsp;(KTV版伴奏)"), "晴天 (KTV版伴奏)");
+        assert_eq!(decode_entities(" A&amp;B "), "A&B");
     }
 
     #[test]
@@ -316,7 +299,10 @@ mod tests {
         let item = &value.get("abslist").and_then(|v| v.as_array()).unwrap()[0];
         let rid = item.str_of("MUSICRID");
         assert_eq!(rid.strip_prefix("MUSIC_"), Some("51685512"));
-        assert_eq!(clean(&item.str_of("SONGNAME")), "晴天 (KTV版伴奏)");
+        assert_eq!(
+            decode_entities(&item.str_of("SONGNAME")),
+            "晴天 (KTV版伴奏)"
+        );
         assert_eq!(bitrate_of(&item.str_of("FORMATS")), 320);
     }
 }
