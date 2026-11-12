@@ -82,4 +82,10 @@ export const en: Record<string, string> = {
   'source.migu': 'Migu Music',
   'source.kugou': 'Kugou Music',
   'source.local': 'Local file',
+
+  'nav.theme.light': 'Light mode',
+  'nav.theme.dark': 'Dark mode',
+  'nav.mode.desktop': 'Desktop · local engine',
+  'nav.mode.demo': 'Demo mode · built-in data',
+  'nav.clearSearch': 'Clear search state',
 }

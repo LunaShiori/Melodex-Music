@@ -86,4 +86,10 @@ export const zh: Record<string, string> = {
   'source.migu': '咪咕音乐',
   'source.kugou': '酷狗音乐',
   'source.local': '本地文件',
+
+  'nav.theme.light': '浅色模式',
+  'nav.theme.dark': '深色模式',
+  'nav.mode.desktop': '桌面端 · 本地引擎',
+  'nav.mode.demo': '演示模式 · 内置数据',
+  'nav.clearSearch': '清空搜索状态',
 }

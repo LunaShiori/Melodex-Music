@@ -73,14 +73,14 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
     <footer class="side-footer">
       <button class="theme-toggle" type="button" @click="settings.toggleTheme()">
         <Icon :name="settings.resolvedTheme === 'dark' ? 'sun' : 'moon'" :size="16" />
-        <span>{{ settings.resolvedTheme === 'dark' ? '浅色模式' : '深色模式' }}</span>
+        <span>{{ settings.resolvedTheme === 'dark' ? t('nav.theme.light') : t('nav.theme.dark') }}</span>
       </button>
       <p class="mode">
         <span class="mode-dot" :class="transport.mode" />
-        {{ transport.mode === 'tauri' ? '桌面端 · 本地引擎' : '演示模式 · 内置数据' }}
+        {{ transport.mode === 'tauri' ? t('nav.mode.desktop') : t('nav.mode.demo') }}
       </p>
       <button v-if="search.searched" class="clear" type="button" @click="search.reset()">
-        清空搜索状态
+        {{ t('nav.clearSearch') }}
       </button>
     </footer>
   </aside>
