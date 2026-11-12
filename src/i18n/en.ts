@@ -574,4 +574,7 @@ export const en: Record<string, string> = {
   'list.searchArtist': 'Search {artist}',
   'menu.searchArtist': 'Search this artist',
   'picker.duplicate': 'Already in your library ({quality} {format}) — continuing saves a second copy',
+  'account.expired': 'Session expired — sign in again',
+  'account.relogin': 'Sign in again',
+  'downloads.staleHint': 'This source’s session expired — sign in again to keep fetching higher tiers',
 }

@@ -23,18 +23,35 @@ const unlocked = computed(() => Boolean(accounts.status?.unlocked))
 
 const { t } = useI18n()
 
-onMounted(() => void accounts.refresh())
+onMounted(() => {
+  accounts.syncStale()
+  void accounts.refresh()
+})
 
 function stateOf(source: SourceId) {
   const account = accounts.accountOf(source)
   if (account) {
-    return { loggedIn: true, text: account.nickname || t('account.loggedIn'), keys: account.keys }
+    // 凭据过期：保险库里还有账号，但用的时候报过「需要登录」。
+    // 这种情况不能继续显示成「已登录」，否则用户永远等不到修复提示。
+    if (accounts.isStale(source)) {
+      return { loggedIn: true, stale: true, text: t('account.expired'), keys: account.keys }
+    }
+    return { loggedIn: true, stale: false, text: account.nickname || t('account.loggedIn'), keys: account.keys }
   }
   if (source === 'kuwo') {
     // 未登录也能下，只是拿不到会员档位，文案里说清楚，别让人以为必须登录
-    return { loggedIn: false, text: t('account.kuwoGuest'), keys: [] }
+    return { loggedIn: false, stale: false, text: t('account.kuwoGuest'), keys: [] }
   }
-  return { loggedIn: false, text: t('account.guest'), keys: [] }
+  return { loggedIn: false, stale: false, text: t('account.guest'), keys: [] }
+}
+
+/**
+ * 重新登录：先清掉过期标记，再走正常登录流程。
+ * 不清标记的话，用户登完回来仍是「已过期」，会以为没生效。
+ */
+async function relogin(source: SourceId) {
+  accounts.clearStale(source)
+  loginSource.value = source
 }
 
 async function unlock() {
@@ -132,7 +149,9 @@ async function logout(source: SourceId) {
         <div class="who">
           <p class="name">{{ sourceName(source) }}</p>
           <p class="meta muted">
-            <span :class="{ on: stateOf(source).loggedIn }">{{ stateOf(source).text }}</span>
+            <span :class="{ on: stateOf(source).loggedIn, warn: stateOf(source).stale }">
+              {{ stateOf(source).text }}
+            </span>
             <template v-if="stateOf(source).keys.length">
               · <span class="mono keys">{{ stateOf(source).keys.join(' / ') }}</span>
             </template>
@@ -140,6 +159,14 @@ async function logout(source: SourceId) {
         </div>
         <div class="acts">
           <template v-if="stateOf(source).loggedIn">
+            <button
+              v-if="stateOf(source).stale"
+              class="btn btn-sm relogin"
+              type="button"
+              @click="relogin(source)"
+            >
+              {{ t('account.relogin') }}
+            </button>
             <button class="btn btn-ghost btn-sm" type="button" @click="logout(source)">
               {{ t('account.signOut') }}
             </button>
@@ -314,6 +341,12 @@ async function logout(source: SourceId) {
 .foot {
   margin: 2px 0 0;
   line-height: 1.7;
+}
+.meta .warn {
+  color: var(--warning, #b7791f);
+}
+.relogin {
+  margin-right: 6px;
 }
 .err {
   margin: 0;

@@ -30,6 +30,56 @@ export const useAccountsStore = defineStore('accounts', () => {
     return bySource.value[source] ?? null
   }
 
+  /**
+   * 凭据过期标记。
+   *
+   * 我们不主动轮询校验 Cookie（每个源都打一次接口太吵），改成「用的时候发现」：
+   * 下载或取链报 needLogin，但保险库里明明有该源账号，就说明凭据过期了。
+   * 标记存在本地，下次打开也还在，直到用户重新登录或主动清除。
+   */
+  const STALE_KEY = 'melodex.stale.v1'
+  const stale = ref<SourceId[]>(readStale())
+
+  function readStale(): SourceId[] {
+    if (typeof localStorage === 'undefined') return []
+    try {
+      const raw = JSON.parse(localStorage.getItem(STALE_KEY) ?? '[]') as unknown
+      return Array.isArray(raw) ? (raw.filter((item) => typeof item === 'string') as SourceId[]) : []
+    } catch {
+      return []
+    }
+  }
+
+  function persistStale() {
+    if (typeof localStorage === 'undefined') return
+    try {
+      localStorage.setItem(STALE_KEY, JSON.stringify(stale.value))
+    } catch {
+      /* 存不下就只在本次会话里提示 */
+    }
+  }
+
+  function markStale(source: SourceId) {
+    if (!accountOf(source) || stale.value.includes(source)) return
+    stale.value = [...stale.value, source]
+    persistStale()
+  }
+
+  function clearStale(source: SourceId) {
+    if (!stale.value.includes(source)) return
+    stale.value = stale.value.filter((item) => item !== source)
+    persistStale()
+  }
+
+  /** 重新从本地读一次过期标记：别的标签页或调试时改过 localStorage，界面要跟得上 */
+  function syncStale() {
+    stale.value = readStale()
+  }
+
+  function isStale(source: SourceId) {
+    return stale.value.includes(source)
+  }
+
   async function run<T>(task: () => Promise<T>): Promise<T | null> {
     loading.value = true
     error.value = ''
@@ -67,7 +117,11 @@ export const useAccountsStore = defineStore('accounts', () => {
 
   async function saveCookie(source: SourceId, cookie: string, nickname?: string | null) {
     const account = await run(() => transport.saveAccount(source, cookie, nickname))
-    if (account) await refresh()
+    if (account) {
+      // 刚换过凭据，之前的过期标记作废
+      clearStale(source)
+      await refresh()
+    }
     return account
   }
 
@@ -100,6 +154,11 @@ export const useAccountsStore = defineStore('accounts', () => {
     bySource,
     needsUnlock,
     accountOf,
+    stale,
+    markStale,
+    syncStale,
+    clearStale,
+    isStale,
     refresh,
     unlock,
     setPin,

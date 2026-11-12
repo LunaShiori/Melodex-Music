@@ -578,4 +578,7 @@ export const zh: Record<string, string> = {
   'list.searchArtist': '搜索 {artist}',
   'menu.searchArtist': '搜这位歌手',
   'picker.duplicate': '曲库里已有这首（{quality} {format}），继续会再存一份',
+  'account.expired': '登录已过期 · 请重新登录',
+  'account.relogin': '重新登录',
+  'downloads.staleHint': '这个音源的登录过期了，重新登录一次就能继续取高音质',
 }

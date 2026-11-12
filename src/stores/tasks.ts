@@ -5,6 +5,7 @@ import { sourceShort, t } from '@/lib/i18n'
 import { transport } from '@/lib/transport'
 import type { DownloadTask, EngineEvent, EnqueueInput, QualityLevel, Track, Variant } from '@/lib/types'
 import { bestVariant, fallbacksOf } from '@/lib/track'
+import { useAccountsStore } from '@/stores/accounts'
 import { useLibraryStore } from '@/stores/library'
 
 export type TaskFilter = 'all' | 'active' | 'done'
@@ -62,6 +63,11 @@ export const useTasksStore = defineStore('tasks', () => {
       // 下载完成的文件进曲库；曲库与下载记录分离，清空记录不会清空曲库。
       if (event.payload.state === 'completed' && event.payload.path) {
         useLibraryStore().add(event.payload)
+      }
+      // 失败原因是「需要登录」而账号库说这个源是登录着的，多半是凭据过期了：
+      // 记一笔过期，账号面板会提示重登，下一次取链接也不会再白等一轮。
+      if (event.payload.state === 'failed' && event.payload.failReason === 'needLogin') {
+        useAccountsStore().markStale(event.payload.resolvedSource ?? event.payload.source)
       }
       return
     }
