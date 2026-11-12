@@ -55,6 +55,24 @@ impl Netease {
         Ok(map)
     }
 
+    /// 按 id 批量取歌曲详情（`/api/song/detail` 单次上限 500 首），返回 id → 变体。
+    async fn variants_by_ids(
+        &self,
+        ids: &[String],
+        headers: &[(&'static str, &str)],
+    ) -> Result<HashMap<String, Variant>> {
+        let mut map = HashMap::new();
+        for chunk in ids.chunks(500) {
+            let joined = chunk.join(",");
+            let url = format!("{ORIGIN}/api/song/detail?ids=%5B{joined}%5D");
+            let raw: RawSongs = self.net.json(&url, headers).await?;
+            for song in raw.songs.unwrap_or_default() {
+                map.insert(song.id.to_string(), song.into_variant());
+            }
+        }
+        Ok(map)
+    }
+
     /// 取指定档位的播放链接；服务端没给链接时返回 `Ok(None)`，交由调用方降级。
     async fn fetch_url(
         &self,
@@ -249,12 +267,26 @@ impl MusicPlatform for Netease {
         let Some(playlist) = raw.playlist else {
             return Ok(None);
         };
-        let items: Vec<Variant> = playlist
-            .tracks
+        // 详情接口的 `tracks` 只给前若干首，完整顺序在 `trackIds` 里，
+        // 拿 id 列表去 song/detail 批量取回后再按原顺序还原。
+        let ids: Vec<String> = playlist
+            .track_ids
             .unwrap_or_default()
             .into_iter()
-            .map(|song| song.into_variant())
+            .map(|item| item.id)
+            .filter(|id| !id.is_empty())
             .collect();
+        let items = if ids.is_empty() {
+            playlist
+                .tracks
+                .unwrap_or_default()
+                .into_iter()
+                .map(|song| song.into_variant())
+                .collect()
+        } else {
+            let fetched = self.variants_by_ids(&ids, &headers).await?;
+            order_by_ids(&ids, fetched)
+        };
         Ok(Some(PlaylistDetail {
             source: Source::Netease,
             id: id.to_string(),
@@ -459,6 +491,22 @@ struct RawPlaylistBody {
     track_count: Option<u64>,
     #[serde(default)]
     tracks: Option<Vec<RawSong>>,
+    /// 歌单完整曲目顺序，部分接口只回这个字段的 id。
+    #[serde(default, rename = "trackIds")]
+    track_ids: Option<Vec<RawTrackId>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawTrackId {
+    #[serde(default, deserialize_with = "id_as_string")]
+    id: String,
+}
+
+/// `/api/song/detail`：与搜索同构，字段是 ar / al / dt 这组。
+#[derive(Debug, Deserialize)]
+struct RawSongs {
+    #[serde(default)]
+    songs: Option<Vec<RawSong>>,
 }
 
 /// `/api/nuser/account/get`：确认登录态并拿到 uid。
@@ -500,6 +548,11 @@ struct RawUserPlaylist {
 struct RawCreator {
     #[serde(default)]
     nickname: String,
+}
+
+/// 按歌单给出的 id 顺序还原曲目；详情接口缺歌时跳过，不留空洞。
+fn order_by_ids(ids: &[String], mut songs: HashMap<String, Variant>) -> Vec<Variant> {
+    ids.iter().filter_map(|id| songs.remove(id)).collect()
 }
 
 fn id_as_string<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
@@ -564,6 +617,31 @@ mod tests {
             variant.cover.as_deref(),
             Some("https://p1.music.126.net/y.jpg")
         );
+    }
+
+    #[test]
+    fn playlist_track_ids_keep_original_order() {
+        let json = r#"{"playlist":{"name":"热歌榜","trackCount":3,
+            "trackIds":[{"id":11},{"id":22},{"id":33}],"tracks":[]}}"#;
+        let raw: RawPlaylist = serde_json::from_str(json).unwrap();
+        let body = raw.playlist.unwrap();
+        let ids: Vec<String> = body
+            .track_ids
+            .unwrap()
+            .into_iter()
+            .map(|item| item.id)
+            .collect();
+        assert_eq!(ids, vec!["11", "22", "33"]);
+
+        let mut songs = HashMap::new();
+        for (id, title) in [("33", "c"), ("11", "a"), ("22", "b")] {
+            let mut variant = Variant::new(Source::Netease, id.to_string(), title);
+            variant.duration_ms = 1_000;
+            songs.insert(id.to_string(), variant);
+        }
+        let ordered = order_by_ids(&ids, songs);
+        let titles: Vec<&str> = ordered.iter().map(|v| v.title.as_str()).collect();
+        assert_eq!(titles, vec!["a", "b", "c"]);
     }
 
     #[test]

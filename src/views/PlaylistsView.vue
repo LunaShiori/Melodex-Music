@@ -7,16 +7,19 @@ import TrackRow from '@/components/TrackRow.vue'
 import { coverOf } from '@/lib/artwork'
 import { onCoverError } from '@/lib/cover'
 import { transport } from '@/lib/transport'
+import { QUALITY_LEVELS } from '@/lib/quality'
 import { SOURCE_META } from '@/lib/types'
 import type {
   PlaylistDetail,
   PlaylistSummary,
+  QualityLevel,
   SourceId,
   Track,
   Variant,
 } from '@/lib/types'
 import { useAccountsStore } from '@/stores/accounts'
 import { usePlayerStore } from '@/stores/player'
+import { useSettingsStore } from '@/stores/settings'
 import { useTasksStore } from '@/stores/tasks'
 
 const accounts = useAccountsStore()
@@ -106,6 +109,16 @@ const FEE_FILTERS: { id: FeeFilter; label: string }[] = [
   { id: 'vip', label: '会员' },
   { id: 'lossless', label: '无损' },
 ]
+
+/** 批量下载的目标音质：默认跟随设置里的全局档位，可在大歌单里临时改 */
+const settings = useSettingsStore()
+const batchQuality = ref<QualityLevel>(settings.settings?.quality ?? 'high')
+watch(
+  () => settings.settings?.quality,
+  (next) => {
+    if (next) batchQuality.value = next
+  },
+)
 
 const trackQuery = ref('')
 const feeFilter = ref<FeeFilter>('all')
@@ -203,7 +216,7 @@ function back() {
 
 function downloadAll() {
   if (!filteredTracks.value.length) return
-  void tasks.enqueue(filteredTracks.value)
+  void tasks.enqueue(filteredTracks.value, batchQuality.value)
 }
 
 function downloadOne(track: Track) {
@@ -369,6 +382,11 @@ onMounted(async () => {
             <Icon name="download" :size="14" />
             导出
           </button>
+          <select v-model="batchQuality" class="quality-select" title="批量下载音质">
+            <option v-for="level in QUALITY_LEVELS" :key="level.id" :value="level.id">
+              {{ level.label }}
+            </option>
+          </select>
           <button
             class="btn btn-primary"
             type="button"
@@ -659,6 +677,17 @@ onMounted(async () => {
   margin: 5px 0 0;
   font-size: 12.5px;
 }
+.quality-select {
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
 .head-actions {
   display: flex;
   align-items: center;

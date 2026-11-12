@@ -492,7 +492,9 @@ function startScrub(event: PointerEvent) {
 }
 .lv-head {
   flex: 0 0 auto;
-  display: flex;
+  /* 三栏等宽：左右两侧按钮宽度不同时，中间的标题仍然相对整屏居中 */
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 2fr) 1fr;
   align-items: center;
   gap: 12px;
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 18px 8px;
@@ -517,7 +519,6 @@ function startScrub(event: PointerEvent) {
   border-color: color-mix(in srgb, var(--lv-accent) 56%, transparent);
 }
 .lv-meta {
-  flex: 1;
   min-width: 0;
   text-align: center;
 }
@@ -543,6 +544,7 @@ function startScrub(event: PointerEvent) {
 .lv-tools {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
 }
 

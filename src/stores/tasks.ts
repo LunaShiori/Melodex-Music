@@ -5,6 +5,7 @@ import { transport } from '@/lib/transport'
 import { SOURCE_META } from '@/lib/types'
 import type { DownloadTask, EngineEvent, EnqueueInput, QualityLevel, Track, Variant } from '@/lib/types'
 import { bestVariant, fallbacksOf } from '@/lib/track'
+import { useLibraryStore } from '@/stores/library'
 
 export type TaskFilter = 'all' | 'active' | 'done'
 
@@ -58,6 +59,10 @@ export const useTasksStore = defineStore('tasks', () => {
       const index = tasks.value.findIndex((task) => task.id === event.payload.id)
       if (index >= 0) tasks.value.splice(index, 1, event.payload)
       else tasks.value.unshift(event.payload)
+      // 下载完成的文件进曲库；曲库与下载记录分离，清空记录不会清空曲库。
+      if (event.payload.state === 'completed' && event.payload.path) {
+        useLibraryStore().add(event.payload)
+      }
       return
     }
     if (event.type === 'taskRemoved') {
@@ -75,7 +80,11 @@ export const useTasksStore = defineStore('tasks', () => {
     off = transport.onEvent(handle)
   }
 
-  async function enqueue(tracks: Track[]) {
+  /**
+   * 批量入队。`quality` 用于歌单等批量场景：调用方在界面上选好音质后，
+   * 每一首都按这一档提交；不传则沿用设置里的默认档。
+   */
+  async function enqueue(tracks: Track[], quality?: QualityLevel) {
     if (!tracks.length) return []
     const inputs: EnqueueInput[] = []
     for (const track of tracks) {
@@ -91,6 +100,7 @@ export const useTasksStore = defineStore('tasks', () => {
           durationMs: track.durationMs,
           bitrate: variant.bitrate || undefined,
           format: variant.format,
+          quality,
           fallbacks: fallbacksOf(track, variant.source),
         })
       } catch {

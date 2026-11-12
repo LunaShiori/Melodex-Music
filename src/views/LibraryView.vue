@@ -7,7 +7,9 @@ import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatBytes, formatDuration } from '@/lib/format'
 import { transport } from '@/lib/transport'
 import { SOURCE_META } from '@/lib/types'
-import type { DownloadTask, Track } from '@/lib/types'
+import type { Track } from '@/lib/types'
+import type { LibraryEntry } from '@/stores/library'
+import { useLibraryStore } from '@/stores/library'
 import { usePlayerStore } from '@/stores/player'
 import { useTasksStore } from '@/stores/tasks'
 
@@ -18,6 +20,7 @@ type SortKey = 'recent' | 'title' | 'artist' | 'size' | 'duration'
 const STORE_KEY = 'melodex.library.view'
 
 const tasks = useTasksStore()
+const library = useLibraryStore()
 const player = usePlayerStore()
 const keyword = ref('')
 
@@ -64,7 +67,8 @@ watch([mode, size, sort], () => {
 })
 
 const items = computed(() => {
-  const list = [...tasks.completed].sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))
+  // 曲库来自独立持久化的条目，而不是下载任务列表：清空下载记录不影响这里。
+  const list = library.sorted
   const key = keyword.value.trim().toLowerCase()
   const filtered = !key
     ? list
@@ -104,7 +108,7 @@ const gridMin = computed(() =>
   size.value === 'sm' ? '132px' : size.value === 'lg' ? '248px' : '186px',
 )
 
-function toTrack(task: DownloadTask): Track {
+function toTrack(task: LibraryEntry): Track {
   return {
     fingerprint: task.id,
     title: task.title,
@@ -133,7 +137,7 @@ function toTrack(task: DownloadTask): Track {
   }
 }
 
-function play(task: DownloadTask) {
+function play(task: LibraryEntry) {
   const track = toTrack(task)
   const src = task.path ? transport.localUrl(task.path) : ''
   void player.playLocal(track, src)
@@ -242,7 +246,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
           >
             <Icon name="folder" :size="15" />
           </button>
-          <button class="icon-btn" type="button" title="移出列表" @click="tasks.remove(task.id)">
+          <button class="icon-btn" type="button" title="移出列表" @click="library.remove(task.id)">
             <Icon name="close" :size="15" />
           </button>
         </div>
@@ -290,7 +294,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
           >
             <Icon name="folder" :size="15" />
           </button>
-          <button class="icon-btn" type="button" title="移出列表" @click="tasks.remove(task.id)">
+          <button class="icon-btn" type="button" title="移出列表" @click="library.remove(task.id)">
             <Icon name="close" :size="15" />
           </button>
         </div>

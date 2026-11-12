@@ -266,7 +266,9 @@ export function createDemoTransport(): Transport {
   function startTimer(id: string) {
     const timer = setInterval(() => {
       const task = tasks.find((item) => item.id === id)
-      if (!task || task.state !== 'downloading') {
+      // 进度到 82% 后状态切到「写入标签」，这一步同样要跑完，否则任务永远停在标签阶段
+      const running = task && (task.state === 'downloading' || task.state === 'tagging')
+      if (!running) {
         clearInterval(timer)
         timers.delete(id)
         return
