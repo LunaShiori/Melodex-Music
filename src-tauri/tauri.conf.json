@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Melodex Music",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "identifier": "app.melodex",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -53,6 +53,71 @@
           "English"
         ]
       }
-    }
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "mp3"
+        ],
+        "name": "MelodexMusic.mp3",
+        "description": "MP3 audio",
+        "role": "Viewer",
+        "mimeType": "audio/mpeg"
+      },
+      {
+        "ext": [
+          "flac"
+        ],
+        "name": "MelodexMusic.flac",
+        "description": "FLAC audio",
+        "role": "Viewer",
+        "mimeType": "audio/flac"
+      },
+      {
+        "ext": [
+          "m4a"
+        ],
+        "name": "MelodexMusic.m4a",
+        "description": "M4A audio",
+        "role": "Viewer",
+        "mimeType": "audio/mp4"
+      },
+      {
+        "ext": [
+          "aac"
+        ],
+        "name": "MelodexMusic.aac",
+        "description": "AAC audio",
+        "role": "Viewer",
+        "mimeType": "audio/aac"
+      },
+      {
+        "ext": [
+          "wav"
+        ],
+        "name": "MelodexMusic.wav",
+        "description": "WAV audio",
+        "role": "Viewer",
+        "mimeType": "audio/wav"
+      },
+      {
+        "ext": [
+          "ogg"
+        ],
+        "name": "MelodexMusic.ogg",
+        "description": "OGG audio",
+        "role": "Viewer",
+        "mimeType": "audio/ogg"
+      },
+      {
+        "ext": [
+          "opus"
+        ],
+        "name": "MelodexMusic.opus",
+        "description": "Opus audio",
+        "role": "Viewer",
+        "mimeType": "audio/opus"
+      }
+    ]
   }
 }

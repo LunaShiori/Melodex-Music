@@ -119,7 +119,7 @@ It only does "one query, many sources, pick the best stream, write a tidy file".
 **Player integration**
 
 - **System media session**: lock screen, notification shade and the Android "dynamic island / capsule" show the current track and its controls through the OS media session — no private protocol of our own
-- **Open local audio**: the library toolbar opens local files, and audio paths passed on the command line are picked up automatically. OS-level file-association registration is deferred: it broke the Windows installer build and ships in v2.1.1 instead
+- **Open local audio**: the library toolbar opens local files; the installer registers mp3 / flac / m4a / aac / wav / ogg / opus, so double-clicking audio in the file manager plays it in Melodex, and audio paths on the command line are picked up too
 
 **Network**
 

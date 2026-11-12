@@ -3,6 +3,22 @@
 本项目的版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)，
 安装包命名与 `Cargo.toml` / `tauri.conf.json` 的 `version` 保持一致。
 
+## v2.1.1
+
+把 v2.1.0 里撤下的「双击音频用 Melodex 打开」补回来。
+
+### 修复 · 文件关联声明会让 Windows 打包失败
+
+v2.1.0 给 `bundle.fileAssociations` 写了中文的名称与描述（`MP3 音频` 之类），结果 Windows 的 NSIS / MSI 打包
+连续两次失败，而 Linux、macOS、Android 全绿。逐条二分下来确认：**NSIS / WiX 的关联注册模板吃不下非 ASCII 的
+`name` / `description`**，和扩展名数量、MIME、角色都无关。
+
+- 七条关联全部改成 ASCII 名称（`MelodexMusic.mp3` 这种）与英文描述；
+- 每个扩展名单独一条（`ogg` 与 `opus` 拆开，各自用对的 MIME）；
+- 一条关联与七条关联都实测能打出包，于是把七条都放回来。
+
+装完之后在文件管理器里双击 mp3 / flac / m4a / aac / wav / ogg / opus，就会交给 Melodex 播放。
+
 ## v2.1.0
 
 这一版是「把欠的账还完」：五个老问题修掉、界面全量中英双语、播放器能接管系统媒体控制与本地文件、
@@ -56,8 +72,7 @@
 
 曲库工具栏加了「打开本地文件」；启动参数里的音频路径也会自动接住，直接播。
 
-安装包级的文件关联声明（双击 mp3 用 Melodex 打开）这一版先撤下了：加上去之后 Windows 的 NSIS / MSI 打包会失败，
-还没定位到是哪条声明不合规，留到 v2.1.1 单独验证。
+安装包级的文件关联声明（双击 mp3 用 Melodex 打开）在 v2.1.0 里先撤下了，v2.1.1 已补回并修好。
 
 ### 新 · 酷狗音乐作为第四个音源
 
