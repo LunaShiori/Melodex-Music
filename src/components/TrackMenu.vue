@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 
 import Icon from './Icon.vue'
 import { artistName } from '@/lib/i18n'
@@ -12,6 +13,7 @@ const { t } = useI18n()
 const menu = useMenuStore()
 const player = usePlayerStore()
 const tasks = useTasksStore()
+const router = useRouter()
 
 const track = computed(() => menu.track)
 
@@ -49,6 +51,15 @@ const actions = computed<Action[]>(() => {
       label: 'menu.download',
       icon: 'download',
       run: () => void tasks.enqueue([target]),
+    },
+    {
+      key: 'artist',
+      label: 'menu.searchArtist',
+      icon: 'search',
+      run: () => {
+        const artist = target.artists[0]
+        if (artist) void router.push({ name: 'search', query: { q: artist } })
+      },
     },
     {
       key: 'copy',

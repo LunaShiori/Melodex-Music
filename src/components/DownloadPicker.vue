@@ -2,11 +2,12 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import Icon from './Icon.vue'
-import { artistName, useI18n } from '@/lib/i18n'
+import { artistName, qualityLabel, useI18n } from '@/lib/i18n'
 import { transport } from '@/lib/transport'
 import { SOURCE_META } from '@/lib/types'
 import type { PlatformQuality, QualityLevel, QualityTier, SourceId, Track, Variant } from '@/lib/types'
 import { useAccountsStore } from '@/stores/accounts'
+import { useLibraryStore } from '@/stores/library'
 
 const props = defineProps<{
   track: Track
@@ -20,6 +21,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const accounts = useAccountsStore()
+const library = useLibraryStore()
 
 /** 各平台的档位表，后端唯一维护 */
 const qualities = ref<PlatformQuality[]>([])
@@ -69,6 +71,16 @@ const activeTier = computed(() => {
 })
 
 /** 选中的档位是否需要账号权益，决定底部那句提醒 */
+/**
+ * 曲库里已经有「同一个音源 + 同一个来源 id」的条目时提示一句。
+ * 只比 id 不比标题：同名不同版本是不同资源，猜标题会误报。
+ */
+const duplicate = computed(() => {
+  const variant = selectedVariant.value
+  if (!variant) return null
+  return library.findEntry(variant.source, variant.id) ?? null
+})
+
 const activeNeedsRights = computed(() => {
   const tier = activeTier.value
   const source = selectedSource.value
@@ -178,6 +190,9 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
           <strong>{{ activeTier.label }}</strong>
           <span class="mono muted">{{ tierCaption(activeTier) }}</span>
           <span v-if="activeNeedsRights" class="foot-warn">{{ t('downloadpicker.a4') }}</span>
+          <span v-if="duplicate" class="foot-warn dup-warn">
+            {{ t('picker.duplicate', { quality: qualityLabel(duplicate.quality), format: (duplicate.format || '').toUpperCase() }) }}
+          </span>
         </p>
         <button class="btn" type="button" @click="emit('close')">{{ t('downloadpicker.a5') }}</button>
         <button class="btn btn-primary" type="button" :disabled="!selectedVariant" @click="confirm">
@@ -384,6 +399,9 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 .foot-summary strong {
   color: var(--text);
   font-weight: 600;
+}
+.dup-warn {
+  color: var(--warning, #b7791f);
 }
 .foot-warn {
   flex-basis: 100%;

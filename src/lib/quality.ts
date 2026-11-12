@@ -11,7 +11,7 @@ export const QUALITY_LEVELS: { id: QualityLevel; label: string }[] = [
   { id: 'high', label: 'quality.high' },
   { id: 'exquisite', label: 'quality.exquisite' },
   { id: 'lossless', label: 'quality.lossless' },
-  { id: 'hiRes', label: 'Hi-Res' },
+  { id: 'hiRes', label: 'quality.hiRes' },
   { id: 'master', label: 'quality.master' },
 ]
 

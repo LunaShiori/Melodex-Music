@@ -85,6 +85,22 @@ export function sourceName(id: string): string {
 }
 
 /** 组件里用：`const { t, locale, setLocale } = useI18n()` */
+/**
+ * 音质等级的说法。等级表里存的是词条键，Hi-Res 这类本来就是品牌写法，直接原样返回。
+ */
+export function qualityLabel(level: string): string {
+  const KEY: Record<string, string> = {
+    standard: 'quality.standard',
+    high: 'quality.high',
+    exquisite: 'quality.exquisite',
+    lossless: 'quality.lossless',
+    hiRes: 'quality.hiRes',
+    master: 'quality.master',
+  }
+  const key = KEY[level]
+  return key ? t(key) : level
+}
+
 export function useI18n() {
   return { t, locale: resolvedLocale, choice: localeChoice, setLocale }
 }

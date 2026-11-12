@@ -571,4 +571,7 @@ export const en: Record<string, string> = {
   'about.license': 'License',
   'about.licenseNote': 'For study and research only — respect each source’s copyright terms',
   'about.capabilities': 'Search → preview → download → organise, all in one place: aggregated search across three sources, line-by-line lyrics with bilingual translation, sorting by popularity/duration/source count, account playlists, batch downloads with resume, and ID3 tags with embedded covers.',
+  'list.searchArtist': 'Search {artist}',
+  'menu.searchArtist': 'Search this artist',
+  'picker.duplicate': 'Already in your library ({quality} {format}) — continuing saves a second copy',
 }

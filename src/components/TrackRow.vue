@@ -3,6 +3,8 @@ import { computed } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
+import { useRouter } from 'vue-router'
+
 import { artistName, sourceShort, useI18n } from '@/lib/i18n'
 import { onCoverError } from '@/lib/cover'
 import { formatBitrate, formatDuration } from '@/lib/format'
@@ -59,6 +61,14 @@ const cover = computed(() => coverOf(props.track.cover, props.track.fingerprint)
 const bestBitrate = computed(() => Math.max(...props.track.variants.map((v) => v.bitrate)))
 /** 标题自带「原唱 / 翻唱」说明时给个小标签，扫一眼就知道这条是什么版本 */
 const { t } = useI18n()
+const router = useRouter()
+
+/** 点歌手名 = 用这位歌手再搜一次；多歌手的行只取第一位，避免把一串名字塞进搜索框 */
+function openArtist() {
+  const artist = props.track.artists[0]
+  if (!artist) return
+  void router.push({ name: 'search', query: { q: artist } })
+}
 const originKey = computed(() => originLabelKey(props.track))
 const originKind = computed(() => trackOrigin(props.track))
 const feeLabel = computed(() => {
@@ -135,7 +145,14 @@ function onPlay() {
         <span class="title-text">{{ track.title }}</span>
       </p>
       <p class="sub">
-        <span class="artist">{{ artistName(track.artists) }}</span>
+        <button
+          v-if="track.artists.length"
+          class="artist artist-link"
+          type="button"
+          :title="t('list.searchArtist', { artist: track.artists[0] })"
+          @click.stop="openArtist"
+        >{{ artistName(track.artists) }}</button>
+        <span v-else class="artist">{{ artistName(track.artists) }}</span>
         <span v-if="track.album" class="album">· {{ track.album }}</span>
       </p>
     </div>

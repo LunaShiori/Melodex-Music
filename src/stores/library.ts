@@ -66,6 +66,15 @@ export const useLibraryStore = defineStore('library', () => {
     return entries.value.some((entry) => entry.id === id)
   }
 
+  /**
+   * 按「同一个音源 + 同一个来源 id」找曲库里已有的条目。
+   * 只认 id，不拿标题去猜——同名不同版本（伴奏、Live、电台）是不同资源，
+   * 用标题匹配会把它们误判成重复。
+   */
+  function findEntry(source: DownloadTask['source'], sourceId: string) {
+    return entries.value.find((entry) => entry.source === source && entry.sourceId === sourceId)
+  }
+
   /** 下载完成后入曲库；同一个任务重复完成（重试成功）时按 id 覆盖。 */
   function add(task: DownloadTask) {
     if (!task.path) return
@@ -102,5 +111,5 @@ export const useLibraryStore = defineStore('library', () => {
     persist()
   }
 
-  return { entries, sorted, has, add, remove, clear }
+  return { entries, sorted, has, findEntry, add, remove, clear }
 })

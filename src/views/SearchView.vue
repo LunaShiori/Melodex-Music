@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import Icon from '@/components/Icon.vue'
@@ -156,6 +156,16 @@ onMounted(() => {
     submit()
   }
 })
+// 同一个页面里换关键词（点歌手名、最近搜索）也要重新搜一次
+watch(
+  () => route.query.q,
+  (next) => {
+    const value = Array.isArray(next) ? next[0] : next
+    if (typeof value !== 'string' || !value.trim() || value === search.keyword) return
+    search.keyword = value
+    submit()
+  },
+)
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 

@@ -575,4 +575,7 @@ export const zh: Record<string, string> = {
   'about.license': '开源协议',
   'about.licenseNote': '仅用于学习与研究，请遵守各音源版权规定',
   'about.capabilities': '一个应用里完成「搜 → 试听 → 下载 → 整理」：三平台聚合搜索、逐行滚动歌词（含双语翻译）、热门/时长/音源数排序、账号歌单读取、批量下载与断点续传、ID3 标签与封面内嵌。',
+  'list.searchArtist': '搜索 {artist}',
+  'menu.searchArtist': '搜这位歌手',
+  'picker.duplicate': '曲库里已有这首（{quality} {format}），继续会再存一份',
 }
