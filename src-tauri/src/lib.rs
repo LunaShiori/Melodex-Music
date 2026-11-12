@@ -496,6 +496,7 @@ async fn login_qr_start(
             .await
             .map_err(|err| err.to_string()),
         Source::Kuwo => Err("酷我不支持扫码登录，请用内置网页登录或粘贴 Cookie".into()),
+        Source::Kugou => Err("酷狗不支持扫码登录，也不需要登录即可搜索与播放".into()),
     }
 }
 
@@ -512,6 +513,9 @@ async fn login_qr_poll(
         Source::Qq => melodex_core::login::qq::poll(&state.net, &key).await,
         Source::Kuwo => Err(melodex_core::error::Error::Invalid(
             "酷我不支持扫码登录，请用内置网页登录或粘贴 Cookie".into(),
+        )),
+        Source::Kugou => Err(melodex_core::error::Error::Invalid(
+            "酷狗不支持扫码登录".into(),
         )),
     }
     .map_err(|err| err.to_string())?;
@@ -574,6 +578,7 @@ fn start_web_login(app: tauri::AppHandle, source: Source) -> Result<(), String> 
         Source::Qq => "https://y.qq.com/",
         Source::Netease => "https://music.163.com/",
         Source::Kuwo => "https://www.kuwo.cn/",
+        Source::Kugou => "https://www.kugou.com/",
     };
     let parsed = tauri::Url::parse(home).map_err(|err| format!("登录地址无效：{err}"))?;
 
@@ -610,6 +615,7 @@ async fn watch_web_login(app: tauri::AppHandle, window: tauri::WebviewWindow, so
         Source::Qq => "https://y.qq.com/",
         Source::Netease => "https://music.163.com/",
         Source::Kuwo => "https://www.kuwo.cn/",
+        Source::Kugou => "https://www.kugou.com/",
     };
     let Ok(scope) = tauri::Url::parse(home) else {
         return;
@@ -721,6 +727,8 @@ fn collect_cookie(source: Source, cookies: &[(String, String)]) -> Option<String
             let token = get(cookies, "kw_token").or_else(|| get(cookies, "HITOKEN"))?;
             Some(format!("kw_token={token}"))
         }
+        // 酷狗播放接口不校验我们的 Cookie，这里不收集
+        Source::Kugou => None,
     }
 }
 
@@ -1038,6 +1046,32 @@ async fn pick_audio_files(app: tauri::AppHandle) -> Result<Vec<String>, String> 
         .collect())
 }
 
+/// 在 B 站音乐分区搜视频（只搜不播，播放交给 B 站自己）。
+#[tauri::command]
+async fn bilibili_search(
+    net: tauri::State<'_, std::sync::Arc<melodex_core::net::Net>>,
+    term: String,
+    page: u32,
+) -> Result<Vec<serde_json::Value>, String> {
+    let videos = melodex_core::bilibili::search(net.inner(), &term, page)
+        .await
+        .map_err(|err| err.to_string())?;
+    Ok(videos
+        .into_iter()
+        .map(|video| {
+            serde_json::json!({
+                "bvid": video.bvid,
+                "title": video.title,
+                "author": video.author,
+                "cover": video.cover,
+                "durationSecs": video.duration_secs,
+                "plays": video.plays,
+                "url": video.url,
+            })
+        })
+        .collect())
+}
+
 /// 启动时「用 Melodex 打开」传进来的音频路径（双击文件、右键打开方式都会走这里）。
 #[tauri::command]
 fn startup_audio_files() -> Vec<String> {
@@ -1252,6 +1286,7 @@ pub fn run() {
             reveal_path,
             save_text_file,
             pick_audio_files,
+            bilibili_search,
             startup_audio_files,
             check_update,
             update_download,

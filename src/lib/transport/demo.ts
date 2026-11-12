@@ -690,6 +690,21 @@ export function createDemoTransport(): Transport {
       return []
     },
 
+    async searchBilibili() {
+      // 浏览器拿不到 B 站接口（CORS + 风控 Cookie），演示模式给一组样例
+      return [
+        {
+          bvid: 'BV1BZbSzZEGT',
+          title: '【Hi-Res无损音质】《晴天》- 周杰伦',
+          author: 'VV音乐局',
+          cover: '',
+          durationSecs: 270,
+          plays: 3481907,
+          url: 'https://www.bilibili.com/video/BV1BZbSzZEGT',
+        },
+      ]
+    },
+
     /* ---- 账号：浏览器里用内存模拟，方便走查扫码流程 ---- */
 
     async vaultStatus() {

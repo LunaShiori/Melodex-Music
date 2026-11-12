@@ -9,6 +9,8 @@
 
 #[cfg(feature = "net")]
 pub mod aggregator;
+#[cfg(feature = "net")]
+pub mod bilibili;
 pub mod cookie;
 pub mod download;
 pub mod error;

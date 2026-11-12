@@ -39,6 +39,16 @@ export type LoginWebEvent =
  * - Tauri 端实现直接 invoke Rust 核心；
  * - 演示端（浏览器 / 预览）用本地模拟数据，方便设计走查。
  */
+export interface BiliVideo {
+  bvid: string
+  title: string
+  author: string
+  cover: string
+  durationSecs: number
+  plays: number
+  url: string
+}
+
 export interface Transport {
   readonly mode: 'tauri' | 'demo'
   search(params: SearchParams): Promise<AggregatedPage>
@@ -91,6 +101,8 @@ export interface Transport {
   pickAudioFiles(): Promise<string[]>
   /** 启动时「用 Melodex 打开」传进来的音频路径 */
   startupAudioFiles(): Promise<string[]>
+  /** 在 B 站音乐分区搜视频（只搜不播）；浏览器直连被 CORS 挡住，演示模式返回空 */
+  searchBilibili(term: string, page?: number): Promise<BiliVideo[]>
 
   /* ---- 账号与本地加密凭据 ---- */
   vaultStatus(): Promise<VaultStatus>

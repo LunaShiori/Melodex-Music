@@ -22,7 +22,7 @@ import type {
   VaultStatus,
   Variant,
 } from '../types'
-import type { LoginWebEvent, SearchParams, Transport } from './types'
+import type { BiliVideo, LoginWebEvent, SearchParams, Transport } from './types'
 
 /** Tauri 外壳：所有能力都由 Rust 核心通过 command 暴露。 */
 export function createTauriTransport(): Transport {
@@ -166,6 +166,10 @@ export function createTauriTransport(): Transport {
 
     async startupAudioFiles() {
       return invoke<string[]>('startup_audio_files')
+    },
+
+    async searchBilibili(term: string, page = 1) {
+      return invoke<BiliVideo[]>('bilibili_search', { term, page })
     },
 
     localUrl(path: string) {

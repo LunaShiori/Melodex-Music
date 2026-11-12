@@ -4,6 +4,8 @@ import { computed, onUnmounted, ref } from 'vue'
 import Icon from '@/components/Icon.vue'
 import { formatDuration } from '@/lib/format'
 import { useI18n } from '@/lib/i18n'
+import type { BiliVideo } from '@/lib/transport/types'
+import { transport } from '@/lib/transport'
 import {
   APPLE_STORES,
   PLATFORM_CAPABILITIES,
@@ -70,8 +72,39 @@ function switchStore(next: AppleStore) {
   if (searched.value) void submit()
 }
 
+// B 站音乐区：只搜不播。接口要 buvid3 Cookie 且没有 CORS 头，
+// 所以走桌面壳的 Rust 命令；浏览器里只能给样例数据。
+const biliKeyword = ref('')
+const biliResults = ref<BiliVideo[]>([])
+const biliLoading = ref(false)
+const biliError = ref('')
+const biliSearched = ref(false)
+
+async function submitBili() {
+  const term = biliKeyword.value.trim()
+  if (!term || biliLoading.value) return
+  biliLoading.value = true
+  biliError.value = ''
+  try {
+    biliResults.value = await transport.searchBilibili(term)
+    biliSearched.value = true
+  } catch (err) {
+    biliError.value = err instanceof Error ? err.message : String(err)
+    biliResults.value = []
+  } finally {
+    biliLoading.value = false
+  }
+}
+
+/** 播放数太长会顶到时长列，按万/亿折一下 */
+function countOf(n: number): string {
+  if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)} 亿`
+  if (n >= 10_000) return `${(n / 10_000).toFixed(1)} 万`
+  return String(n)
+}
+
 const others = computed<PlatformCapability[]>(() =>
-  PLATFORM_CAPABILITIES.filter((item) => item.id !== 'apple'),
+  PLATFORM_CAPABILITIES.filter((item) => item.id !== 'apple' && item.id !== 'bilibili'),
 )
 
 const tierLabel = computed<Record<string, string>>(() => ({
@@ -165,6 +198,56 @@ onUnmounted(() => {
       </ul>
 
       <p v-else-if="searched && !loading" class="muted empty">{{ t('platforms.apple.empty') }}</p>
+    </section>
+
+    <!-- B 站音乐区：能搜到视频，播放交给 B 站 -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>{{ t('platforms.bilibili.title') }}</h2>
+          <p class="muted">{{ t('platforms.bilibili.searchDesc') }}</p>
+        </div>
+        <span class="badge ok">{{ t('platforms.bilibili.badge') }}</span>
+      </div>
+
+      <div class="searchbar">
+        <Icon name="search" :size="16" />
+        <input
+          v-model="biliKeyword"
+          type="search"
+          :placeholder="t('platforms.bilibili.placeholder')"
+          autocomplete="off"
+          @keydown.enter="submitBili"
+        />
+        <button
+          class="btn btn-primary btn-sm"
+          type="button"
+          :disabled="biliLoading || !biliKeyword.trim()"
+          @click="submitBili"
+        >
+          {{ biliLoading ? t('common.loading') : t('platforms.search') }}
+        </button>
+      </div>
+
+      <p v-if="biliError" class="err">{{ biliError }}</p>
+
+      <ul v-if="biliResults.length" class="apple-list">
+        <li v-for="video in biliResults" :key="video.bvid" class="apple-row">
+          <img v-if="video.cover" :src="video.cover" alt="" loading="lazy" class="art" />
+          <div v-else class="art placeholder" />
+          <div class="meta">
+            <p class="title">{{ video.title }}</p>
+            <p class="sub">{{ video.author }} · {{ t('platforms.bilibili.plays', { n: countOf(video.plays) }) }}</p>
+          </div>
+          <span class="mono dur">{{ formatDuration(video.durationSecs * 1000) }}</span>
+          <a class="icon-btn" :href="video.url" target="_blank" rel="noreferrer" :title="t('platforms.openIn')">
+            <Icon name="external" :size="14" />
+          </a>
+        </li>
+      </ul>
+
+      <p v-else-if="biliSearched && !biliLoading" class="muted empty">{{ t('platforms.bilibili.empty') }}</p>
+      <p v-else class="muted empty">{{ t('platforms.bilibili.hint') }}</p>
     </section>
 
     <!-- 其余平台：只说明边界，不给假按钮 -->
