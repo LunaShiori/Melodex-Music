@@ -5,6 +5,7 @@ import { computed, ref } from 'vue'
 
 import { pushRecent } from '@/lib/history'
 import { activeLineIndex, mergeTranslation, parseLrc, type LrcLine } from '@/lib/lrc'
+import { bindActions, setNowPlaying, setPlaybackState, setPosition } from '@/lib/media-session'
 import { transport } from '@/lib/transport'
 import type { FailReason, PlayUrl, SourceId, Track, Variant } from '@/lib/types'
 import { bestVariant } from '@/lib/track'
@@ -111,6 +112,8 @@ export const usePlayerStore = defineStore('player', () => {
 
   const audio = typeof Audio !== 'undefined' ? new Audio() : null
   const isDemo = transport.mode === 'demo'
+  /** 上次同步到系统的整秒，避免每秒重复 setPositionState */
+  let lastReportedSecond = -1
   let ticker: ReturnType<typeof setInterval> | null = null
 
   const lyric = useLyricStore()
@@ -139,6 +142,25 @@ export const usePlayerStore = defineStore('player', () => {
    * - `armError`：观察到错误，先压 450ms，期间恢复正常就当没发生
    * - `showError`：调用方已经确认这是最终失败（重试也用完了），立刻展示
    */
+  /**
+   * 把当前这歌推给系统媒体会话（锁屏卡 / 灵动岛 / 通知栏）。
+   * 演示模式和正式端都推，系统那边不需要知道音频从哪来。
+   */
+  function syncNowPlaying() {
+    const track = current.value
+    if (!track) {
+      setNowPlaying(null)
+      return
+    }
+    setNowPlaying({
+      title: track.title,
+      artist: track.artists.join(' / ') || t('common.unknownArtist'),
+      album: track.album || '',
+      cover: track.cover,
+      durationMs: duration.value,
+    })
+  }
+
   const broken = ref(false)
   let pendingError: PlayerError | null = null
   let errorTimer: ReturnType<typeof setTimeout> | null = null
@@ -182,6 +204,12 @@ export const usePlayerStore = defineStore('player', () => {
     audio.preload = 'auto'
     audio.addEventListener('timeupdate', () => {
       position.value = audio.currentTime * 1000
+      // 进度每秒报一次就够，系统的进度条不需要逐帧
+      const whole = Math.floor(audio.currentTime)
+      if (whole !== lastReportedSecond) {
+        lastReportedSecond = whole
+        setPosition(position.value, duration.value)
+      }
     })
     audio.addEventListener('loadedmetadata', () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -191,6 +219,8 @@ export const usePlayerStore = defineStore('player', () => {
     audio.addEventListener('playing', () => {
       playing.value = true
       loading.value = false
+      setPlaybackState('playing')
+      setPosition(position.value, duration.value)
       // 已经开始出声说明刚才那个错误是短命的，撤回提示
       clearError()
     })
@@ -206,10 +236,25 @@ export const usePlayerStore = defineStore('player', () => {
     })
     audio.addEventListener('pause', () => {
       playing.value = false
+      setPlaybackState('paused')
     })
     audio.addEventListener('ended', () => {
       void next(true)
     })
+    // 系统媒体控制（锁屏 / 通知栏 / 灵动岛）的按钮回调
+    bindActions({
+      play: () => void resume(),
+      pause: () => pause(),
+      next: () => void next(),
+      prev: () => void prev(),
+      stop: () => {
+        pause()
+        setPlaybackState('none')
+      },
+      seekTo: (sec) => seekToSeconds(sec),
+      seekBy: (delta) => seekToSeconds(position.value / 1000 + delta),
+    })
+
     audio.addEventListener('error', () => {
       if (isDemo) return
       const code = audio.error?.code ?? 0
@@ -234,6 +279,7 @@ export const usePlayerStore = defineStore('player', () => {
     ticker = setInterval(() => {
       if (!isDemo || !playing.value) return
       position.value = Math.min(duration.value, position.value + 250)
+      setPosition(position.value, duration.value)
       if (duration.value && position.value >= duration.value) void next(true)
     }, 250)
   }
@@ -289,11 +335,13 @@ export const usePlayerStore = defineStore('player', () => {
     clearError()
     loading.value = true
     triedProxy = false
+    syncNowPlaying()
     void loadLyric(target)
 
     if (isDemo) {
       loading.value = false
       playing.value = true
+      setPlaybackState('playing')
       startTicker()
       return
     }
@@ -321,6 +369,7 @@ export const usePlayerStore = defineStore('player', () => {
     position.value = 0
     clearError()
     loading.value = true
+    syncNowPlaying()
     // 本地文件本身不带歌词，但仍然知道它来自哪个平台的哪首歌，
     // 所以照样去源站拉一次——否则从曲库起播时歌词区会一直是上一首的残留。
     if (variant.value) {
@@ -502,10 +551,47 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
+  /** 系统媒体控制用：暂停（不切换当前曲目） */
+  function pause() {
+    if (isDemo) {
+      playing.value = false
+      setPlaybackState('paused')
+      return
+    }
+    audio?.pause()
+    playing.value = false
+  }
+
+  /** 系统媒体控制用：从当前位置继续；没有音频源时当作重新起播 */
+  function resume() {
+    if (!current.value) return Promise.resolve()
+    if (isDemo) {
+      playing.value = true
+      setPlaybackState('playing')
+      startTicker()
+      return Promise.resolve()
+    }
+    if (!audio) return Promise.resolve()
+    if (!audio.src || broken.value) return playTrack(current.value, variant.value ?? undefined)
+    return audio
+      .play()
+      .then(() => {
+        playing.value = true
+      })
+      .catch(() => playTrack(current.value!, variant.value ?? undefined))
+  }
+
+  function seekToSeconds(seconds: number) {
+    if (!Number.isFinite(seconds)) return
+    seek(Math.max(0, seconds) * 1000)
+  }
+
   function toggle() {
     if (!current.value) return
     if (isDemo) {
       playing.value = !playing.value
+      // 演示模式没有 audio 事件，状态得自己同步给系统
+      setPlaybackState(playing.value ? 'playing' : 'paused')
       startTicker()
       return
     }
