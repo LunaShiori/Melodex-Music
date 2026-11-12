@@ -1,5 +1,7 @@
 # Melodex Music
 
+[English](README.en.md) · **简体中文**
+
 **多源音乐聚合搜索 · 内置播放器与逐行歌词 · 批量下载 —— Windows / macOS / Linux 桌面端 + Android 手机端**
 
 一次输入，同时检索网易云音乐、QQ 音乐、酷我音乐，把同一首歌的三份结果合并成一条：
@@ -31,6 +33,7 @@
 - [架构](#架构)
 - [关键实现](#关键实现)
 - [音源接入现状](#音源接入现状)
+- [更多平台](#更多平台搜索与跳转)
 - [平台支持](#平台支持)
 - [快速开始](#快速开始)
 - [构建 Windows 安装包](#构建-windows-安装包)
@@ -171,6 +174,17 @@
 - **GitHub 加速兜底**：直连失败按顺序切到国内镜像源（`ghproxy` 系），逐个尝试直到成功
 - 「手动下载与其他格式」里仍可逐个下载安装包、或跳转发布页自己挑
 - 也支持自建清单（`{"version","notes","url","assets"}`），用 `MELODEX_UPDATE_FEED` 环境变量即可换源
+
+**双语与系统集成**
+
+- **界面中英双语**：设置里可选「跟随系统 / 简体中文 / English」，切换即时生效；词条覆盖全部页面、弹窗、徽标与失败原因
+- **系统媒体会话**：锁屏、通知栏与安卓的通知胶囊显示当前曲目并可控制，走系统自带通道，不额外造私有接口
+- **打开本地音频**：曲库工具栏可打开本地文件；安装包把 mp3 / flac / m4a / aac / wav / ogg / opus 注册为可打开类型，
+  从文件管理器双击即播，启动参数里的音频路径也会自动接住
+- **代理可按音源挑**：除「搜索 / 取链 / 下载 / 更新」四个用途外，还能逐音源选择是否走代理，国内源通常直连即可
+- **合规声明写在明面上**：首启引导最后一页与设置页都写明不提供、不分发、不存储任何音乐内容，下载仅供个人试听、
+  请在 24 小时内删除
+
 
 ## 界面
 
@@ -557,7 +571,7 @@ pub trait MusicPlatform: Send + Sync {
 | 网易云音乐 | ✅ | ✅ | ✅ | ✅ | 公开 web 接口，取流带 `br` 参数；`cloudsearch` 顺带给 `pop` 热度 |
 | QQ 音乐 | ✅ | ✅ | ✅ | ✅ | `musicu.fcg` 取 vkey，一次递多个候选文件名；详情接口补 `vs` / `media_mid` |
 | 酷我音乐 | ✅ | ✅ | — | — | 搜索返回单引号 JSON，内置宽松解析器；歌词接口需要 CSRF 票据，暂缺 |
-| 酷狗音乐 | ❌ | ❌ | ❌ | — | 接口要求签名（`err_code 30020`），未实现 |
+| 酷狗音乐 | ✅ | ✅ | — | — | 搜索走 `songsearch.kugou.com`；取链走 `m.kugou.com/app/i/getSongInfo.php?cmd=playInfo`（**免签名**）；128k / 320k / 无损是三个独立 hash，按音质挑 |
 
 QQ 歌单这一块有两个容易踩的字段坑，记在这里省得再查一遍：
 
@@ -565,6 +579,19 @@ QQ 歌单这一块有两个容易踩的字段坑，记在这里省得再查一�
   （「我喜欢」固定 201，普通歌单 1/2/3…），拿它当 `disstid` 去查详情一定空手而归——
   表现就是「歌单列表能看见，点进去一首歌都没有」。
 - **封面是 `picUrl` / `bigpicUrl`，曲目数是 `songNum`**，与详情接口的 `logo` / `songnum` 完全不同名。
+
+## 更多平台（搜索与跳转）
+
+国内三源 + 酷狗是「能搜、能取流、能下」的完整音源。另外几家的情况不一样，界面上写清楚能做什么：
+
+| 平台 | 能力 | 出口 |
+| --- | --- | --- |
+| Apple Music | 搜索 + 30 秒试听 + 跳转 | 公开的 iTunes Search 接口（`itunes.apple.com/search`），预览片段是明文 m4a，无 DRM；全曲受 FairPlay 保护，本应用不解析也不下载 |
+| Spotify | 跳转 | Web API 需要自备 Client ID / Secret 并走 OAuth，只做元数据检索与跳转；全曲受 Widevine 保护 |
+| YouTube Music | 跳转 | 没有公开搜索接口，官方 Data API 需自备 key 且有配额 |
+| 哔哩哔哩音乐区 | 搜索 + 跳转 | `x/web-interface/search/type?search_type=video&tid=3`；音频是 DASH 分离流且绑定 Referer，本应用不代播也不下载 |
+
+每个平台在「更多平台」页都标了 **可直接用 / 需自备凭据 / 暂不可用**，不做点了没反应的假按钮。
 
 设计上的取舍：**不内置任何账号、cookie 或逐流破解**。需要登录态的音源由使用者在自己的环境里提供凭据
 （`CredStore` 已预留按音源注入 cookie 的位置），代码层面只处理公开接口。
@@ -1001,26 +1028,13 @@ v0.1.0 存在这个缺陷：入队命令是同步 command，跑在主线程上�
 
 ## English
 
-**Melodex Music** is a cross-platform music *aggregator with a built-in player*: one query fans out to
-NetEase Cloud Music, QQ Music and Kuwo, then merges the same song from different platforms into a single row
-with per-source download channels. Built as a shared Rust core (`crates/melodex-core`) plus thin shells —
-Tauri 2 for Windows desktop and Android, Vue 3 + TypeScript for the UI.
+全文英文版见 [README.en.md](README.en.md)（与本页同结构：功能、账号与加密、架构、音源现状、平台、构建、FAQ、免责声明）。
 
-Highlights: cross-source merging by title/artist/duration fingerprint, **in-app playback with
-line-synced lyrics (bilingual when available)**, per-source failure isolation, resumable downloads
-with HTTP Range, automatic bitrate fallback, ID3v2.3 tagging with embedded cover and lyrics,
-account playlists with in-playlist search / free-VIP-lossless filters and three layout modes,
-sorting by relevance / popularity / duration / source count with an independent "pin original
-recordings" switch, four switchable UI styles (classic / liquid glass / aurora / minimal),
-a first-run guided tour, a single responsive UI that turns into a mobile layout below 860 px,
-and a read-only online update check against GitHub Releases (no silent self-replacement).
-
-Installable builds are produced by CI: push a `v*` tag and the release workflow attaches a Windows
-NSIS installer, an MSI, and a universal Android APK to the GitHub Release — with the changelog section
-for that version rendered at the top of the release notes.
-
-It ships **no content** and bundles **no credentials**: it only talks to public endpoints you point it at.
-For personal study and engineering research — respect copyright, support the artists.
+In short: **Melodex Music** is a cross-platform music aggregator with a built-in player — one query fans out to
+NetEase Cloud Music, QQ Music, Kuwo and Kugou, merges the same song into one row with per-source streaming channels,
+plays it with line-synced bilingual lyrics, and downloads with resumable transfers, quality fallback and ID3v2.3 tagging.
+It ships no content and no credentials: it only talks to the public endpoints of the accounts you sign in with.
+For personal study — respect copyright and support the artists.
 
 ```bash
 npm install && npm run tauri dev      # desktop dev

@@ -907,6 +907,10 @@ async fn update_install(app: tauri::AppHandle, path: String) -> Result<(), Strin
 /// 不走 WebView 内部导航，避免把 App 变成浏览器。
 #[tauri::command]
 fn open_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    // 桌面端走各自的系统命令，用不到 AppHandle；只有移动端分支要用，这里显式吃掉避免告警
+    #[cfg(not(mobile))]
+    let _ = &app;
+
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err("只允许打开 http(s) 链接".to_string());
     }
