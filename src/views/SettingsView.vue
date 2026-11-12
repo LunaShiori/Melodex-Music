@@ -877,25 +877,25 @@ onMounted(async () => {
 
         <div class="update-row">
           <div>
-            <p class="k">在线更新</p>
+            <p class="k">{{ t('settings.update.title') }}</p>
             <p class="v muted">
-              <template v-if="updateStore.checking">正在检查 GitHub Releases…</template>
-              <template v-else-if="updateStore.error">检查失败：{{ updateStore.error }}</template>
+              <template v-if="updateStore.checking">{{ t('settings.update.checking') }}</template>
+              <template v-else-if="updateStore.error">{{ t('settings.update.failed', { err: updateStore.error }) }}</template>
               <template v-else-if="updateStore.info?.available">
-                发现新版本 <span class="mono">{{ updateStore.info.latest }}</span>，可在弹窗中下载安装包
+                {{ t('settings.update.available', { v: updateStore.info.latest }) }}
               </template>
-              <template v-else-if="updateStore.info">已是最新版本</template>
-              <template v-else>安装包由 GitHub Releases 分发，启动时会静默检查一次</template>
+              <template v-else-if="updateStore.info">{{ t('settings.update.latest') }}</template>
+              <template v-else>{{ t('settings.update.idle') }}</template>
             </p>
           </div>
           <button class="btn btn-sm" type="button" :disabled="updateStore.checking" @click="checkUpdate">
             <Icon name="refresh" :size="14" />
-            检查更新
+            {{ t('settings.update.button') }}
           </button>
         </div>
 
         <p class="disclaimer">
-          Melodex Music 不提供任何音乐内容，所有音频均来自第三方平台公开接口；请确保你对下载的内容拥有合法使用权。
+          {{ t('settings.disclaimer') }}
         </p>
       </section>
     </template>

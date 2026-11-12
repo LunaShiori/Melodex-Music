@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import Icon from '@/components/Icon.vue'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { useI18n } from '@/lib/i18n'
 
 const onboarding = useOnboardingStore()
 const router = useRouter()
@@ -19,57 +20,59 @@ interface Step {
 const STEPS: Step[] = [
   {
     icon: 'disc',
-    title: '欢迎使用 Melodex Music',
-    body: '把网易云、QQ 音乐、酷我拉到同一个界面里搜索、试听、下载。同一首歌在各平台的版本会聚成一行，哪个源有货就从哪个源取。',
+    title: 'onboard.s1.title',
+    body: 'onboard.s1.body',
     bullets: [
-      '聚合搜索 + 播放 + 逐行歌词 + 下载一体',
-      '登录后按账号权益取最高音质',
-      '失败自动换源，支持断点续传',
+      'onboard.s1.b1',
+      'onboard.s1.b2',
+      'onboard.s1.b3',
     ],
   },
   {
     icon: 'user',
-    title: '第一步：登录音源',
-    body: '不登录也能用，但平台只肯给 128k / 320k。无损、Hi-Res、臻品母带都要登录后按你的账号权益下发。',
+    title: 'onboard.s2.title',
+    body: 'onboard.s2.body',
     bullets: [
-      '设置 → 账号 → 扫码登录（也可粘贴 Cookie）',
-      '登录后才能读到你自己账号下的歌单',
-      '凭据只存在本机，不会上传到任何地方',
+      'onboard.s2.b1',
+      'onboard.s2.b2',
+      'onboard.s2.b3',
     ],
-    action: { label: '去登录', to: '/settings' },
+    action: { label: 'onboard.action.signIn', to: '/settings' },
   },
   {
     icon: 'search',
-    title: '第二步：搜索',
-    body: '输入歌名或歌手，三家同时返回。同一首歌的多来源会合并成一行，右侧那排彩色小标签就是各家入口。',
+    title: 'onboard.s3.title',
+    body: 'onboard.s3.body',
     bullets: [
-      '⌘ / Ctrl + K 随时聚焦搜索框',
-      '原唱 / 翻唱版本会打上小标签，一眼分辨',
-      '排序支持默认 / 热度 / 时长 / 音源数',
-      '勾选多首可以批量下载',
+      'onboard.s3.b1',
+      'onboard.s3.b2',
+      'onboard.s3.b3',
+      'onboard.s3.b4',
     ],
   },
   {
     icon: 'download',
-    title: '第三步：下载',
-    body: '默认按你设的音质去要；这一档拿不到时会顺着音质阶梯自动降一档。想宁缺毋滥，可以在设置里关掉自动降级。',
+    title: 'onboard.s4.title',
+    body: 'onboard.s4.body',
     bullets: [
-      '下载中心能看到进度和失败原因',
-      '下完可以直接「打开文件位置」',
-      '曲库支持列表 / 大封面两种浏览方式',
+      'onboard.s4.b1',
+      'onboard.s4.b2',
+      'onboard.s4.b3',
     ],
   },
   {
     icon: 'music',
-    title: '几个小技巧',
-    body: '到这里就可以开始了。想再看一遍这份引导，去「设置 → 调试模式」点重放即可。',
+    title: 'onboard.s5.title',
+    body: 'onboard.s5.body',
     bullets: [
-      '空格键 播放 / 暂停',
-      '点底部播放条封面，进入沉浸式播放页（逐行歌词 + 双语翻译）',
-      '歌单支持搜索、按免费/会员/无损筛选，三种浏览方式',
+      'onboard.s5.b1',
+      'onboard.s5.b2',
+      'onboard.s5.b3',
     ],
   },
 ]
+
+const { t } = useI18n()
 
 const index = computed(() => Math.min(onboarding.step, STEPS.length - 1))
 const step = computed(() => STEPS[index.value])
@@ -97,7 +100,7 @@ function go(path: string) {
   <Transition name="onb">
     <div v-if="onboarding.visible" class="mask" @click.self="onboarding.close()">
       <div class="sheet" role="dialog" aria-modal="true" :aria-label="step.title">
-        <button class="close" type="button" title="跳过" @click="onboarding.close()">
+        <button class="close" type="button" :title="t('onboard.close')" @click="onboarding.close()">
           <Icon name="close" :size="16" />
         </button>
 
@@ -107,13 +110,13 @@ function go(path: string) {
         </div>
 
         <p class="counter mono">{{ index + 1 }} / {{ STEPS.length }}</p>
-        <h2>{{ step.title }}</h2>
-        <p class="body">{{ step.body }}</p>
+        <h2>{{ t(step.title) }}</h2>
+        <p class="body">{{ t(step.body) }}</p>
 
         <ul class="points">
           <li v-for="point in step.bullets" :key="point">
             <Icon name="check" :size="13" />
-            <span>{{ point }}</span>
+            <span>{{ t(point) }}</span>
           </li>
         </ul>
 
@@ -123,13 +126,11 @@ function go(path: string) {
           </div>
           <div class="actions">
             <button v-if="step.action" class="btn btn-ghost" type="button" @click="go(step.action.to)">
-              {{ step.action.label }}
+              {{ t(step.action.label) }}
             </button>
-            <button v-if="index > 0" class="btn btn-ghost" type="button" @click="prev">
-              上一步
-            </button>
+            <button v-if="index > 0" class="btn btn-ghost" type="button" @click="prev">{{ t('onboard.prev') }}</button>
             <button class="btn btn-primary" type="button" @click="next">
-              {{ isLast ? '开始使用' : '下一步' }}
+              {{ isLast ? t('onboard.start') : t('onboard.next') }}
             </button>
           </div>
         </footer>

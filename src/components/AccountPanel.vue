@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import AccountLogin from './AccountLogin.vue'
 import Icon from './Icon.vue'
 import { ALL_SOURCES, SOURCE_META, type SourceId } from '@/lib/types'
+import { sourceName, useI18n } from '@/lib/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 
 const accounts = useAccountsStore()
@@ -20,25 +21,27 @@ const minPinLen = computed(() => accounts.status?.minPinLen ?? 6)
 const pinProtected = computed(() => Boolean(accounts.status?.pinProtected))
 const unlocked = computed(() => Boolean(accounts.status?.unlocked))
 
+const { t } = useI18n()
+
 onMounted(() => void accounts.refresh())
 
 function stateOf(source: SourceId) {
   const account = accounts.accountOf(source)
   if (account) {
-    return { loggedIn: true, text: account.nickname || '已登录', keys: account.keys }
+    return { loggedIn: true, text: account.nickname || t('account.loggedIn'), keys: account.keys }
   }
   if (source === 'kuwo') {
     // 未登录也能下，只是拿不到会员档位，文案里说清楚，别让人以为必须登录
-    return { loggedIn: false, text: '未登录 · 免登录只能取到 320k', keys: [] }
+    return { loggedIn: false, text: t('account.kuwoGuest'), keys: [] }
   }
-  return { loggedIn: false, text: '未登录', keys: [] }
+  return { loggedIn: false, text: t('account.guest'), keys: [] }
 }
 
 async function unlock() {
   pinError.value = ''
   const pin = unlockPin.value.trim()
   if (pin.length < minPinLen.value) {
-    pinError.value = `PIN 至少 ${minPinLen.value} 位`
+    pinError.value = t('account.pinTooShort', { n: minPinLen.value })
     return
   }
   unlocking.value = true
@@ -47,7 +50,7 @@ async function unlock() {
     if (ok) {
       unlockPin.value = ''
     } else {
-      pinError.value = accounts.error || '解锁失败'
+      pinError.value = accounts.error || t('account.unlockFailed')
     }
   } finally {
     unlocking.value = false
@@ -62,7 +65,7 @@ async function savePin() {
     return
   }
   if (pin !== pinConfirm.value.trim()) {
-    pinError.value = '两次输入的 PIN 不一致'
+    pinError.value = t('account.pinMismatch')
     return
   }
   const ok = await accounts.setPin(pin)
@@ -71,7 +74,7 @@ async function savePin() {
     pinValue.value = ''
     pinConfirm.value = ''
   } else {
-    pinError.value = accounts.error || '设置失败'
+    pinError.value = accounts.error || t('account.saveFailed')
   }
 }
 
@@ -90,15 +93,12 @@ async function logout(source: SourceId) {
   <section class="card account-panel">
     <div class="panel-head">
       <div>
-        <h2>账号</h2>
-        <p class="muted">
-          未登录时多数歌曲拿不到直链（实测 QQ 音乐几乎全部不可用）。登录只使用你自己账号的权限，
-          凭据用 AES-256-GCM 加密后保存在本机，不经过任何服务器。
-        </p>
+        <h2>{{ t('account.a1') }}</h2>
+        <p class="muted">{{ t('account.a2') }}</p>
       </div>
       <span class="chip">
         <Icon name="lock" :size="12" />
-        {{ pinProtected ? 'PIN 保护已开启' : '本地加密' }}
+        {{ pinProtected ? t('account.pinOn') : t('account.encrypted') }}
       </span>
     </div>
 
@@ -106,7 +106,7 @@ async function logout(source: SourceId) {
     <div v-if="accounts.needsUnlock" class="unlock">
       <div class="unlock-tip">
         <Icon name="lock" :size="15" />
-        <span>凭据库已启用 PIN 保护，输入 PIN 后才能使用已保存的账号。</span>
+        <span>{{ t('account.a3') }}</span>
       </div>
       <div class="unlock-form">
         <input
@@ -115,11 +115,11 @@ async function logout(source: SourceId) {
           type="password"
           inputmode="numeric"
           autocomplete="off"
-          :placeholder="`${minPinLen} 位 PIN`"
+          :placeholder="t('account.pinLen', { n: minPinLen })"
           @keyup.enter="unlock"
         />
         <button class="btn btn-primary" type="button" :disabled="unlocking" @click="unlock">
-          {{ unlocking ? '解锁中…' : '解锁' }}
+          {{ unlocking ? t('account.unlocking') : t('account.unlock') }}
         </button>
       </div>
       <p v-if="pinError" class="err">{{ pinError }}</p>
@@ -130,7 +130,7 @@ async function logout(source: SourceId) {
       <div v-for="source in ALL_SOURCES" :key="source" class="row">
         <span class="src-dot" :style="{ background: SOURCE_META[source].color }" />
         <div class="who">
-          <p class="name">{{ SOURCE_META[source].label }}</p>
+          <p class="name">{{ sourceName(source) }}</p>
           <p class="meta muted">
             <span :class="{ on: stateOf(source).loggedIn }">{{ stateOf(source).text }}</span>
             <template v-if="stateOf(source).keys.length">
@@ -141,14 +141,14 @@ async function logout(source: SourceId) {
         <div class="acts">
           <template v-if="stateOf(source).loggedIn">
             <button class="btn btn-ghost btn-sm" type="button" @click="logout(source)">
-              退出登录
+              {{ t('account.signOut') }}
             </button>
           </template>
           <template v-else>
             <button class="btn btn-sm" type="button" @click="loginSource = source">
               <!-- 桌面端默认走内置登录窗口，手机端自动回落到扫码 -->
               <Icon name="user" :size="13" />
-              登录
+              {{ t('account.signIn') }}
             </button>
           </template>
         </div>
@@ -158,12 +158,10 @@ async function logout(source: SourceId) {
     <!-- PIN 管理 -->
     <div v-if="unlocked" class="pin-row">
       <div class="pin-info">
-        <p class="name">PIN 保护</p>
+        <p class="name">{{ t('account.pinTitle') }}</p>
         <p class="meta muted">
           {{
-            pinProtected
-              ? '已开启：没有 PIN 无法解密凭据库，忘记只能清空重登'
-              : '未开启：凭据以随机主密钥加密，主密钥随应用数据目录存放'
+            pinProtected ? t('account.pinOnHint') : t('account.pinOffHint')
           }}
         </p>
       </div>
@@ -174,13 +172,13 @@ async function logout(source: SourceId) {
           type="button"
           @click="pinEditing = !pinEditing"
         >
-          {{ pinEditing ? '收起' : '设置 PIN' }}
+          {{ pinEditing ? t('account.collapse') : t('account.setPin') }}
         </button>
         <template v-else>
           <button class="btn btn-ghost btn-sm" type="button" @click="pinEditing = !pinEditing">
-            {{ pinEditing ? '收起' : '修改' }}
+            {{ pinEditing ? t('account.collapse') : t('account.changePin') }}
           </button>
-          <button class="btn btn-ghost btn-sm" type="button" @click="removePin">关闭保护</button>
+          <button class="btn btn-ghost btn-sm" type="button" @click="removePin">{{ t('account.disablePin') }}</button>
         </template>
       </div>
     </div>
@@ -192,7 +190,7 @@ async function logout(source: SourceId) {
         type="password"
         inputmode="numeric"
         autocomplete="new-password"
-        :placeholder="`新 PIN（至少 ${minPinLen} 位）`"
+        :placeholder="t('account.newPin', { n: minPinLen })"
       />
       <input
         v-model="pinConfirm"
@@ -200,7 +198,7 @@ async function logout(source: SourceId) {
         type="password"
         inputmode="numeric"
         autocomplete="new-password"
-        placeholder="再输入一次"
+        :placeholder="t('account.pinAgain')"
         @keyup.enter="savePin"
       />
       <button class="btn btn-primary btn-sm" type="button" @click="savePin">保存 PIN</button>
@@ -208,7 +206,7 @@ async function logout(source: SourceId) {
     <p v-if="pinEditing && pinError" class="err">{{ pinError }}</p>
 
     <p class="foot muted tiny">
-      提醒：本功能只读取你账号本来就有的权限，不绕过版权与付费限制。请遵守各音源服务条款。
+      {{ t('account.disclaimer') }}
     </p>
 
     <AccountLogin :source="loginSource" @close="loginSource = null" />

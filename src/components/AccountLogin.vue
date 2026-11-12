@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import Icon from './Icon.vue'
+import { useI18n } from '@/lib/i18n'
 import { SOURCE_META, type QrStatus, type SourceId } from '@/lib/types'
 import { transport } from '@/lib/transport'
 import { useAccountsStore } from '@/stores/accounts'
@@ -9,6 +10,7 @@ import { useAccountsStore } from '@/stores/accounts'
 type LoginMode = 'web' | 'qr' | 'cookie'
 
 const props = defineProps<{ source: SourceId | null }>()
+const { t } = useI18n()
 const emit = defineEmits<{ close: [] }>()
 
 const accounts = useAccountsStore()
@@ -232,9 +234,7 @@ onBeforeUnmount(() => {
               <span class="dot" :style="{ background: meta.color }" />
               <div>
                 <h3>登录 {{ meta.label }}</h3>
-                <p class="muted">
-                  只使用你自己账号的权限，凭据加密保存在本机
-                </p>
+                <p class="muted">{{ t('login.a1') }}</p>
               </div>
             </div>
             <button class="icon-btn" type="button" @click="emit('close')">
@@ -242,7 +242,7 @@ onBeforeUnmount(() => {
             </button>
           </header>
 
-          <p v-if="!ready" class="muted small preparing">正在准备登录方式…</p>
+          <p v-if="!ready" class="muted small preparing">{{ t('login.a2') }}</p>
 
           <template v-else>
             <div v-if="modes.length > 1" class="tabs">
@@ -272,15 +272,13 @@ onBeforeUnmount(() => {
                     {{ source === 'qq' ? 'QQ、微信或扫码' : '账号或扫码' }}
                     登录
                   </li>
-                  <li>登录成功后窗口自动关闭，凭据加密存到本机</li>
+                  <li>{{ t('login.a3') }}</li>
                 </ol>
                 <button class="btn btn-primary btn-sm web-btn" type="button" :disabled="webBusy" @click="openWeb">
                   <Icon name="external" :size="14" />
                   {{ webBusy ? '等待登录…' : '打开登录窗口' }}
                 </button>
-                <p v-if="webBusy" class="muted small">
-                  窗口没出现？再看一眼任务栏，或在下方改用扫码登录。
-                </p>
+                <p v-if="webBusy" class="muted small">{{ t('login.a4') }}</p>
               </div>
             </section>
 
@@ -291,8 +289,7 @@ onBeforeUnmount(() => {
                 <img v-else-if="qrImage" class="qr-img" :src="qrImage" alt="扫码登录二维码" />
                 <div v-if="qrState === 'expired' || qrState === 'error'" class="qr-mask">
                   <button class="btn btn-ghost btn-sm" type="button" @click="startQr">
-                    <Icon name="refresh" :size="14" /> 重新获取
-                  </button>
+                    <Icon name="refresh" :size="14" />{{ t('login.a5') }}</button>
                 </div>
               </div>
               <div class="qr-side">
@@ -314,27 +311,17 @@ onBeforeUnmount(() => {
                   {{ Math.floor(remain / 60) }}:{{ String(remain % 60).padStart(2, '0') }} 后过期
                 </p>
                 <ol class="steps">
-                  <li>手机扫码</li>
-                  <li>在手机上点「确认登录」</li>
-                  <li>本窗口自动完成登录</li>
+                  <li>{{ t('login.a6') }}</li>
+                  <li>{{ t('login.a7') }}</li>
+                  <li>{{ t('login.a8') }}</li>
                 </ol>
               </div>
             </section>
 
             <!-- Cookie 粘贴 -->
             <section v-else class="cookie-wrap">
-              <p v-if="source === 'kuwo'" class="hint">
-                酷我网页端没有扫码登录（App 里那个扫码是私有协议，没有公开接口）。桌面端用上方的
-                「内置登录」在应用内完成；手机端先在浏览器打开
-                <button class="link" type="button" @click="openHome">{{ meta.label }}</button>
-                登录，再复制 <code>kw_token</code> 粘贴到下面。
-              </p>
-              <p v-else class="hint">
-                在浏览器打开
-                <button class="link" type="button" @click="openHome">{{ meta.label }}</button>
-                并登录，然后按 F12 → Network → 任选一个请求 → 复制 Request Headers 里的
-                <code>Cookie</code> 整行粘贴到下面。
-              </p>
+              <p v-if="source === 'kuwo'" class="hint">{{ t('login.a9') }}<button class="link" type="button" @click="openHome">{{ meta.label }}</button>{{ t('login.a10') }}<code>kw_token</code>{{ t('login.a11') }}</p>
+              <p v-else class="hint">{{ t('login.a12') }}<button class="link" type="button" @click="openHome">{{ meta.label }}</button>{{ t('login.a13') }}<code>Cookie</code>{{ t('login.a14') }}</p>
               <textarea
                 v-model="cookieInput"
                 class="input cookie-input"
@@ -346,14 +333,10 @@ onBeforeUnmount(() => {
                 v-model="nickname"
                 class="input"
                 type="text"
-                :placeholder="source === 'qq' ? '备注名（可留空，自动识别 QQ 号）' : '备注名（可留空）'"
+                :placeholder="source === 'qq' ? t('login.remarkQq') : t('login.remark')"
               />
-              <p v-if="source === 'kuwo'" class="muted small">
-                酷我要的是 <code>kw_token</code>。登录后用账号自己的会员档位；没有会员仍然只能取到 320k。
-              </p>
-              <p class="muted small">
-                只保存在本机加密保险库；不会上传到任何服务器，也不会被写入日志。
-              </p>
+              <p v-if="source === 'kuwo'" class="muted small">{{ t('login.a15') }}<code>kw_token</code>{{ t('login.a16') }}</p>
+              <p class="muted small">{{ t('login.a17') }}</p>
             </section>
           </template>
 
