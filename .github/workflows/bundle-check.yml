@@ -1,0 +1,33 @@
+name: bundle-check
+
+# 只为验证打包配置（文件关联等）能不能在 Windows 上编出 NSIS / MSI。
+# 只跑在临时分支上，不进 main 的日常 CI。
+on:
+  push:
+    branches:
+      - 'bundle-check/**'
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows bundle
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: 安装前端依赖
+        run: npm ci
+
+      - name: 打包（NSIS + MSI）
+        run: npm run tauri build -- --bundles nsis,msi
