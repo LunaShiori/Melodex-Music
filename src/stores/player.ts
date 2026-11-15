@@ -326,6 +326,9 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   async function playTrack(track: Track, chosen?: Variant) {
+    if (track.fingerprint.startsWith('local:')) {
+      return playLocal(track, transport.localUrl(track.fingerprint.slice(6)))
+    }
     const target = chosen ?? bestVariant(track)
     current.value = track
     pushRecent(track)
@@ -403,7 +406,7 @@ export const usePlayerStore = defineStore('player', () => {
    * 这里没有平台信息可用，标题先用文件名，时长等解码器报出来后由
    * `loadedmetadata` 补上；歌词区留空，不去源站乱猜。
    */
-  function playLocalFile(path: string) {
+  function playLocalFile(path: string, autoplay = true) {
     const name = path.split(/[\/]/).pop() ?? path
     const dot = name.lastIndexOf('.')
     const track: Track = {
@@ -418,7 +421,7 @@ export const usePlayerStore = defineStore('player', () => {
       fee: 'free',
       variants: [],
     }
-    void playLocal(track, transport.localUrl(path))
+    if (autoplay) void playLocal(track, transport.localUrl(path))
     return track
   }
 

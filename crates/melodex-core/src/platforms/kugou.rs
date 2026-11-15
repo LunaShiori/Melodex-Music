@@ -1,10 +1,11 @@
 use async_trait::async_trait;
+use base64::Engine;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::Value;
 
 use super::shared::{num_field, split_artists, str_field};
 use crate::error::{Error, Reason, Result};
-use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
+use crate::model::{Fee, Lyric, PlayUrl, SearchPage, Source, Variant};
 use crate::net::{Net, ProxyFor};
 use crate::platform::{MusicPlatform, SearchQuery};
 use crate::quality::Quality;
@@ -105,6 +106,37 @@ impl MusicPlatform for Kugou {
         })
     }
 
+    async fn lyric(&self, id: &str) -> Result<Option<Lyric>> {
+        let hash = utf8_percent_encode(id, NON_ALPHANUMERIC);
+        let url = format!("https://krcs.kugou.com/search?ver=1&man=yes&client=mobi&hash={hash}");
+        let body = self
+            .net
+            .text_src(SOURCE, ProxyFor::Link, &url, &[("Referer", REFERER)])
+            .await?;
+        let value: Value = serde_json::from_str(&body).map_err(|e| Error::decode(e.to_string()))?;
+        let Some(candidate) = value
+            .get("candidates")
+            .and_then(Value::as_array)
+            .and_then(|v| v.first())
+        else {
+            return Ok(None);
+        };
+        let id = str_field(candidate, "id");
+        let key = str_field(candidate, "accesskey");
+        if id.is_empty() || key.is_empty() {
+            return Ok(None);
+        }
+        let id = utf8_percent_encode(&id, NON_ALPHANUMERIC);
+        let key = utf8_percent_encode(&key, NON_ALPHANUMERIC);
+        let url = format!("https://lyrics.kugou.com/download?ver=1&client=pc&fmt=lrc&charset=utf8&id={id}&accesskey={key}");
+        let body = self
+            .net
+            .text_src(SOURCE, ProxyFor::Link, &url, &[("Referer", REFERER)])
+            .await?;
+        let value: Value = serde_json::from_str(&body).map_err(|e| Error::decode(e.to_string()))?;
+        decode_lyric(&value)
+    }
+
     async fn resolve(&self, variant: &Variant, quality: &'static Quality) -> Result<PlayUrl> {
         let hash = Self::hash_for(variant, quality);
         if hash.is_empty() {
@@ -169,6 +201,27 @@ impl MusicPlatform for Kugou {
     }
 }
 
+fn decode_lyric(value: &Value) -> Result<Option<Lyric>> {
+    let Some(content) = value
+        .get("content")
+        .and_then(Value::as_str)
+        .filter(|v| !v.is_empty())
+    else {
+        return Ok(None);
+    };
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(content)
+        .map_err(|e| Error::decode(e.to_string()))?;
+    let lrc = String::from_utf8(bytes).map_err(|e| Error::decode(e.to_string()))?;
+    if lrc.trim().is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(Lyric {
+        lrc,
+        translation: None,
+    }))
+}
+
 /// 把一条搜索结果转成 [`Variant`]。缺 hash 的记录直接丢掉——没有 hash 就取不到链接。
 fn variant_of(item: &Value) -> Option<Variant> {
     let id = str_field(item, "FileHash");
@@ -229,6 +282,20 @@ mod tests {
     use super::*;
     use crate::quality;
     use serde_json::json;
+
+    #[test]
+    fn lyric_decode_handles_missing_and_invalid_content() {
+        assert!(decode_lyric(&json!({})).unwrap().is_none());
+        assert!(decode_lyric(&json!({"content":"!"})).is_err());
+        let content = base64::engine::general_purpose::STANDARD.encode("[00:01.00]test");
+        assert_eq!(
+            decode_lyric(&json!({"content":content}))
+                .unwrap()
+                .unwrap()
+                .lrc,
+            "[00:01.00]test"
+        );
+    }
 
     fn sample() -> Value {
         json!({

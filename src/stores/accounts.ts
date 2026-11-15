@@ -112,7 +112,10 @@ export const useAccountsStore = defineStore('accounts', () => {
 
   async function clear(source: SourceId) {
     const next = await run(() => transport.clearAccount(source))
-    if (next) status.value = next
+    if (next) {
+      status.value = next
+      clearStale(source)
+    }
   }
 
   async function saveCookie(source: SourceId, cookie: string, nickname?: string | null) {
@@ -143,7 +146,10 @@ export const useAccountsStore = defineStore('accounts', () => {
 
   async function pollQr(source: SourceId, key: string): Promise<QrPoll> {
     const poll = await transport.loginQrPoll(source, key)
-    if (poll.status === 'confirmed') await refresh()
+    if (poll.status === 'confirmed') {
+      clearStale(source)
+      await refresh()
+    }
     return poll
   }
 

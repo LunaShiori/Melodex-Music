@@ -35,22 +35,11 @@ const keyword = ref('')
 async function openLocalFiles() {
   const paths = await transport.pickAudioFiles()
   if (!paths.length) {
-    if (transport.mode === 'demo') pushNotice('info', t('library.localOnlyDesktop'))
+    if (transport.mode === 'demo') tasks.pushNotice('info', t('library.localOnlyDesktop'))
     return
   }
-  const tracks = paths.map((path) => player.playLocalFile(path))
-  if (tracks.length > 1) player.queue = [...tracks]
-}
-
-const notices = ref<{ id: number; text: string }[]>([])
-let noticeSeq = 0
-
-function pushNotice(_level: string, text: string) {
-  const id = ++noticeSeq
-  notices.value = [...notices.value, { id, text }]
-  window.setTimeout(() => {
-    notices.value = notices.value.filter((item) => item.id !== id)
-  }, 4000)
+  const tracks = paths.map((path) => player.playLocalFile(path, false))
+  await player.playList(tracks)
 }
 
 function readPrefs(): { mode: ViewMode; size: CoverSize; sort: SortKey } {
@@ -69,7 +58,7 @@ function readPrefs(): { mode: ViewMode; size: CoverSize; sort: SortKey } {
     const parsed = JSON.parse(raw) as Partial<{ mode: ViewMode; size: CoverSize; sort: SortKey }>
     return {
       mode: parsed.mode === 'list' ? 'list' : 'grid',
-      size: parsed.size === 'sm' || parsed.size === 'lg' ? parsed.size : fallback.size,
+      size: parsed.size === 'sm' || parsed.size === 'md' || parsed.size === 'lg' ? parsed.size : fallback.size,
       sort: (['recent', 'title', 'artist', 'size', 'duration'] as SortKey[]).includes(
         parsed.sort as SortKey,
       )
@@ -337,9 +326,10 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
       <div class="empty-art"><Icon name="library" :size="26" /></div>
       <h3>{{ keyword ? t('library.noMatch') : t('library.emptyTitle') }}</h3>
       <p class="muted">
-        {{ t('library.emptyDesc') }}
+        {{ keyword ? t('playlists.noMatchHint') : t('library.emptyDesc') }}
       </p>
-      <RouterLink to="/search" class="btn btn-primary" style="margin-top: 16px">{{ t('downloads.goSearch') }}</RouterLink>
+      <button v-if="keyword" class="btn" style="margin-top: 16px" @click="keyword = ''">{{ t('common.clear') }}</button>
+      <RouterLink v-else to="/search" class="btn btn-primary" style="margin-top: 16px">{{ t('downloads.goSearch') }}</RouterLink>
     </section>
   </div>
 </template>
@@ -460,7 +450,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
   transform: translateY(4px);
   transition: all var(--dur) var(--ease);
 }
-.card:hover .play {
+.card:hover .play, .card:focus-within .play {
   opacity: 1;
   transform: translateY(0);
 }
@@ -559,7 +549,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
   opacity: 0;
   transition: opacity var(--dur) var(--ease);
 }
-.row:hover .row-play {
+.row:hover .row-play, .row:focus-within .row-play {
   opacity: 1;
 }
 
@@ -628,5 +618,12 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
   .row-play {
     opacity: 1;
   }
+}
+@media (hover: none) {
+  .play, .row-play { opacity: 1; transform: none; }
+}
+@media (max-width: 520px) {
+  .toolbar .right { flex-wrap: wrap; }
+  .search { min-width: 0; width: 100%; }
 }
 </style>

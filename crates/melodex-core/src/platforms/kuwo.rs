@@ -3,7 +3,7 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use super::shared::{decode_entities, split_artists};
 use crate::error::{Error, Reason, Result};
-use crate::model::{Fee, PlayUrl, SearchPage, Source, Variant};
+use crate::model::{Fee, Lyric, PlayUrl, SearchPage, Source, Variant};
 use crate::net::{Net, ProxyFor};
 use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::pseudo_json;
@@ -115,6 +115,18 @@ impl MusicPlatform for Kuwo {
         })
     }
 
+    async fn lyric(&self, id: &str) -> Result<Option<Lyric>> {
+        let id = utf8_percent_encode(id, NON_ALPHANUMERIC);
+        let url = format!("https://www.kuwo.cn/openapi/v1/www/lyric/getlyric?musicId={id}");
+        let body = self
+            .net
+            .text_src(SOURCE, ProxyFor::Link, &url, &[("Referer", REFERER)])
+            .await?;
+        let value: serde_json::Value = serde_json::from_str(&body)
+            .map_err(|err| Error::decode(format!("酷我歌词解析失败：{err}")))?;
+        parse_lyric(&value)
+    }
+
     async fn resolve(&self, variant: &Variant, quality: &'static Quality) -> Result<PlayUrl> {
         // 酷我高音质走 mobi.kuwo.cn/mobi.s 的 convert_url_with_sign 接口，
         // 用数字 rid + `br={bitrate}k{format}` 定位资源，可拿到 320k/flac/母带。
@@ -148,7 +160,10 @@ impl MusicPlatform for Kuwo {
             headers.push(("Cookie", cookie));
         }
 
-        let body = self.net.text_for(ProxyFor::Link, &url, &headers).await?;
+        let body = self
+            .net
+            .text_src(SOURCE, ProxyFor::Link, &url, &headers)
+            .await?;
         let data: serde_json::Value = serde_json::from_str(&body)
             .map_err(|err| Error::decode(format!("酷我 mobi.s 响应解析失败：{err}")))?;
 
@@ -215,6 +230,55 @@ impl MusicPlatform for Kuwo {
     }
 }
 
+/// Convert valid timestamped rows while ignoring malformed provider data.
+fn parse_lyric(value: &serde_json::Value) -> Result<Option<Lyric>> {
+    if value.get("code").and_then(|v| v.as_i64()) != Some(200) {
+        return Err(Error::decode("酷我歌词接口返回失败"));
+    }
+    let Some(rows) = value.pointer("/data/lrclist").and_then(|v| v.as_array()) else {
+        return Ok(None);
+    };
+    let mut lines = Vec::new();
+    for row in rows {
+        let seconds = row
+            .get("time")
+            .and_then(|v| v.as_f64().or_else(|| v.as_str()?.parse::<f64>().ok()));
+        let Some(seconds) = seconds.filter(|v| v.is_finite() && *v >= 0.0 && *v < 86_400.0) else {
+            continue;
+        };
+        let Some(text) = row
+            .get("lineLyric")
+            .and_then(|v| v.as_str())
+            .filter(|v| !v.trim().is_empty())
+        else {
+            continue;
+        };
+        let ms = (seconds * 1000.0).round() as u64;
+        let text = text.replace(['\r', '\n'], " ");
+        lines.push((
+            ms,
+            format!(
+                "[{:02}:{:02}.{:03}]{text}",
+                ms / 60_000,
+                ms / 1000 % 60,
+                ms % 1000
+            ),
+        ));
+    }
+    lines.sort_by_key(|line| line.0);
+    if lines.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(Lyric {
+        lrc: lines
+            .into_iter()
+            .map(|line| line.1)
+            .collect::<Vec<_>>()
+            .join("\n"),
+        translation: None,
+    }))
+}
+
 /// 从 Cookie 串里挑出酷我的登录令牌。
 ///
 /// 网页登录写的是 `kw_token`，客户端有时用 `HITOKEN`，两个都认。
@@ -259,6 +323,22 @@ fn random_hex(bytes: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lyric_filters_invalid_rows_and_sorts() {
+        let value = serde_json::json!({"code":200,"data":{"lrclist":[
+            {"time":"2.25","lineLyric":"second"},
+            {"time":1,"lineLyric":"first"},
+            {"time":"NaN","lineLyric":"invalid"},
+            {"time":-1,"lineLyric":"negative"}
+        ]}});
+        let lyric = parse_lyric(&value).unwrap().unwrap();
+        assert_eq!(lyric.lrc, "[00:01.000]first\n[00:02.250]second");
+        assert!(parse_lyric(&serde_json::json!({"code":200}))
+            .unwrap()
+            .is_none());
+        assert!(parse_lyric(&serde_json::json!({"code":500})).is_err());
+    }
 
     #[test]
     fn picks_token_out_of_cookie() {
