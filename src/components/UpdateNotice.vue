@@ -47,13 +47,14 @@ const KIND_LABEL: Record<string, string> = {
 
 /** 按当前平台把最合适的安装包排在最前 */
 const assets = computed(() => {
-  const list = info.value?.assets ?? []
+  const list = (info.value?.assets ?? []).filter(asset => !IS_ANDROID || asset.kind === 'apk')
   const prefer = navigator.userAgent.includes('Android') ? 'apk' : 'nsis'
   return [...list].sort((a, b) => Number(b.kind === prefer) - Number(a.kind === prefer))
 })
 
 /** 主按钮文案与可用性 */
 const primaryLabel = computed(() => {
+  if (IS_ANDROID) return t('update.browserDownload')
   switch (update.stage) {
     case 'downloading':
       return update.totalBytes
@@ -84,6 +85,10 @@ watch(open, (value) => {
 
 async function primary() {
   failed.value = ''
+  if (IS_ANDROID) {
+    await openUrl(assets.value[0]?.url || info.value?.pageUrl || '')
+    return
+  }
   if (update.stage === 'ready') {
     await update.install()
     return
@@ -95,6 +100,10 @@ async function primary() {
 
 async function downloadSpecific(name: string) {
   failed.value = ''
+  if (IS_ANDROID) {
+    await openUrl(assets.value.find(asset => asset.name === name)?.url || info.value?.pageUrl || '')
+    return
+  }
   await update.download(name)
 }
 
@@ -149,6 +158,8 @@ async function openUrl(url: string) {
 
           <div class="notes md" @click="onNotesClick" v-html="notesHtml" />
 
+          <p v-if="IS_ANDROID" class="small muted">{{ t('update.browserHint') }}</p>
+          <button v-if="IS_ANDROID" class="link-btn" @click="openUrl(info.pageUrl)">{{ t('update.openPage') }}</button>
           <!-- 下载进度 -->
           <div v-if="update.stage === 'downloading'" class="progress">
             <div class="bar">
@@ -277,7 +288,7 @@ async function openUrl(url: string) {
   min-width: 0;
   max-height: min(86vh, 720px);
   /* dvh 跟着手机浏览器地址栏伸缩，vh 在移动端会算多 */
-  max-height: min(86dvh, 720px);
+  max-height: min(76dvh, 560px);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -495,6 +506,7 @@ async function openUrl(url: string) {
 .small {
   font-size: 11.5px;
 }
+.d-head, .d-foot, .more-toggle, .progress { flex-shrink: 0; }
 .d-foot {
   display: flex;
   justify-content: flex-end;
@@ -517,11 +529,11 @@ async function openUrl(url: string) {
   .dialog {
     padding: 16px 14px 14px;
     /* 手机上让弹窗尽量吃满可视区：-24px 给遮罩留一点呼吸 */
-    max-height: calc(100dvh - 24px);
+    max-height: min(76dvh, 560px);
   }
   .mask {
-    padding: 12px;
-    align-items: flex-start;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    align-items: center;
   }
   .notes {
     padding: 10px 12px;

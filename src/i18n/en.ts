@@ -2,6 +2,8 @@
  * English strings. Keys must mirror `zh.ts` — a missing key falls back to Chinese.
  */
 export const en: Record<string, string> = {
+  'update.browserDownload': 'Download in browser',
+  'update.browserHint': 'Download the APK in your browser, then open it from Downloads or your file manager. Allow that app to install unknown apps. If the download fails, try the release page.',
   // Navigation
   'nav.search': 'Search',
   'nav.recent': 'Recent',

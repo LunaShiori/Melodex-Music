@@ -533,3 +533,13 @@ html[data-kb='1'] .player {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Keep narrow layouts and overlays inside the usable viewport. */
+@media (max-width: 860px) {
+  .view, .head, .toolbar { min-width: 0; max-width: 100%; }
+  .head, .toolbar { flex-wrap: wrap; }
+  .segmented { max-width: 100%; overflow-x: auto; }
+  .mask { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .dialog { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+  .btn { white-space: normal; }
+}

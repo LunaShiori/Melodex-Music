@@ -112,7 +112,9 @@ function clearAll() {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 22px 24px 28px;
+  padding: var(--view-pad);
+  min-width: 0;
+  width: 100%;
 }
 
 .head {
@@ -165,6 +167,8 @@ h1 {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .title {
@@ -185,6 +189,10 @@ h1 {
 }
 
 .chip {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
   padding: 6px 12px;
   border-radius: var(--r-full);
   border: 1px solid var(--line);
@@ -253,8 +261,12 @@ h1 {
 
 @media (max-width: 860px) {
   .view {
-    padding: 18px 16px 24px;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
   }
+  .head { flex-wrap: wrap; }
+  .head > div { min-width: 0; flex: 1 1 180px; }
+  .muted, .hint { overflow-wrap: anywhere; }
+  .block, .rows { min-width: 0; max-width: 100%; }
   h1 {
     font-size: 20px;
   }

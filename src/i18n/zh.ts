@@ -6,6 +6,8 @@
  * 新增词条时必须同时在 `en.ts` 里补一条，缺词条会回落到这里。
  */
 export const zh: Record<string, string> = {
+  'update.browserDownload': '浏览器下载安装包',
+  'update.browserHint': '将在系统浏览器下载 APK。下载完成后，从浏览器下载记录或文件管理器打开安装；请允许该应用安装未知应用。若下载失败，可打开发布页重试。',
   // 导航
   'nav.search': '搜索',
   'nav.recent': '最近',

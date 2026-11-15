@@ -90,9 +90,15 @@ export const useSearchStore = defineStore('search', () => {
     savePrefs()
   }
 
+  let requestId = 0
+
   async function run(nextPage = 1, append = false) {
+    if (append && (loading.value || loadingMore.value)) return
+    const request = ++requestId
     const query = keyword.value.trim()
     if (!query) {
+      loading.value = false
+      loadingMore.value = false
       tracks.value = []
       reports.value = []
       searched.value = false
@@ -112,6 +118,7 @@ export const useSearchStore = defineStore('search', () => {
         limit: PAGE_SIZE,
         sources: sources.value,
       })
+      if (request !== requestId) return
       page.value = nextPage
       activeKeyword.value = query
       tracks.value = append ? [...tracks.value, ...result.tracks] : result.tracks
@@ -119,10 +126,13 @@ export const useSearchStore = defineStore('search', () => {
       elapsed.value = Math.round(performance.now() - started)
       searched.value = true
     } catch (err) {
+      if (request !== requestId) return
       error.value = err instanceof Error ? err.message : String(err)
     } finally {
-      loading.value = false
-      loadingMore.value = false
+      if (request === requestId) {
+        loading.value = false
+        loadingMore.value = false
+      }
     }
   }
 
@@ -136,6 +146,10 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   function reset() {
+    requestId += 1
+    loading.value = false
+    loadingMore.value = false
+    error.value = null
     keyword.value = ''
     activeKeyword.value = ''
     tracks.value = []

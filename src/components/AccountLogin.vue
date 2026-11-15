@@ -33,6 +33,8 @@ const nickname = ref('')
 const submitting = ref(false)
 const failure = ref('')
 
+let generation = 0
+let polling = false
 let pollTimer: number | null = null
 let tickTimer: number | null = null
 let stopWeb: (() => void) | null = null
@@ -45,6 +47,7 @@ const supportsQr = computed(() => props.source === 'netease' || props.source ===
 const cookiePlaceholder = computed(() => {
   if (props.source === 'qq') return 'uin=...; qm_keyst=...'
   if (props.source === 'kuwo') return 'kw_token=...'
+  if (props.source === 'kugou') return 'userid=...; token=...'
   return 'MUSIC_U=...; __csrf=...'
 })
 
@@ -66,6 +69,7 @@ const STATUS_TEXT: Record<string, string> = {
 }
 
 function stopTimers() {
+  generation += 1
   if (pollTimer !== null) window.clearInterval(pollTimer)
   if (tickTimer !== null) window.clearInterval(tickTimer)
   pollTimer = null
@@ -87,6 +91,7 @@ async function openWeb() {
     if (event.type === 'done') {
       webBusy.value = false
       teardownWeb()
+      if (props.source) accounts.clearStale(props.source)
       void accounts.refresh()
       window.setTimeout(() => emit('close'), 600)
     } else if (event.type === 'error') {
@@ -110,11 +115,13 @@ async function openWeb() {
 async function startQr() {
   if (!props.source) return
   stopTimers()
+  const attempt = generation
   qrState.value = 'loading'
   qrMessage.value = ''
   failure.value = ''
   try {
     const ticket = await accounts.startQr(props.source)
+    if (attempt !== generation) return
     // 网易云给的是 URL，本地渲染成 SVG；QQ 只给 PNG 位图，直接当 data URI 用
     qrSvg.value = ticket.qrSvg ?? ''
     qrImage.value = ticket.qrImage ?? ''
@@ -130,15 +137,19 @@ async function startQr() {
     }, 1000)
     pollTimer = window.setInterval(() => void pollQr(), 1800)
   } catch (err) {
+    if (attempt !== generation) return
     qrState.value = 'error'
     failure.value = err instanceof Error ? err.message : String(err)
   }
 }
 
 async function pollQr() {
-  if (!props.source || !qrKey.value) return
+  if (!props.source || !qrKey.value || polling || document.hidden) return
+  const attempt = generation
+  polling = true
   try {
     const poll = await accounts.pollQr(props.source, qrKey.value)
+    if (attempt !== generation) return
     qrState.value = poll.status
     qrMessage.value = poll.message ?? ''
     if (poll.status === 'confirmed') {
@@ -150,9 +161,12 @@ async function pollQr() {
       stopTimers()
     }
   } catch (err) {
+    if (attempt !== generation) return
     stopTimers()
     qrState.value = 'error'
     failure.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    polling = false
   }
 }
 
@@ -294,7 +308,7 @@ onBeforeUnmount(() => {
               <div class="qr-side">
                 <p class="qr-state" :class="qrState">
                   <span class="bulb" />
-                  {{ STATUS_TEXT[qrState] ?? qrState }}
+                  {{ t(STATUS_TEXT[qrState] ?? qrState) }}
                 </p>
                 <p v-if="qrMessage && qrState !== 'confirmed'" class="muted small">
                   {{ qrMessage }}
