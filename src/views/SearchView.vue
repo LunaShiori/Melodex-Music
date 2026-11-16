@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
+import PlatformsView from './PlatformsView.vue'
 import Icon from '@/components/Icon.vue'
 import TrackRow from '@/components/TrackRow.vue'
 import DownloadPicker from '@/components/DownloadPicker.vue'
@@ -14,6 +15,7 @@ import { SORT_MODES, useSearchStore } from '@/stores/search'
 import { usePlayerStore } from '@/stores/player'
 import { useTasksStore } from '@/stores/tasks'
 
+const betaEnabled = ref(false)
 const route = useRoute()
 const { t } = useI18n()
 const search = useSearchStore()
@@ -171,6 +173,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
   <div class="view">
+    <label class="beta-switch"><input v-model="betaEnabled" type="checkbox" /> {{ t('platforms.includeBeta') }}</label>
     <header class="head">
       <div class="head-text">
         <h1>{{ t('search.title') }}</h1>
@@ -412,10 +415,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       @confirm="onPickerConfirm"
       @close="pickerTrack = null"
     />
+    <PlatformsView v-if="betaEnabled && search.activeKeyword" :query="search.activeKeyword" embedded />
   </div>
 </template>
 
 <style scoped>
+.beta-switch { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 12px; color: var(--text-2); }
 .view {
   padding: var(--view-pad);
   max-width: 1180px;

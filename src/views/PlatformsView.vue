@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 
+import { usePlayerStore } from '@/stores/player'
 import Icon from '@/components/Icon.vue'
 import { formatDuration } from '@/lib/format'
 import { useI18n } from '@/lib/i18n'
@@ -15,6 +16,7 @@ import {
   type PlatformCapability,
 } from '@/lib/streaming'
 
+const props = defineProps<{ query?: string; embedded?: boolean }>()
 const { t } = useI18n()
 
 const keyword = ref('')
@@ -23,6 +25,8 @@ const results = ref<AppleTrack[]>([])
 const loading = ref(false)
 const error = ref('')
 const searched = ref(false)
+let appleRequest = 0
+let biliRequest = 0
 
 /** 试听：同一个 audio 元素，切歌时先停再换 src，避免两首叠着响 */
 const previewing = ref<number | null>(null)
@@ -36,7 +40,7 @@ function player(): HTMLAudioElement {
   return audio
 }
 
-function togglePreview(track: AppleTrack) {
+async function togglePreview(track: AppleTrack) {
   if (!track.previewUrl) return
   const el = player()
   if (previewing.value === track.id) {
@@ -46,23 +50,29 @@ function togglePreview(track: AppleTrack) {
   }
   el.pause()
   el.src = track.previewUrl
-  void el.play()
-  previewing.value = track.id
+  const main = usePlayerStore()
+  if (main.playing) main.toggle()
+  try { await el.play(); previewing.value = track.id }
+  catch { error.value = t('platforms.previewFailed'); previewing.value = null }
 }
 
 async function submit() {
   const term = keyword.value.trim()
-  if (!term || loading.value) return
+  if (!term) return
+  const request = ++appleRequest
   loading.value = true
   error.value = ''
   try {
-    results.value = await searchAppleMusic(term, store.value)
+    const rows = await searchAppleMusic(term, store.value)
+    if (request !== appleRequest) return
+    results.value = rows
     searched.value = true
   } catch (err) {
+    if (request !== appleRequest) return
     error.value = err instanceof Error ? err.message : String(err)
     results.value = []
   } finally {
-    loading.value = false
+    if (request === appleRequest) loading.value = false
   }
 }
 
@@ -82,17 +92,21 @@ const biliSearched = ref(false)
 
 async function submitBili() {
   const term = biliKeyword.value.trim()
-  if (!term || biliLoading.value) return
+  if (!term) return
+  const request = ++biliRequest
   biliLoading.value = true
   biliError.value = ''
   try {
-    biliResults.value = await transport.searchBilibili(term)
+    const rows = await transport.searchBilibili(term)
+    if (request !== biliRequest) return
+    biliResults.value = rows
     biliSearched.value = true
   } catch (err) {
+    if (request !== biliRequest) return
     biliError.value = err instanceof Error ? err.message : String(err)
     biliResults.value = []
   } finally {
-    biliLoading.value = false
+    if (request === biliRequest) biliLoading.value = false
   }
 }
 
@@ -119,14 +133,30 @@ function searchLink(item: PlatformCapability): string {
   return template.replace('{q}', encodeURIComponent(keyword.value.trim() || 'music'))
 }
 
+function searchAll() {
+  biliKeyword.value = keyword.value
+  void submit()
+  void submitBili()
+}
+watch(() => props.query, q => {
+  if (q?.trim()) { keyword.value = q; searchAll() }
+}, { immediate: true })
+async function openExternal(url: string) {
+  try { await transport.openUrl(url) } catch (err) { error.value = String(err) }
+}
+watch(() => usePlayerStore().playing, playing => {
+  if (playing) { audio?.pause(); previewing.value = null }
+})
 onUnmounted(() => {
+  appleRequest += 1
+  biliRequest += 1
   audio?.pause()
   audio = null
 })
 </script>
 
 <template>
-  <div class="view">
+  <div class="view" :class="{ embedded }">
     <header class="head">
       <div class="head-text">
         <h1>{{ t('platforms.title') }}</h1>
@@ -134,6 +164,11 @@ onUnmounted(() => {
       </div>
     </header>
 
+    <form class="unified searchbar" @submit.prevent="searchAll">
+      <input v-model="keyword" type="search" :aria-label="t('platforms.unified')" :placeholder="t('platforms.unified')" />
+      <button class="btn btn-primary btn-sm" :disabled="!keyword.trim()">{{ t('platforms.searchAll') }}</button>
+    </form>
+    <p class="muted beta-note">{{ t('platforms.betaNote') }}</p>
     <!-- Apple Music：能搜、能试听 30 秒、不能放全曲 -->
     <section class="card">
       <div class="card-head">
@@ -191,7 +226,7 @@ onUnmounted(() => {
           >
             <Icon :name="previewing === track.id ? 'pause' : 'play'" :size="14" />
           </button>
-          <a class="icon-btn" :href="track.url" target="_blank" rel="noreferrer" :title="t('platforms.openIn')">
+          <a class="icon-btn" :href="track.url" @click.prevent="openExternal(track.url)" target="_blank" rel="noreferrer" :title="t('platforms.openIn')">
             <Icon name="external" :size="14" />
           </a>
         </li>
@@ -240,7 +275,7 @@ onUnmounted(() => {
             <p class="sub">{{ video.author }} · {{ t('platforms.bilibili.plays', { n: countOf(video.plays) }) }}</p>
           </div>
           <span class="mono dur">{{ formatDuration(video.durationSecs * 1000) }}</span>
-          <a class="icon-btn" :href="video.url" target="_blank" rel="noreferrer" :title="t('platforms.openIn')">
+          <a class="icon-btn" :href="video.url" @click.prevent="openExternal(video.url)" target="_blank" rel="noreferrer" :title="t('platforms.openIn')">
             <Icon name="external" :size="14" />
           </a>
         </li>
@@ -267,7 +302,7 @@ onUnmounted(() => {
             </p>
             <p class="sub muted">{{ t(`platforms.${item.id}.desc`) }}</p>
           </div>
-          <a class="btn btn-sm" :href="searchLink(item)" target="_blank" rel="noreferrer">
+          <a class="btn btn-sm" :href="searchLink(item)" @click.prevent="openExternal(searchLink(item))" target="_blank" rel="noreferrer">
             {{ item.searchUrl ? t('platforms.openSearch') : t('platforms.openHome') }}
           </a>
         </li>
@@ -279,6 +314,13 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.view { padding: var(--view-pad); max-width: 1160px; margin: auto; min-width: 0; }
+.view.embedded { padding: 0; margin-top: 24px; }
+.unified { margin-bottom: 12px; }
+.beta-note { margin-bottom: 20px !important; line-height: 1.6; }
+.card-head > div { min-width: 0; }
+.card-head, .cap-text .title { flex-wrap: wrap; }
+@media(max-width: 600px) { .card { padding: 14px !important; } .apple-row { gap: 7px !important; } }
 .head {
   margin-bottom: 20px;
 }

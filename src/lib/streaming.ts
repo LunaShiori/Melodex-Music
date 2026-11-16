@@ -38,10 +38,11 @@ export const PLATFORM_CAPABILITIES: PlatformCapability[] = [
     id: 'youtube',
     tier: 'blocked',
     home: 'https://music.youtube.com/',
+    searchUrl: 'https://music.youtube.com/search?q={q}',
   },
   {
     id: 'bilibili',
-    tier: 'blocked',
+    tier: 'ready',
     home: 'https://www.bilibili.com/v/music/',
   },
 ]
@@ -97,9 +98,17 @@ export async function searchAppleMusic(
   const url =
     'https://itunes.apple.com/search?media=music&entity=song&limit=25' +
     `&country=${encodeURIComponent(store)}&term=${encodeURIComponent(keyword)}`
-  const response = await fetch(url, { signal })
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  if (signal?.aborted) abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(abort, 15000)
+  let payload: { results?: RawAppleTrack[] }
+  try {
+  const response = await fetch(url, { signal: controller.signal })
   if (!response.ok) throw new Error(`iTunes 返回 HTTP ${response.status}`)
-  const payload = (await response.json()) as { results?: RawAppleTrack[] }
+  payload = (await response.json()) as { results?: RawAppleTrack[] }
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort) }
   const rows = payload.results ?? []
   return rows
     .filter((row): row is RawAppleTrack & { trackId: number } => typeof row.trackId === 'number')
