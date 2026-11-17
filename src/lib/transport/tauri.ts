@@ -188,6 +188,8 @@ export function createTauriTransport(): Transport {
       return invoke<VaultStatus>('vault_set_pin', { pin })
     },
 
+    catalogDetail(input) { return invoke('catalog_detail', input) },
+    catalogAlbums(artistId, offset) { return invoke('catalog_albums', { artistId, offset }) },
     loginQrStart(source: SourceId) {
       return invoke<QrTicket>('login_qr_start', { source })
     },

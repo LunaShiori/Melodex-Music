@@ -21,6 +21,7 @@ RUST CRATES
 
 component               version     license                 homepage
 ------------------------------------------------------------------------------
+md-5                    0.10.6      MIT OR Apache-2.0       https://github.com/RustCrypto/hashes
 serde                   1           MIT OR Apache-2.0       https://serde.rs
 serde_json              1           MIT OR Apache-2.0       https://serde.rs
 thiserror               1           MIT OR Apache-2.0       https://github.com/dtolnay/thiserror

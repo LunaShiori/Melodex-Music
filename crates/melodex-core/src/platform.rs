@@ -128,11 +128,17 @@ impl Registry {
         );
         map.insert(
             Source::Kuwo,
-            Arc::new(crate::platforms::kuwo::Kuwo::new(net.clone(), creds)),
+            Arc::new(crate::platforms::kuwo::Kuwo::new(
+                net.clone(),
+                creds.clone(),
+            )),
         );
         map.insert(
             Source::Kugou,
-            Arc::new(crate::platforms::kugou::Kugou::new(net.clone())),
+            Arc::new(crate::platforms::kugou::Kugou::with_credentials(
+                net.clone(),
+                creds,
+            )),
         );
         Self {
             platforms: Arc::new(map),

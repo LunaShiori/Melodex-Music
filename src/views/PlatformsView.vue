@@ -27,6 +27,7 @@ const error = ref('')
 const searched = ref(false)
 let appleRequest = 0
 let biliRequest = 0
+let previewRequest = 0
 
 /** 试听：同一个 audio 元素，切歌时先停再换 src，避免两首叠着响 */
 const previewing = ref<number | null>(null)
@@ -42,6 +43,7 @@ function player(): HTMLAudioElement {
 
 async function togglePreview(track: AppleTrack) {
   if (!track.previewUrl) return
+  const request = ++previewRequest
   const el = player()
   if (previewing.value === track.id) {
     el.pause()
@@ -52,13 +54,14 @@ async function togglePreview(track: AppleTrack) {
   el.src = track.previewUrl
   const main = usePlayerStore()
   if (main.playing) main.toggle()
-  try { await el.play(); previewing.value = track.id }
-  catch { error.value = t('platforms.previewFailed'); previewing.value = null }
+  try { await el.play(); if (request === previewRequest) previewing.value = track.id }
+  catch { if (request === previewRequest) { error.value = t('platforms.previewFailed'); previewing.value = null } }
 }
 
 async function submit() {
   const term = keyword.value.trim()
   if (!term) return
+  previewRequest++; audio?.pause(); previewing.value = null
   const request = ++appleRequest
   loading.value = true
   error.value = ''
@@ -89,22 +92,31 @@ const biliResults = ref<BiliVideo[]>([])
 const biliLoading = ref(false)
 const biliError = ref('')
 const biliSearched = ref(false)
+const biliMore = ref(false)
+let biliPage = 0, biliTerm = ''
 
-async function submitBili() {
-  const term = biliKeyword.value.trim()
+async function submitBili(append = false) {
+  if (append && (biliLoading.value || !biliMore.value)) return
+  const term = append ? biliTerm : biliKeyword.value.trim()
   if (!term) return
+  const page = append ? biliPage + 1 : 1
+  if (!append) { biliMore.value = false; biliResults.value = []; biliTerm = term }
   const request = ++biliRequest
   biliLoading.value = true
   biliError.value = ''
   try {
-    const rows = await transport.searchBilibili(term)
+    const rows = await transport.searchBilibili(term, page)
     if (request !== biliRequest) return
-    biliResults.value = rows
+    const seen = new Set(biliResults.value.map(v => v.bvid))
+    const fresh = rows.filter(v => !seen.has(v.bvid))
+    biliResults.value = append ? [...biliResults.value, ...fresh] : rows
+    biliPage = page
+    biliMore.value = rows.length >= 20 && (!append || fresh.length > 0)
     biliSearched.value = true
   } catch (err) {
     if (request !== biliRequest) return
     biliError.value = err instanceof Error ? err.message : String(err)
-    biliResults.value = []
+    if (!append) biliResults.value = []
   } finally {
     if (request === biliRequest) biliLoading.value = false
   }
@@ -145,9 +157,10 @@ async function openExternal(url: string) {
   try { await transport.openUrl(url) } catch (err) { error.value = String(err) }
 }
 watch(() => usePlayerStore().playing, playing => {
-  if (playing) { audio?.pause(); previewing.value = null }
+  if (playing) { previewRequest++; audio?.pause(); previewing.value = null }
 })
 onUnmounted(() => {
+  previewRequest += 1
   appleRequest += 1
   biliRequest += 1
   audio?.pause()
@@ -159,7 +172,7 @@ onUnmounted(() => {
   <div class="view" :class="{ embedded }">
     <header class="head">
       <div class="head-text">
-        <h1>{{ t('platforms.title') }}</h1>
+        <h1>{{ t('platforms.title') }} <span class="beta-tag">BETA</span></h1>
         <p class="muted">{{ t('platforms.subtitle') }}</p>
       </div>
     </header>
@@ -252,19 +265,19 @@ onUnmounted(() => {
           type="search"
           :placeholder="t('platforms.bilibili.placeholder')"
           autocomplete="off"
-          @keydown.enter="submitBili"
+          @keydown.enter="submitBili()"
         />
         <button
           class="btn btn-primary btn-sm"
           type="button"
           :disabled="biliLoading || !biliKeyword.trim()"
-          @click="submitBili"
+          @click="submitBili()"
         >
           {{ biliLoading ? t('common.loading') : t('platforms.search') }}
         </button>
       </div>
 
-      <p v-if="biliError" class="err">{{ biliError }}</p>
+      <p v-if="biliError" class="err" role="alert">{{ biliError }}</p>
 
       <ul v-if="biliResults.length" class="apple-list">
         <li v-for="video in biliResults" :key="video.bvid" class="apple-row">
@@ -283,6 +296,7 @@ onUnmounted(() => {
 
       <p v-else-if="biliSearched && !biliLoading" class="muted empty">{{ t('platforms.bilibili.empty') }}</p>
       <p v-else class="muted empty">{{ t('platforms.bilibili.hint') }}</p>
+      <button v-if="biliMore" class="btn btn-sm" :disabled="biliLoading" @click="submitBili(true)">{{ t(biliLoading ? 'common.loading' : 'platforms.moreResults') }}</button>
     </section>
 
     <!-- 其余平台：只说明边界，不给假按钮 -->

@@ -49,7 +49,11 @@ export interface BiliVideo {
   url: string
 }
 
+export interface CatalogDetail { id: string; name: string; description: string; cover: string; tracks: Variant[]; complete: boolean }
+export interface CatalogAlbum { id: string; name: string; cover: string }
 export interface Transport {
+  catalogDetail(input: { songId: string; kind: string; catalogId: string | null; artist: string | null }): Promise<CatalogDetail>
+  catalogAlbums(artistId: string, offset: number): Promise<{ albums: CatalogAlbum[]; more: boolean; offset: number }>
   readonly mode: 'tauri' | 'demo'
   search(params: SearchParams): Promise<AggregatedPage>
   /** 解析试听链接。`quality` 省略时用设置里该音源的目标音质 */

@@ -22,9 +22,9 @@ const navs = computed(() => [
   { name: 'recent', path: '/recent', label: t('nav.recent'), icon: 'history', badge: 0 },
   { name: 'downloads', path: '/downloads', label: t('nav.downloads'), icon: 'download', badge: tasks.counts.active },
   { name: 'library', path: '/library', label: t('nav.library'), icon: 'library', badge: tasks.completed.length },
-  { name: 'platforms', path: '/platforms', label: 'nav.platforms', icon: 'external' },
   { name: 'playlists', path: '/playlists', label: t('nav.playlists'), icon: 'queue', badge: 0 },
   { name: 'settings', path: '/settings', label: t('nav.settings'), icon: 'settings', badge: 0 },
+  { name: 'platforms', path: '/platforms', label: t('nav.platforms'), icon: 'external', badge: 0 },
 ])
 
 const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
@@ -46,10 +46,11 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
         :key="item.name"
         :to="item.path"
         class="nav-item"
-        :class="{ active: route.name === item.name }"
+        :class="{ active: route.name === item.name, experimental: item.name === 'platforms' }"
       >
         <Icon :name="item.icon" :size="17" />
-        <span class="nav-label">{{ t(item.label) }}</span>
+        <span class="nav-label">{{ item.label }}</span>
+        <span v-if="item.name === 'platforms'" class="beta-tag">BETA</span>
         <span v-if="item.badge" class="nav-badge mono">{{ item.badge }}</span>
       </RouterLink>
     </nav>
@@ -88,6 +89,7 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
 </template>
 
 <style scoped>
+.experimental { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 14px; }
 .sidebar {
   width: var(--sidebar);
   flex: 0 0 var(--sidebar);

@@ -379,6 +379,12 @@ export function createDemoTransport(): Transport {
 
   return {
     mode: 'demo',
+    async catalogDetail(input) {
+      const track = TRACKS.find(t => t.variants.some(v => v.source === 'netease' && v.id === input.songId)) ?? TRACKS[0]!
+      const variants = (input.kind === 'album' ? TRACKS.filter(t => t.album === track.album) : TRACKS.filter(t => t.artists.includes(input.artist ?? track.artists[0]!))).flatMap(t => t.variants.filter(v => v.source === 'netease'))
+      return { id: 'demo', name: input.kind === 'album' ? track.album : input.artist ?? track.artists[0]!, description: '', cover: '', tracks: variants, complete: input.kind === 'album' }
+    },
+    async catalogAlbums() { return { albums: [{ id: 'demo-album', name: TRACKS[0]!.album, cover: '' }], more: false, offset: 1 } },
 
     async search(params: SearchParams) {
       await new Promise((resolve) => setTimeout(resolve, 260))

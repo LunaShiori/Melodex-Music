@@ -43,7 +43,7 @@ function stateOf(source: SourceId) {
     return { loggedIn: false, stale: false, text: t('account.kuwoGuest'), keys: [] }
   }
   if (source === 'kugou') {
-    // 酷狗的播放接口不校验我们这边的 Cookie，会员档要客户端凭据，暂不提供登录
+    // 登录只使用本机账号已有权限，平台仍可能限制音质。
     return { loggedIn: false, stale: false, text: t('account.kugouGuest'), keys: [] }
   }
   return { loggedIn: false, stale: false, text: t('account.guest'), keys: [] }
@@ -175,23 +175,13 @@ async function logout(source: SourceId) {
               {{ t('account.signOut') }}
             </button>
           </template>
-          <template v-else-if="source !== 'kugou'">
+          <template v-else>
             <button class="btn btn-sm" type="button" @click="loginSource = source">
               <!-- 桌面端默认走内置登录窗口，手机端自动回落到扫码 -->
               <Icon name="user" :size="13" />
               {{ t('account.signIn') }}
             </button>
           </template>
-          <!-- 酷狗没有我们能用的登录接口，不摆一个点了没用的按钮 -->
-          <a
-            v-else
-            class="btn btn-ghost btn-sm"
-            :href="SOURCE_META.kugou.home"
-            target="_blank"
-            rel="noreferrer"
-          >
-            {{ t('account.openSite') }}
-          </a>
         </div>
       </div>
     </div>

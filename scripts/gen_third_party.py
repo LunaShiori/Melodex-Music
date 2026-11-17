@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # 直接依赖 -> (许可证标识, 主页)。新增依赖时同步补一行。
 RUST_LICENSES = {
+    "md-5": ("MIT OR Apache-2.0", "https://github.com/RustCrypto/hashes"),
     "tauri": ("MIT OR Apache-2.0", "https://tauri.app"),
     "tauri-build": ("MIT OR Apache-2.0", "https://tauri.app"),
     "serde": ("MIT OR Apache-2.0", "https://serde.rs"),

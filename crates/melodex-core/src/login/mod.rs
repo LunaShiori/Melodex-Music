@@ -6,6 +6,7 @@
 //! - 不做共享账号池、不绕过付费与版权限制；
 //! - 凭据仅保存在本地加密保险库（见 [`crate::vault`]）。
 
+pub mod kugou;
 pub mod mqtt;
 pub mod netease;
 pub mod qq;

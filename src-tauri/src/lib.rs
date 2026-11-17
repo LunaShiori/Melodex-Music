@@ -292,13 +292,14 @@ async fn resolve(
                 "这个音源的直链必须带 Referer，但本地代理没有启动",
             )
         }),
-        (melodex_core::stream::Probe::Failed(bare_err), melodex_core::stream::Probe::Failed(err)) => {
-            Err(PlayFailure::plain(
-                source,
-                melodex_core::Reason::LinkRejected,
-                format!("直链不可用（裸链 {bare_err}；带 Referer 后 {err}）"),
-            ))
-        }
+        (
+            melodex_core::stream::Probe::Failed(bare_err),
+            melodex_core::stream::Probe::Failed(err),
+        ) => Err(PlayFailure::plain(
+            source,
+            melodex_core::Reason::LinkRejected,
+            format!("直链不可用（裸链 {bare_err}；带 Referer 后 {err}）"),
+        )),
     }?;
 
     Ok(PlayResponse {
@@ -481,7 +482,7 @@ fn vault_set_pin(state: State<'_, AppState>, pin: Option<String>) -> Result<Vaul
     Ok(state.status())
 }
 
-/// 申请扫码登录的二维码。目前仅网易云支持（官方二维码接口）。
+/// 申请已接入音源的扫码登录二维码。
 #[tauri::command]
 async fn login_qr_start(
     state: State<'_, AppState>,
@@ -495,8 +496,10 @@ async fn login_qr_start(
         Source::Qq => melodex_core::login::qq::start(&state.net)
             .await
             .map_err(|err| err.to_string()),
-        Source::Kuwo => Err("酷我不支持扫码登录，请用内置网页登录或粘贴 Cookie".into()),
-        Source::Kugou => Err("酷狗不支持扫码登录，也不需要登录即可搜索与播放".into()),
+        Source::Kuwo => Err("本版暂未接入酷我扫码登录，请用内置网页登录或粘贴 Cookie".into()),
+        Source::Kugou => melodex_core::login::kugou::start(&state.net)
+            .await
+            .map_err(|err| err.to_string()),
     }
 }
 
@@ -508,15 +511,13 @@ async fn login_qr_poll(
     key: String,
 ) -> Result<melodex_core::login::QrPoll, String> {
     let source = parse_source(&source)?;
-    let poll = match source {
+    let mut poll = match source {
         Source::Netease => melodex_core::login::netease::poll(&state.net, &key).await,
         Source::Qq => melodex_core::login::qq::poll(&state.net, &key).await,
         Source::Kuwo => Err(melodex_core::error::Error::Invalid(
-            "酷我不支持扫码登录，请用内置网页登录或粘贴 Cookie".into(),
+            "本版暂未接入酷我扫码登录，请用内置网页登录或粘贴 Cookie".into(),
         )),
-        Source::Kugou => Err(melodex_core::error::Error::Invalid(
-            "酷狗不支持扫码登录".into(),
-        )),
+        Source::Kugou => melodex_core::login::kugou::poll(&state.net, &key).await,
     }
     .map_err(|err| err.to_string())?;
 
@@ -528,6 +529,7 @@ async fn login_qr_poll(
                 .map_err(|err| format!("登录成功，但凭据保存失败：{err}"))?;
         }
     }
+    poll.cookie = None; // Credentials stay in the encrypted backend vault.
     Ok(poll)
 }
 
@@ -880,7 +882,8 @@ async fn update_install(app: tauri::AppHandle, path: String) -> Result<(), Strin
         // 2. 就算发过去了，file:// 从 Android 7 起也会被 StrictMode 拦掉。
         // 所以改成走自己的 FileProvider 插件（content:// + 安装器 MIME）。
         let handle = app.try_state::<ApkInstallHandle>().ok_or_else(|| {
-            "这台设备上没有可用的安装通道，请用「手动下载与其他格式」在浏览器里重新下载安装".to_string()
+            "这台设备上没有可用的安装通道，请用「手动下载与其他格式」在浏览器里重新下载安装"
+                .to_string()
         })?;
         handle
             .0
@@ -1025,7 +1028,6 @@ fn save_text_file(
     Ok(path.to_string_lossy().into_owned())
 }
 
-
 /// 打开系统文件选择框挑音频文件，返回绝对路径。
 ///
 /// 阻塞式对话框跑在 spawn_blocking 里，避免 macOS 上主线程被卡住
@@ -1036,7 +1038,10 @@ async fn pick_audio_files(app: tauri::AppHandle) -> Result<Vec<String>, String> 
     let picked = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
-            .add_filter("音频文件", &["mp3", "flac", "m4a", "aac", "wav", "ogg", "opus", "wma"])
+            .add_filter(
+                "音频文件",
+                &["mp3", "flac", "m4a", "aac", "wav", "ogg", "opus", "wma"],
+            )
             .blocking_pick_files()
     })
     .await
@@ -1050,14 +1055,40 @@ async fn pick_audio_files(app: tauri::AppHandle) -> Result<Vec<String>, String> 
         .collect())
 }
 
+#[tauri::command]
+async fn catalog_albums(
+    state: State<'_, AppState>,
+    artist_id: String,
+    offset: u32,
+) -> Result<serde_json::Value, String> {
+    melodex_core::platforms::netease::Netease::new(state.net.clone(), state.creds.clone())
+        .artist_albums(&artist_id, offset)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn catalog_detail(
+    state: State<'_, AppState>,
+    song_id: String,
+    kind: String,
+    catalog_id: Option<String>,
+    artist: Option<String>,
+) -> Result<serde_json::Value, String> {
+    melodex_core::platforms::netease::Netease::new(state.net.clone(), state.creds.clone())
+        .catalog(&song_id, &kind, catalog_id.as_deref(), artist.as_deref())
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 在 B 站音乐分区搜视频（只搜不播，播放交给 B 站自己）。
 #[tauri::command]
 async fn bilibili_search(
-    net: tauri::State<'_, std::sync::Arc<melodex_core::net::Net>>,
+    state: State<'_, AppState>,
     term: String,
     page: u32,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let videos = melodex_core::bilibili::search(net.inner(), &term, page)
+    let videos = melodex_core::bilibili::search(&state.net, &term, page)
         .await
         .map_err(|err| err.to_string())?;
     Ok(videos
@@ -1102,9 +1133,7 @@ fn reveal_path(path: String) -> Result<(), String> {
                 .parent()
                 .filter(|dir| dir.is_dir())
                 .map(|dir| dir.to_path_buf())
-                .ok_or_else(|| {
-                    format!("文件已不存在（可能被移动或删除）：{raw}")
-                })?;
+                .ok_or_else(|| format!("文件已不存在（可能被移动或删除）：{raw}"))?;
             format!("\"{}\"", dir.display())
         };
         // explorer 即使成功也常返回 1，这里不检查退出码
@@ -1291,6 +1320,8 @@ pub fn run() {
             save_text_file,
             pick_audio_files,
             bilibili_search,
+            catalog_detail,
+            catalog_albums,
             startup_audio_files,
             check_update,
             update_download,

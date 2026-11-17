@@ -30,6 +30,78 @@ impl Netease {
         Self { net, creds }
     }
 
+    /// Resolve real platform IDs; direct IDs are used for artist album navigation.
+    pub async fn catalog(
+        &self,
+        song_id: &str,
+        kind: &str,
+        catalog_id: Option<&str>,
+        artist: Option<&str>,
+    ) -> Result<serde_json::Value> {
+        if !matches!(kind, "artist" | "album") {
+            return Err(Error::Invalid("Invalid catalog kind".into()));
+        }
+        let cookie = self.cookie_header();
+        let mut headers = self.headers();
+        if let Some(ref cookie) = cookie {
+            headers.push(("Cookie", cookie));
+        }
+        let id = if let Some(id) = catalog_id {
+            positive_id(id)?
+        } else {
+            let song_id = positive_id(song_id)?;
+            let detail: serde_json::Value = self
+                .net
+                .json_src(
+                    SOURCE,
+                    ProxyFor::Search,
+                    &format!("{ORIGIN}/api/song/detail?ids=%5B{song_id}%5D"),
+                    &headers,
+                )
+                .await?;
+            catalog_identity(&detail, kind, artist)?
+        };
+        let value: serde_json::Value = self
+            .net
+            .json_src(
+                SOURCE,
+                ProxyFor::Search,
+                &format!("{ORIGIN}/api/{kind}/{id}"),
+                &headers,
+            )
+            .await?;
+        parse_catalog(id, kind, &value)
+    }
+
+    pub async fn artist_albums(&self, artist_id: &str, offset: u32) -> Result<serde_json::Value> {
+        let id = positive_id(artist_id)?;
+        if offset > 10_000 {
+            return Err(Error::Invalid("Invalid album offset".into()));
+        }
+        let cookie = self.cookie_header();
+        let mut headers = self.headers();
+        if let Some(ref cookie) = cookie {
+            headers.push(("Cookie", cookie));
+        }
+        let v: serde_json::Value = self
+            .net
+            .json_src(
+                SOURCE,
+                ProxyFor::Search,
+                &format!("{ORIGIN}/api/artist/albums/{id}?offset={offset}&limit=30"),
+                &headers,
+            )
+            .await?;
+        if v["code"].as_i64() != Some(200) {
+            return Err(Error::decode("Artist albums unavailable"));
+        }
+        let albums = v["hotAlbums"].as_array().ok_or_else(|| Error::decode("Missing albums"))?
+            .iter().filter_map(|a| Some(serde_json::json!({"id":a["id"].as_u64()?.to_string(), "name":a["name"].as_str()?, "cover":a["picUrl"].as_str().unwrap_or_default()}))).collect::<Vec<_>>();
+        Ok(
+            serde_json::json!({"albums":albums,"more":v["more"].as_bool().unwrap_or(false),"offset":offset + v["hotAlbums"].as_array().map_or(0, |v| v.len()) as u32}),
+        )
+    }
+
     fn headers(&self) -> Vec<(&'static str, &str)> {
         vec![("Referer", ORIGIN), ("Origin", ORIGIN)]
     }
@@ -678,5 +750,135 @@ mod tests {
         assert_eq!(fee_of(4), Fee::Paid);
         assert_eq!(fee_of(8), Fee::Free);
         assert_eq!(fee_of(99), Fee::Unknown);
+    }
+}
+
+fn check_catalog_response(value: &serde_json::Value) -> Result<()> {
+    let code = value["code"].as_i64().unwrap_or(0);
+    if code == 200 {
+        return Ok(());
+    }
+    let message = value["message"]
+        .as_str()
+        .or_else(|| value["msg"].as_str())
+        .unwrap_or("平台暂未提供资料，请稍后重试");
+    let reason = if matches!(code, -462 | 301 | 302 | 401) {
+        Reason::NeedLogin
+    } else {
+        Reason::Unknown
+    };
+    Err(Error::unavailable_with(
+        SOURCE,
+        reason,
+        format!("{message}（code={code}）；可在设置中登录网易云后重试"),
+    ))
+}
+fn positive_id(raw: &str) -> Result<u64> {
+    raw.parse::<u64>()
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or_else(|| Error::Invalid("Invalid catalog ID".into()))
+}
+fn catalog_identity(detail: &serde_json::Value, kind: &str, artist: Option<&str>) -> Result<u64> {
+    check_catalog_response(detail)?;
+    let song = &detail["songs"][0];
+    let id = if kind == "album" {
+        song["album"]["id"].as_u64()
+    } else {
+        song["artists"]
+            .as_array()
+            .and_then(|rows| {
+                if let Some(name) = artist {
+                    rows.iter().find(|a| a["name"].as_str() == Some(name))
+                } else {
+                    rows.first()
+                }
+            })
+            .and_then(|a| a["id"].as_u64())
+    };
+    id.filter(|id| *id > 0)
+        .ok_or_else(|| Error::decode("Missing catalog identity"))
+}
+fn parse_catalog(id: u64, kind: &str, value: &serde_json::Value) -> Result<serde_json::Value> {
+    if value["code"].as_i64() != Some(200) {
+        return Err(Error::decode("Catalog unavailable"));
+    }
+    let metadata = &value[kind];
+    let name = metadata["name"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| Error::decode("Missing catalog name"))?;
+    let songs = if kind == "album" {
+        &metadata["songs"]
+    } else {
+        &value["hotSongs"]
+    };
+    let rows: Vec<RawSong> =
+        serde_json::from_value(songs.clone()).map_err(|e| Error::decode(e.to_string()))?;
+    let tracks: Vec<Variant> = rows.into_iter().map(RawSong::into_variant).collect();
+    let complete = kind == "album"
+        && metadata["size"].as_u64() == Some(tracks.len() as u64)
+        && tracks
+            .iter()
+            .all(|t| t.id.parse::<u64>().is_ok_and(|id| id > 0))
+        && tracks
+            .iter()
+            .map(|t| &t.id)
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+            == tracks.len();
+    Ok(
+        serde_json::json!({"id":id.to_string(),"kind":kind,"name":name,
+        "cover":metadata["picUrl"].as_str().unwrap_or_default(),"description":metadata["briefDesc"].as_str().unwrap_or_default(),"tracks":tracks,"complete":complete}),
+    )
+}
+#[cfg(test)]
+mod catalog_tests {
+    use super::*;
+    #[test]
+    fn identity_selects_requested_artist_not_first_collaborator() {
+        let v = serde_json::json!({"code":200,"songs":[{"album":{"id":50},"artists":[{"id":1,"name":"A"},{"id":2,"name":"B"}]}]});
+        assert_eq!(catalog_identity(&v, "artist", Some("B")).unwrap(), 2);
+        assert!(catalog_identity(&v, "artist", Some("Unknown")).is_err());
+        assert_eq!(catalog_identity(&v, "album", None).unwrap(), 50);
+        assert!(positive_id("0").is_err());
+        assert!(positive_id("../a").is_err());
+    }
+    #[test]
+    fn never_claims_a_partial_or_duplicate_album_is_complete() {
+        let mut v = serde_json::json!({"code":200,"album":{"name":"Album","size":2,"songs":[{"id":1,"name":"Song"}]}});
+        assert_eq!(parse_catalog(1, "album", &v).unwrap()["complete"], false);
+        v["album"]["size"] = serde_json::json!(1);
+        assert_eq!(parse_catalog(1, "album", &v).unwrap()["complete"], true);
+        v["album"]["size"] = serde_json::json!(2);
+        v["album"]["songs"] = serde_json::json!([{"id":1,"name":"Song"},{"id":1,"name":"Song"}]);
+        assert_eq!(parse_catalog(1, "album", &v).unwrap()["complete"], false);
+    }
+}
+
+#[cfg(test)]
+mod catalog_live_tests {
+    #[tokio::test]
+    #[ignore = "contacts NetEase public catalog"]
+    async fn catalog_album_and_artist() {
+        let p = super::Netease::new(
+            crate::net::Net::with_proxy("").unwrap(),
+            crate::platform::CredStore::default(),
+        );
+        let album = p.catalog("186016", "album", None, None).await.unwrap();
+        assert_eq!(album["name"], "叶惠美");
+        assert_eq!(album["tracks"].as_array().unwrap().len(), 11);
+        assert_eq!(album["complete"], true);
+        let artist = p
+            .catalog("186016", "artist", None, Some("周杰伦"))
+            .await
+            .unwrap();
+        assert_eq!(artist["name"], "周杰伦");
+        assert_eq!(artist["complete"], false);
+        let albums = p
+            .artist_albums(artist["id"].as_str().unwrap(), 0)
+            .await
+            .unwrap();
+        assert!(!albums["albums"].as_array().unwrap().is_empty());
     }
 }

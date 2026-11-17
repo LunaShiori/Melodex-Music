@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
@@ -57,18 +57,22 @@ function cancelPress() {
   }
 }
 
+onBeforeUnmount(cancelPress)
+
 const cover = computed(() => coverOf(props.track.cover, props.track.fingerprint))
 const bestBitrate = computed(() => Math.max(...props.track.variants.map((v) => v.bitrate)))
 /** 标题自带「原唱 / 翻唱」说明时给个小标签，扫一眼就知道这条是什么版本 */
 const { t } = useI18n()
 const router = useRouter()
 
-/** 点歌手名 = 用这位歌手再搜一次；多歌手的行只取第一位，避免把一串名字塞进搜索框 */
-function openArtist() {
-  const artist = props.track.artists[0]
+/** 已有可靠来源时打开歌手页，否则按所选歌手搜索。 */
+function openArtist(artist: string) {
   if (!artist) return
-  void router.push({ name: 'search', query: { q: artist } })
+  const source = props.track.variants.find(v => v.source === 'netease' && v.artists.includes(artist))
+  if (source) void router.push({ name: 'catalog', params: { kind: 'artist' }, query: { songId: source.id, artist } })
+  else void router.push({ name: 'search', query: { q: artist } })
 }
+const albumSource = computed(() => props.track.variants.find(v => v.source === 'netease' && v.album === props.track.album))
 const originKey = computed(() => originLabelKey(props.track))
 const originKind = computed(() => trackOrigin(props.track))
 const feeLabel = computed(() => {
@@ -146,14 +150,15 @@ function onPlay() {
       </p>
       <p class="sub">
         <button
-          v-if="track.artists.length"
+          v-for="artist in track.artists"
+          :key="artist"
           class="artist artist-link"
           type="button"
-          :title="t('list.searchArtist', { artist: track.artists[0] })"
-          @click.stop="openArtist"
-        >{{ artistName(track.artists) }}</button>
-        <span v-else class="artist">{{ artistName(track.artists) }}</span>
-        <span v-if="track.album" class="album">· {{ track.album }}</span>
+          :title="t('catalog.openArtist', { artist })"
+          @click.stop="openArtist(artist)"
+        >{{ artist }}</button>
+        <span v-if="!track.artists.length" class="artist">{{ artistName(track.artists) }}</span>
+        <button v-if="track.album && albumSource" class="album artist-link" @click.stop="router.push({ name: 'catalog', params: { kind: 'album' }, query: { songId: albumSource.id } })">· {{ track.album }}</button><span v-else-if="track.album" class="album">· {{ track.album }}</span>
       </p>
     </div>
 

@@ -35,13 +35,14 @@ const failure = ref('')
 
 let generation = 0
 let polling = false
+let closeTimer: number | null = null
 let pollTimer: number | null = null
 let tickTimer: number | null = null
 let stopWeb: (() => void) | null = null
 
 const meta = computed(() => (props.source ? SOURCE_META[props.source] : null))
-/** 网易云与 QQ 音乐都有官方扫码接口；酷我免登录，用不上 */
-const supportsQr = computed(() => props.source === 'netease' || props.source === 'qq')
+/** 已接入扫码会话的音源。 */
+const supportsQr = computed(() => props.source === 'netease' || props.source === 'qq' || props.source === 'kugou')
 
 /** 每个平台要的 Cookie 字段不一样，占位符跟着变，别让人对着网易云的模板填酷我。 */
 const cookiePlaceholder = computed(() => {
@@ -70,6 +71,8 @@ const STATUS_TEXT: Record<string, string> = {
 
 function stopTimers() {
   generation += 1
+  if (closeTimer !== null) window.clearTimeout(closeTimer)
+  closeTimer = null
   if (pollTimer !== null) window.clearInterval(pollTimer)
   if (tickTimer !== null) window.clearInterval(tickTimer)
   pollTimer = null
@@ -84,16 +87,18 @@ function teardownWeb() {
 /** 内置登录窗口：后端读 Cookie、存库、关窗，结果通过事件回推 */
 async function openWeb() {
   if (!props.source) return
+  const attempt = generation
   failure.value = ''
   webBusy.value = true
   teardownWeb()
   stopWeb = transport.onLoginWeb((event) => {
+    if (attempt !== generation) return
     if (event.type === 'done') {
       webBusy.value = false
       teardownWeb()
       if (props.source) accounts.clearStale(props.source)
       void accounts.refresh()
-      window.setTimeout(() => emit('close'), 600)
+      closeTimer = window.setTimeout(() => { if (attempt === generation) emit('close') }, 600)
     } else if (event.type === 'error') {
       webBusy.value = false
       teardownWeb()
@@ -105,6 +110,7 @@ async function openWeb() {
     }
   })
   const opened = await accounts.startWebLogin(props.source)
+  if (attempt !== generation) return
   if (!opened) {
     webBusy.value = false
     teardownWeb()
@@ -128,8 +134,9 @@ async function startQr() {
     qrKey.value = ticket.key
     qrState.value = 'waiting'
     remain.value = ticket.expiresIn
+    const expiresAt = Date.now() + ticket.expiresIn * 1000
     tickTimer = window.setInterval(() => {
-      remain.value = Math.max(0, remain.value - 1)
+      remain.value = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000))
       if (remain.value === 0) {
         stopTimers()
         qrState.value = 'expired'
@@ -155,7 +162,8 @@ async function pollQr() {
     if (poll.status === 'confirmed') {
       stopTimers()
       // 给用户看一眼"登录成功"再关闭
-      window.setTimeout(() => emit('close'), 900)
+      const confirmed = generation
+      closeTimer = window.setTimeout(() => { if (confirmed === generation) emit('close') }, 900)
     } else if (poll.status === 'expired' || poll.status === 'error') {
       // 过期与链路出错都要停轮询，否则会一直打后端
       stopTimers()
@@ -216,7 +224,7 @@ watch(
     webSupported.value = await transport.loginWebSupported().catch(() => false)
     // 等待期间用户可能又换了音源，别用旧结果覆盖新弹窗
     if (props.source !== source) return
-    mode.value = webSupported.value ? 'web' : supportsQr.value ? 'qr' : 'cookie'
+    mode.value = source === 'kugou' ? 'qr' : webSupported.value ? 'web' : supportsQr.value ? 'qr' : 'cookie'
     ready.value = true
     if (mode.value === 'qr') void startQr()
   },
@@ -224,13 +232,14 @@ watch(
 )
 
 watch(mode, (next) => {
-  if (next === 'qr' && qrState.value !== 'waiting') void startQr()
+  if (!ready.value) return
+  if (next === 'qr') void startQr()
   if (next !== 'qr') stopTimers()
   if (next !== 'web') {
     webBusy.value = false
     teardownWeb()
   }
-})
+}, { flush: 'sync' })
 
 onBeforeUnmount(() => {
   stopTimers()
@@ -317,7 +326,7 @@ onBeforeUnmount(() => {
                   {{
                     props.source === 'qq'
                       ? t('login.qr.tipQq')
-                      : t('login.qr.tipNetease')
+                      : source === 'kugou' ? t('login.qr.tipKugou') : t('login.qr.tipNetease')
                   }}
                 </p>
                 <p v-if="remain > 0 && qrState !== 'confirmed'" class="countdown mono">

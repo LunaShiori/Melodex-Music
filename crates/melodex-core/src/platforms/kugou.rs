@@ -7,7 +7,7 @@ use super::shared::{num_field, split_artists, str_field};
 use crate::error::{Error, Reason, Result};
 use crate::model::{Fee, Lyric, PlayUrl, SearchPage, Source, Variant};
 use crate::net::{Net, ProxyFor};
-use crate::platform::{MusicPlatform, SearchQuery};
+use crate::platform::{CredStore, MusicPlatform, SearchQuery};
 use crate::quality::Quality;
 
 const SEARCH_API: &str = "https://songsearch.kugou.com/song_search_v2";
@@ -28,11 +28,19 @@ const PAGE_SIZE_MAX: u32 = 50;
 /// `"sq:<hash>"` / `"hq:<hash>"` 的标记形式存着，解析时按档位挑。
 pub struct Kugou {
     net: Net,
+    creds: CredStore,
 }
 
 impl Kugou {
     pub fn new(net: Net) -> Self {
-        Self { net }
+        Self {
+            net,
+            creds: CredStore::default(),
+        }
+    }
+
+    pub fn with_credentials(net: Net, creds: CredStore) -> Self {
+        Self { net, creds }
     }
 
     /// 按档位挑了该用哪个 hash：无损取 `sq:`，320k 取 `hq:`，其余用主 id。
@@ -69,6 +77,7 @@ impl MusicPlatform for Kugou {
     async fn search(&self, query: &SearchQuery) -> Result<SearchPage> {
         let keyword = utf8_percent_encode(&query.keyword, NON_ALPHANUMERIC).to_string();
         let pagesize = query.limit.clamp(1, PAGE_SIZE_MAX);
+        let cookie = self.creds.cookie(SOURCE).unwrap_or_default();
         let url = format!(
             "{SEARCH_API}?keyword={keyword}&page={}&pagesize={pagesize}&platform=WebFilter\
              &userid=0&clientver=2000&iscorrection=1&privilege_filter=0",
@@ -80,7 +89,11 @@ impl MusicPlatform for Kugou {
                 SOURCE,
                 ProxyFor::Search,
                 &url,
-                &[("Referer", REFERER), ("User-Agent", crate::net::UA)],
+                &[
+                    ("Referer", REFERER),
+                    ("User-Agent", crate::net::UA),
+                    ("Cookie", &cookie),
+                ],
             )
             .await?;
         let value: Value = serde_json::from_str(&body)
@@ -143,16 +156,20 @@ impl MusicPlatform for Kugou {
             return Err(Error::unavailable(Source::Kugou, Reason::QualityMissing));
         }
         let url = format!("{PLAY_API}?cmd=playInfo&hash={hash}");
+        let cookie = self.creds.cookie(SOURCE).unwrap_or_default();
         let body = self
             .net
             .text_src(
                 SOURCE,
                 ProxyFor::Link,
                 &url,
-                &[(
-                    "User-Agent",
-                    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
-                )],
+                &[
+                    (
+                        "User-Agent",
+                        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
+                    ),
+                    ("Cookie", &cookie),
+                ],
             )
             .await?;
         let value: Value = serde_json::from_str(&body)

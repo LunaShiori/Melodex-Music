@@ -256,7 +256,7 @@ onMounted(async () => {
       <!-- 手机上没有侧边栏，这里给个入口进「更多平台」 -->
       <RouterLink class="card link-card" to="/platforms">
         <div>
-          <h2>{{ t('nav.platforms') }}</h2>
+          <h2>{{ t('nav.platforms') }} <span class="beta-tag">BETA</span></h2>
           <p class="muted">{{ t('settings.platformsHint') }}</p>
         </div>
         <Icon name="external" :size="16" />
