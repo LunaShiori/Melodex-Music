@@ -19,7 +19,7 @@ const items = computed(() => [
 
 /** 选中项的下标，用来把高亮胶囊滑过去 */
 const activeIndex = computed(() => {
-  const found = items.value.findIndex((item) => item.name === (['recent', 'playlists', 'catalog'].includes(String(route.name)) ? 'library' : route.name === 'platforms' ? 'settings' : route.name))
+  const found = items.value.findIndex((item) => item.name === (['recent', 'playlists', 'catalog', 'favorites'].includes(String(route.name)) ? 'library' : route.name === 'platforms' ? 'settings' : route.name))
   return found < 0 ? 0 : found
 })
 </script>

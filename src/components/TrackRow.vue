@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount } from 'vue'
 
 import { useLibraryStore } from '@/stores/library'
+import { useFavorites } from '@/stores/favorites'
+import { useTasksStore } from '@/stores/tasks'
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
 import { useRouter } from 'vue-router'
@@ -30,6 +32,12 @@ const emit = defineEmits<{
   (e: 'toggle', track: Track): void
 }>()
 
+const favorites = useFavorites()
+const tasks = useTasksStore()
+function toggleFavorite() {
+  try { favorites.toggle(props.track) }
+  catch { tasks.pushNotice('error', t('fav.error')) }
+}
 const menu = useMenuStore()
 const library = useLibraryStore()
 const recorded = computed(() => props.track.variants.some(v => !!library.findEntry(v.source, v.id)))
@@ -151,7 +159,7 @@ function onPlay() {
         >{{ t(originKey) }}</span>
         <span class="title-text">{{ track.title }}</span><span v-if="recorded" class="origin-tag">{{ t('downloadReview.recorded') }}</span>
       </p>
-      <p class="sub">
+      <p class="sub"><button v-if="!selectMode" class="favorite" :aria-pressed="favorites.ids.has(track.fingerprint)" :aria-label="t(favorites.ids.has(track.fingerprint) ? 'fav.remove' : 'fav.add')" @click.stop="toggleFavorite">{{ favorites.ids.has(track.fingerprint) ? '♥' : '♡' }}</button>
         <button
           v-for="artist in track.artists"
           :key="artist"
@@ -204,6 +212,7 @@ function onPlay() {
 </template>
 
 <style scoped>
+.favorite { flex:none; font-size:17px; color:var(--text-2); padding:0 4px; } .favorite[aria-pressed=true]{ color:var(--accent); }
 .row {
   display: grid;
   /* 可用源这一列要装得下四个音源的胶囊，加宽到 200px */

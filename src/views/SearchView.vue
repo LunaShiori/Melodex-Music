@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 
 import PlatformsView from './PlatformsView.vue'
 import Icon from '@/components/Icon.vue'
+import { trackOrigin } from '@/lib/origin'
 import TrackRow from '@/components/TrackRow.vue'
 import DownloadPicker from '@/components/DownloadPicker.vue'
 import { coverOf } from '@/lib/artwork'
@@ -30,7 +31,13 @@ const selectMode = ref(false)
 const picked = reactive(new Set<string>())
 
 /** 渲染顺序 = 后端顺序经过「排序方式」处理后的结果 */
-const list = computed(() => search.visible)
+const version = ref('all')
+const list = computed(() => search.visible.filter(track => {
+  if (version.value === 'live') return /现场|演唱会|\blive\b/i.test(track.title)
+  if (version.value === 'instrumental') return /伴奏|纯音乐|\binstrumental\b|\boff vocal\b/i.test(track.title)
+  return version.value === 'all' || version.value === trackOrigin(track)
+}))
+watch(version, () => picked.clear())
 
 const summary = computed(() => {
   if (!search.searched) return ''
@@ -38,7 +45,7 @@ const summary = computed(() => {
 })
 
 const pickedTracks = computed(() => list.value.filter((item) => picked.has(item.fingerprint)))
-const allPicked = computed(() => list.value.length > 0 && picked.size >= list.value.length)
+const allPicked = computed(() => list.value.length > 0 && list.value.every(track => picked.has(track.fingerprint)))
 
 /* 最近搜索下拉的状态。用 mousedown.prevent 而不是 click，避免 blur 先把面板收掉 */
 const historyOpen = ref(false)
@@ -312,6 +319,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     </section>
 
     <section v-else-if="search.tracks.length" class="list">
+      <div class="version-filter"><label>{{ t('ver.title') }} <select v-model="version"><option v-for="kind in ['all','original','cover','live','instrumental']" :key="kind" :value="kind">{{ t('ver.'+kind) }}</option></select></label><span>{{ list.length }} / {{ search.visible.length }}</span></div>
+      <p v-if="!list.length">{{ t('ver.empty') }}</p>
       <div class="list-head">
         <span>#</span>
         <span />
@@ -420,6 +429,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </template>
 
 <style scoped>
+.version-filter{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--line);font-size:13px}.version-filter select{padding:5px;color:inherit;background:var(--surface)} @media(min-width:1024px){.list-head{position:sticky;top:0;z-index:2;background:var(--surface)} .view{max-width:1400px;margin-inline:auto}}
 .beta-switch { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 12px; color: var(--text-2); }
 .view {
   padding: var(--view-pad);

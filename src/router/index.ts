@@ -4,6 +4,7 @@ const router = createRouter({
   // Tauri 用自定义协议，Hash 模式最稳
   history: createWebHashHistory(),
   routes: [
+    { path: '/favorites', name: 'favorites', component: () => import('@/views/FavoritesView.vue') },
     { path: '/catalog/:kind', name: 'catalog', component: () => import('@/views/CatalogView.vue') },
     { path: '/', redirect: '/search' },
     {
