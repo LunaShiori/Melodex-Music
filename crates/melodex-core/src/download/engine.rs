@@ -161,6 +161,13 @@ impl DownloadEngine {
                 let quality = input
                     .quality
                     .unwrap_or_else(|| settings.quality_of(input.source));
+                if let Some(existing) = tasks
+                    .iter()
+                    .find(|task| reusable_task(task, input.source, &input.source_id, quality))
+                {
+                    ids.push(existing.id.clone());
+                    continue;
+                }
                 let nominal = input.bitrate.unwrap_or_else(|| {
                     quality::find(input.source, quality)
                         .map(|item| item.bitrate)
@@ -865,9 +872,65 @@ fn normalize_ext(format: &str) -> String {
     }
 }
 
+fn reusable_task(task: &DownloadTask, source: Source, id: &str, quality: QualityLevel) -> bool {
+    task.source == source
+        && task.source_id == id
+        && task.quality == quality
+        && (task.state.is_active() || task.state == TaskState::Paused)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn duplicate_jobs_preserve_versions_quality_and_retry() {
+        let mut task = DownloadTask::new(Source::Netease, "1", "Song", vec![], 128);
+        task.source_id = "1".into();
+        task.quality = QualityLevel::Standard;
+        for state in [
+            TaskState::Queued,
+            TaskState::Resolving,
+            TaskState::Downloading,
+            TaskState::Tagging,
+            TaskState::Paused,
+        ] {
+            task.state = state;
+            assert!(reusable_task(
+                &task,
+                Source::Netease,
+                "1",
+                QualityLevel::Standard
+            ));
+            assert!(!reusable_task(
+                &task,
+                Source::Qq,
+                "1",
+                QualityLevel::Standard
+            ));
+            assert!(!reusable_task(
+                &task,
+                Source::Netease,
+                "2",
+                QualityLevel::Standard
+            ));
+            assert!(!reusable_task(
+                &task,
+                Source::Netease,
+                "1",
+                QualityLevel::Lossless
+            ));
+        }
+        for state in [TaskState::Failed, TaskState::Canceled, TaskState::Completed] {
+            task.state = state;
+            assert!(!reusable_task(
+                &task,
+                Source::Netease,
+                "1",
+                QualityLevel::Standard
+            ));
+        }
+    }
 
     #[test]
     fn normalizes_extensions() {

@@ -667,7 +667,7 @@ function openDetail() {
   .player {
     height: auto;
     /* 左右缩进跟底部导航条对齐（14px），两块卡片看起来是一套的 */
-    margin: 0 14px 8px;
+    margin: 0 14px;
     padding: 9px 12px;
     border: 1px solid var(--line);
     border-radius: 24px;
@@ -675,7 +675,7 @@ function openDetail() {
     gap: 10px;
     background: color-mix(in srgb, var(--surface) 62%, transparent);
     backdrop-filter: blur(28px) saturate(1.8);
-    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px -16px #0008, inset 0 1px 0 #ffffff50;
   }
   .center,
   .right {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MusicHubTabs from '@/components/MusicHubTabs.vue'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -45,6 +46,7 @@ function clearAll() {
 
 <template>
   <div class="view">
+    <MusicHubTabs />
     <header class="head">
       <div>
         <h1>{{ t('recent.title') }}</h1>

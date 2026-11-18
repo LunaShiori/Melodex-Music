@@ -10,6 +10,8 @@ import { useAccountsStore } from '@/stores/accounts'
 const accounts = useAccountsStore()
 
 const loginSource = ref<SourceId | null>(null)
+const optionalAccounts = ref(false)
+const displayedSources = computed(() => ALL_SOURCES.filter(source => optionalAccounts.value || !['kuwo', 'kugou'].includes(source) || !!accounts.accountOf(source)))
 const pinEditing = ref(false)
 const pinValue = ref('')
 const pinConfirm = ref('')
@@ -148,7 +150,7 @@ async function logout(source: SourceId) {
 
     <!-- 已解锁：按音源列账号 -->
     <div v-else class="rows">
-      <div v-for="source in ALL_SOURCES" :key="source" class="row">
+      <div v-for="source in displayedSources" :key="source" class="row">
         <span class="src-dot" :style="{ background: SOURCE_META[source].color }" />
         <div class="who">
           <p class="name">{{ sourceName(source) }}</p>
@@ -156,9 +158,6 @@ async function logout(source: SourceId) {
             <span :class="{ on: stateOf(source).loggedIn, warn: stateOf(source).stale }">
               {{ stateOf(source).text }}
             </span>
-            <template v-if="stateOf(source).keys.length">
-              · <span class="mono keys">{{ stateOf(source).keys.join(' / ') }}</span>
-            </template>
           </p>
         </div>
         <div class="acts">
@@ -186,6 +185,7 @@ async function logout(source: SourceId) {
       </div>
     </div>
 
+    <div class="optional-accounts"><p class="muted">{{ t('downloadReview.guest') }}</p><button class="btn btn-sm" :aria-expanded="optionalAccounts" @click="optionalAccounts = !optionalAccounts">{{ t('downloadReview.account') }} {{ optionalAccounts ? '−' : '+' }}</button></div>
     <!-- PIN 管理 -->
     <div v-if="unlocked" class="pin-row">
       <div class="pin-info">

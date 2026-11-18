@@ -517,9 +517,15 @@ async function openUrl(url: string) {
   .notice {
     left: 12px;
     right: 12px;
-    bottom: calc(var(--player) + 64px);
+    position: relative;
+    inset: auto;
+    margin: max(8px, env(safe-area-inset-top)) 12px 0;
+    padding: 8px 10px;
+    box-shadow: none;
     max-width: none;
   }
+  .notice .sub { display: none; }
+  .notice .btn { white-space: nowrap; flex-shrink: 0; }
   .asset {
     grid-template-columns: minmax(0, 1fr) auto 16px;
   }

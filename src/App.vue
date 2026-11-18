@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 
+import DuplicateReview from '@/components/DuplicateReview.vue'
 import PlayerBar from '@/components/PlayerBar.vue'
 import QueuePanel from '@/components/QueuePanel.vue'
 import TrackMenu from '@/components/TrackMenu.vue'
@@ -68,6 +69,8 @@ onUnmounted(() => {
     <div class="workspace">
       <SideBar />
       <main class="content">
+        <UpdateNotice />
+        <ToastStack />
         <RouterView v-slot="{ Component }">
           <Transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -75,14 +78,13 @@ onUnmounted(() => {
         </RouterView>
       </main>
     </div>
-    <PlayerBar />
+    <Transition name="mini-player"><PlayerBar v-if="player.current" /></Transition>
     <QueuePanel />
     <TrackMenu />
     <TabBar />
     <LyricView />
     <OnboardingDialog />
-    <UpdateNotice />
-    <ToastStack />
+    <DuplicateReview />
   </div>
 </template>
 

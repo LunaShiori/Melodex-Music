@@ -545,3 +545,9 @@ html[data-kb='1'] .player {
 }
 
 .beta-tag { display: inline-flex; align-items: center; vertical-align: middle; border: 1px solid currentColor; border-radius: 5px; padding: 2px 6px; font-size: 10px; line-height: 1.4; letter-spacing: .06em; font-weight: 600; color: var(--accent); flex-shrink: 0; }
+
+.mini-player-enter-active,.mini-player-leave-active{transition:opacity .22s ease,transform .28s cubic-bezier(.2,.8,.2,1)}
+.mini-player-enter-from,.mini-player-leave-to{opacity:0;transform:translateY(18px) scale(.97)}
+@media(max-width:860px){.btn,.icon-btn{transition:transform .18s ease,background .18s ease}.btn:active,.icon-btn:active{transform:scale(.95)}.view,.catalog{animation:mobile-page-in .24s ease both}}
+@keyframes mobile-page-in{from{opacity:.45;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}

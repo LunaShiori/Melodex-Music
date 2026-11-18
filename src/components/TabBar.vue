@@ -12,16 +12,14 @@ const { t } = useI18n()
 
 const items = computed(() => [
   { name: 'search', path: '/search', label: t('nav.search'), icon: 'search' },
-  { name: 'recent', path: '/recent', label: t('nav.recent'), icon: 'history' },
+  { name: 'library', path: '/library', label: t('nav.musicHub'), icon: 'library' },
   { name: 'downloads', path: '/downloads', label: t('nav.downloads'), icon: 'download' },
-  { name: 'library', path: '/library', label: t('nav.library'), icon: 'library' },
-  { name: 'playlists', path: '/playlists', label: t('nav.playlists'), icon: 'queue' },
-  { name: 'settings', path: '/settings', label: t('nav.settings'), icon: 'settings' },
+  { name: 'settings', path: '/settings', label: t('nav.mine'), icon: 'settings' },
 ])
 
 /** 选中项的下标，用来把高亮胶囊滑过去 */
 const activeIndex = computed(() => {
-  const found = items.value.findIndex((item) => item.name === route.name)
+  const found = items.value.findIndex((item) => item.name === (['recent', 'playlists', 'catalog'].includes(String(route.name)) ? 'library' : route.name === 'platforms' ? 'settings' : route.name))
   return found < 0 ? 0 : found
 })
 </script>
@@ -58,7 +56,7 @@ const activeIndex = computed(() => {
   .tabbar {
     display: block;
     flex: 0 0 auto;
-    padding: 8px 14px calc(env(safe-area-inset-bottom, 0px) + 10px);
+    padding: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px));
     background: transparent;
   }
 
@@ -68,14 +66,12 @@ const activeIndex = computed(() => {
     display: grid;
     /* 标签页数量由模板里的 --count 传入，增删导航项不用再改样式 */
     grid-template-columns: repeat(var(--count, 4), 1fr);
-    padding: 6px;
+    padding: 4px;
     border-radius: 30px;
     background: color-mix(in srgb, var(--surface) 52%, transparent);
     backdrop-filter: blur(26px) saturate(1.9);
     border: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
-    box-shadow:
-      0 12px 34px -14px rgba(0, 0, 0, 0.55),
-      inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
+    box-shadow: 0 10px 30px -16px #0008, inset 0 1px 0 #ffffff70;
     overflow: hidden;
   }
   /* 一层顶部的液体反光，模拟玻璃边缘的折射 */

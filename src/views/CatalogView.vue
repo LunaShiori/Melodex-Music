@@ -3,6 +3,7 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { transport } from '@/lib/transport'
 import { useI18n } from '@/lib/i18n'
+import { reviewTracks } from '@/lib/download-review'
 import { QUALITY_LEVELS } from '@/lib/quality'
 import type { Track, Variant, QualityLevel } from '@/lib/types'
 import TrackRow from '@/components/TrackRow.vue'
@@ -19,6 +20,16 @@ const quality = ref<QualityLevel>(settings.settings?.qualityOverrides.netease ??
 const selected = ref(new Set<string>())
 let generation = 0, offset = 0
 const tracks = computed<Track[]>(() => (data.value?.tracks ?? []).map(v => ({ ...v, fingerprint: v.source + ':' + v.id, variants: [v] })))
+const review = computed(() => reviewTracks(tracks.value, tasks.tasks))
+async function retryFailed() {
+  if (busy.value) return
+  const attempt = generation
+  busy.value = true
+  const results = await Promise.allSettled(review.value.failed.map(r => tasks.resume(r.task!.id)))
+  const failed = results.find(r => r.status === 'rejected')
+  if (attempt === generation && failed?.status === 'rejected') error.value = String(failed.reason)
+  busy.value = false
+}
 const chosen = computed(() => tracks.value.filter(v => selected.value.has(v.fingerprint)))
 async function loadAlbums(current = generation) {
   if (!data.value || albumsBusy.value) return
@@ -76,11 +87,16 @@ async function download(items: Track[], whole = false) {
       <p v-if="!data.complete" class="muted">{{ t('catalog.partial') }}</p>
       <div class="actions">
         <label>{{ t('playlists.batchQuality') }} <select v-model="quality"><option v-for="level in QUALITY_LEVELS" :key="level.id" :value="level.id">{{ t(level.label) }}</option></select></label>
-        <button v-if="data.complete" class="btn btn-primary" :disabled="busy || !tracks.length || queued" @click="download(tracks, true)">{{ t(queued ? 'catalog.queued' : 'catalog.downloadAll') }}</button>
+        <button v-if="data.complete" class="btn btn-primary" :disabled="busy || !tracks.length" @click="download(tracks, true)">{{ t('catalog.downloadAll') }}</button>
         <button class="btn" :disabled="!tracks.length" @click="selectAll">{{ t('catalog.selectAll') }}</button>
         <button v-if="chosen.length" class="btn" :disabled="busy" @click="download(chosen)">{{ t('catalog.downloadSelected', { n: chosen.length }) }}</button>
         <RouterLink v-if="queued" to="/downloads">{{ t('nav.downloads') }}</RouterLink>
       </div>
+      <section v-if="tracks.length" class="download-review" aria-live="polite">
+        <strong>{{ t('downloadReview.summary') }}</strong>
+        <p>{{ t('downloadReview.counts', { done: review.completed, active: review.active, failed: review.failed.length, missing: review.missing.length }) }}</p>
+        <div class="actions"><button v-if="review.failed.length" class="btn" :disabled="busy" @click="retryFailed">{{ t('downloadReview.retry') }}</button><button v-if="review.missing.length" class="btn" :disabled="busy" @click="download(review.missing.map(r=>r.track))">{{ t('downloadReview.missing') }}</button></div>
+      </section>
       <p class="muted">{{ t('catalog.rights') }}</p>
       <p v-if="!tracks.length">{{ t('catalog.empty') }}</p>
       <div v-for="(track, index) in tracks" :key="track.fingerprint" class="track-item">
@@ -98,7 +114,8 @@ async function download(items: Track[], whole = false) {
   </div>
 </template>
 <style scoped>
-.catalog { padding: var(--view-pad); min-width: 0; overflow-wrap: anywhere; padding-bottom: calc(var(--view-pad) + env(safe-area-inset-bottom, 0px)); }
-header { display: flex; gap: 20px; align-items: center; margin: 20px 0; } header img { width: 96px; height: 96px; border-radius: 14px; object-fit: cover; flex-shrink: 0; } header div { min-width: 0; } h1 { font-size: 24px; } p { line-height: 1.6; } .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 16px 0; } select { max-width: 100%; padding: 8px; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; } .track-item { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; } input[type=checkbox] { accent-color: var(--accent); } section { margin-top: 28px; } .albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 16px; margin: 16px 0; } .album-card { min-width: 0; display: flex; flex-direction: column; gap: 8px; color: inherit; text-decoration: none; } .album-card img { width: 100%; aspect-ratio: 1; border-radius: 12px; object-fit: cover; } .error { color: var(--danger, #c54c4c); } details { margin: 12px 0; }
+.download-review { padding: 14px; margin: 12px 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); } .download-review p { margin: 8px 0; } .download-review .actions { margin: 8px 0 0; }
+.catalog { padding: var(--view-pad); min-width: 0; overflow-wrap: anywhere; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+header { display: flex; gap: 20px; align-items: center; margin: 12px 0; } header img { width: 96px; height: 96px; border-radius: 14px; object-fit: cover; flex-shrink: 0; } header div { min-width: 0; } h1 { font-size: 24px; } p { line-height: 1.6; } .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 16px 0; } select { max-width: 100%; padding: 8px; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; } .track-item { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; } input[type=checkbox] { accent-color: var(--accent); } section { margin-top: 28px; } .albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 16px; margin: 16px 0; } .album-card { min-width: 0; display: flex; flex-direction: column; gap: 8px; color: inherit; text-decoration: none; } .album-card img { width: 100%; aspect-ratio: 1; border-radius: 12px; object-fit: cover; } .error { color: var(--danger, #c54c4c); } details { margin: 12px 0; }
 @media (max-width: 480px) { header { gap: 12px; } header img { width: 72px; height: 72px; } h1 { font-size: 21px; } }
 </style>

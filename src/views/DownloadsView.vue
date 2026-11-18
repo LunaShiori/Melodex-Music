@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { deliveredAudio, knownDowngrade } from '@/lib/download-review'
 import Icon from '@/components/Icon.vue'
 import { coverOf } from '@/lib/artwork'
 import { sourceShort, useI18n, artistName } from '@/lib/i18n'
@@ -15,6 +16,15 @@ import { useTasksStore } from '@/stores/tasks'
 const { t } = useI18n()
 const tasks = useTasksStore()
 const router = useRouter()
+const retrying = ref(false)
+const failedTasks = computed(() => tasks.tasks.filter(task => task.state === 'failed'))
+async function retryFailed() {
+  if (retrying.value) return
+  retrying.value = true
+  const results = await Promise.allSettled(failedTasks.value.map(task => tasks.resume(task.id)))
+  for (const result of results) if (result.status === 'rejected') tasks.pushNotice('error', String(result.reason))
+  retrying.value = false
+}
 
 const STATE_KEY: Record<TaskState, string> = {
   queued: 'state.queued',
@@ -45,7 +55,8 @@ function isActive(task: DownloadTask) {
 
 /** 失败条目优先展示结构化原因，取不到时回落到引擎给的原文。 */
 function failText(task: DownloadTask) {
-  return reasonMeta(task.failReason)?.hint ?? task.error
+  const hint = reasonMeta(task.failReason)?.hint
+  return hint ? t(hint) : task.error
 }
 
 /** 只有「登录能解决」的原因才给登录入口，避免误导。 */
@@ -95,6 +106,7 @@ function goLogin() {
           <span class="count mono">{{ tab.count }}</span>
         </button>
       </div>
+      <button v-if="failedTasks.length" class="btn btn-sm" :disabled="retrying" @click="retryFailed">{{ t('downloadReview.retry') }} ({{ failedTasks.length }})</button>
       <button class="btn btn-sm" type="button" :disabled="!tasks.counts.done" @click="tasks.clearFinished()">
         <Icon name="trash" :size="14" />
         {{ t('downloads.clearDone') }}
@@ -115,7 +127,7 @@ function goLogin() {
               v-if="task.state === 'failed' && reasonMeta(task.failReason)"
               class="badge reason"
             >
-              {{ reasonMeta(task.failReason)?.label }}
+              {{ t(reasonMeta(task.failReason)!.label) }}
             </span>
             <span
               class="src"
@@ -134,11 +146,13 @@ function goLogin() {
           <p class="sub">
             {{ artistName(task.artists) }}
             <span class="dot">·</span>
-            {{ task.bitrate }}k {{ task.format.toUpperCase() }}
+            {{ t('downloadReview.target') }}: {{ t('quality.' + task.quality) }}
             <span class="dot">·</span>
             {{ formatRelative(task.createdAt) }}
           </p>
 
+          <p v-if="knownDowngrade(task)" class="sub" style="color: var(--warning)">{{ t('downloadReview.downgrade') }}</p>
+          <p class="sub audio-spec">{{ deliveredAudio(task) ? t('downloadReview.actual') + ': ' + deliveredAudio(task) : t('downloadReview.unknown') }}</p>
           <div class="progress" :class="{ done: task.state === 'completed' }">
             <div class="track">
               <div class="fill" :style="{ width: `${ratio(task) * 100}%` }" />

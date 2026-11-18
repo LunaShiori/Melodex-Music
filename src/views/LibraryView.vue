@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MusicHubTabs from '@/components/MusicHubTabs.vue'
 import { computed, ref, watch } from 'vue'
 
 import Icon from '@/components/Icon.vue'
@@ -172,6 +173,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
 
 <template>
   <div class="view">
+    <MusicHubTabs />
     <header class="head">
       <div>
         <h1>{{ t('library.title') }}</h1>

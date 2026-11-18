@@ -1,7 +1,7 @@
 {
   "name": "melodex",
   "private": true,
-  "version": "2.4.0",
+  "version": "2.5.0",
   "type": "module",
   "description": "Melodex Music · 多源音乐聚合搜索、播放与歌词",
   "keywords": [
@@ -31,7 +31,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:download-review": "node scripts/test-download-review.mjs"
   },
   "dependencies": {
     "pinia": "^2.2.6",

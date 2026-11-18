@@ -120,6 +120,9 @@ jobs:
       - name: 类型检查
         run: npm run typecheck
 
+      - name: 下载结果与音质回归
+        run: npm run test:download-review
+
       - name: 生产构建
         run: npm run build
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount } from 'vue'
 
+import { useLibraryStore } from '@/stores/library'
 import Icon from './Icon.vue'
 import { coverOf } from '@/lib/artwork'
 import { useRouter } from 'vue-router'
@@ -30,6 +31,8 @@ const emit = defineEmits<{
 }>()
 
 const menu = useMenuStore()
+const library = useLibraryStore()
+const recorded = computed(() => props.track.variants.some(v => !!library.findEntry(v.source, v.id)))
 
 /** 右键（桌面）与长按（触屏）都弹同一份菜单 */
 function onContextMenu(event: MouseEvent) {
@@ -146,7 +149,7 @@ function onPlay() {
           class="origin-tag"
           :class="originKind === 'original' ? 'tag-orig' : 'tag-cover'"
         >{{ t(originKey) }}</span>
-        <span class="title-text">{{ track.title }}</span>
+        <span class="title-text">{{ track.title }}</span><span v-if="recorded" class="origin-tag">{{ t('downloadReview.recorded') }}</span>
       </p>
       <p class="sub">
         <button

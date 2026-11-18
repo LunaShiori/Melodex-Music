@@ -14,6 +14,21 @@ export const useTasksStore = defineStore('tasks', () => {
   const tasks = ref<DownloadTask[]>([])
   const filter = ref<TaskFilter>('all')
   const notices = ref<Array<{ id: number; level: string; message: string }>>([])
+  const duplicateReview = ref<Array<{ title: string; format: string; bitrate: number }>>([])
+  let resolveDuplicates: ((choice: 'skip' | 'all' | 'cancel') => void) | null = null
+  function decideDuplicates(choice: 'skip' | 'all' | 'cancel') { resolveDuplicates?.(choice); resolveDuplicates = null; duplicateReview.value = [] }
+  async function enqueueReviewed(inputs: EnqueueInput[]) {
+    if (resolveDuplicates) { pushNotice('info', t('downloadReview.pending')); return [] }
+    const library = useLibraryStore()
+    const existing = inputs.map(input => library.findEntry(input.source, input.sourceId) ?? tasks.value.find(task => task.source === input.source && task.sourceId === input.sourceId && task.state === 'completed' && task.path))
+    if (existing.some(Boolean)) {
+      duplicateReview.value = existing.filter((e): e is NonNullable<typeof e> => !!e).map(e=>({title:e.title,format:e.format,bitrate:e.bitrate}))
+      const choice = await new Promise<'skip' | 'all' | 'cancel'>(resolve => { resolveDuplicates = resolve })
+      if (choice === 'cancel') return []
+      if (choice === 'skip') inputs = inputs.filter((_, index)=>!existing[index])
+    }
+    return inputs.length ? transport.enqueue(inputs) : []
+  }
   let off: (() => void) | null = null
   let noticeSeq = 0
 
@@ -113,9 +128,9 @@ export const useTasksStore = defineStore('tasks', () => {
         /* 无可用音源的条目直接跳过 */
       }
     }
-    const ids = await transport.enqueue(inputs)
-    if (inputs.length) {
-      pushNotice('info', t('tasks.enqueuedMany', { n: inputs.length }))
+    const ids = await enqueueReviewed(inputs)
+    if (ids.length) {
+      pushNotice('info', t('tasks.enqueuedMany', { n: new Set(ids).size }))
     }
     return ids
   }
@@ -143,10 +158,10 @@ export const useTasksStore = defineStore('tasks', () => {
       quality,
       fallbacks: fallbacksOf(track, variant.source),
     }
-    const ids = await transport.enqueue([input])
+    const ids = await enqueueReviewed([input])
     // 明确回到用户刚才选了什么，否则看起来像「点了没反应、还是默认档」
     const tier = label ? ` · ${label}` : ''
-    pushNotice('info', t('tasks.enqueued', { tier, source: sourceShort(variant.source), title: track.title }))
+    if (ids.length) pushNotice('info', t('tasks.enqueued', { tier, source: sourceShort(variant.source), title: track.title }))
     return ids
   }
 
@@ -179,6 +194,8 @@ export const useTasksStore = defineStore('tasks', () => {
 
   return {
     tasks,
+    duplicateReview,
+    decideDuplicates,
     filter,
     notices,
     counts,

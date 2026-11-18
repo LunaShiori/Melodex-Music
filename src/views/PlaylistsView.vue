@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import MusicHubTabs from '@/components/MusicHubTabs.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
@@ -360,6 +361,7 @@ onMounted(async () => {
 
 <template>
   <div class="view">
+    <MusicHubTabs />
     <header class="head">
       <div>
         <h1>{{ opened ? opened.name : t('playlists.mine') }}</h1>

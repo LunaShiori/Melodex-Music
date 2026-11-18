@@ -5,7 +5,7 @@ import { useTasksStore } from '@/stores/tasks'
 
 const tasks = useTasksStore()
 
-const visible = computed(() => tasks.notices.slice(-3))
+const visible = computed(() => tasks.notices.slice(-1))
 </script>
 
 <template>
@@ -78,7 +78,9 @@ const visible = computed(() => tasks.notices.slice(-3))
     left: 12px;
     right: 12px;
     /* 手机上还要让开底部那条更新提示，再往上抬一点 */
-    bottom: calc(var(--player) + 118px);
+    position: relative;
+    inset: auto;
+    margin: 8px 12px 0;
   }
   .toast {
     max-width: none;
