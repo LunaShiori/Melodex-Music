@@ -297,6 +297,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         </button>
       </div>
 
+      <div class="segmented version-tabs" role="group" :aria-label="t('ver.title')">
+        <button v-for="kind in ['all','original','cover','live','instrumental']" :key="kind" type="button" :class="{ on: version === kind }" :aria-pressed="version === kind" :title="t('ver.'+kind)" @click="version = kind">{{ t('ver.short.'+kind) }}</button>
+      </div>
       <span class="muted small sort-hint">
         {{ t(SORT_MODES.find((m) => m.value === search.sortMode)?.hint ?? 'search.sort.defaultHint') }}
       </span>
@@ -319,7 +322,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     </section>
 
     <section v-else-if="search.tracks.length" class="list">
-      <div class="version-filter"><label>{{ t('ver.title') }} <select v-model="version"><option v-for="kind in ['all','original','cover','live','instrumental']" :key="kind" :value="kind">{{ t('ver.'+kind) }}</option></select></label><span>{{ list.length }} / {{ search.visible.length }}</span></div>
       <p v-if="!list.length">{{ t('ver.empty') }}</p>
       <div class="list-head">
         <span>#</span>
@@ -429,7 +431,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </template>
 
 <style scoped>
-.version-filter{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--line);font-size:13px}.version-filter select{padding:5px;color:inherit;background:var(--surface)} @media(min-width:1024px){.list-head{position:sticky;top:0;z-index:2;background:var(--surface)} .view{max-width:1400px;margin-inline:auto}}
+.version-tabs{flex:0 1 auto;max-width:100%;overflow-x:auto}.version-tabs button{white-space:nowrap}.toolbar{flex-wrap:wrap} @media(min-width:1024px){.list-head{position:sticky;top:0;z-index:2;background:var(--surface)} .view{max-width:1400px;margin-inline:auto}}
 .beta-switch { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 12px; color: var(--text-2); }
 .view {
   padding: var(--view-pad);

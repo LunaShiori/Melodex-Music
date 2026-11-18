@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 
-import { t } from '@/lib/i18n'
+import { useTasksStore } from './tasks'
+import { sourceName, t } from '@/lib/i18n'
 import { computed, ref } from 'vue'
 
 import { pushRecent } from '@/lib/history'
@@ -106,7 +107,8 @@ export const usePlayerStore = defineStore('player', () => {
   const loading = ref(false)
   const error = ref<PlayerError | null>(null)
   /** 本次播放是否已经退到代理地址，避免同一个错误反复重试 */
-  let triedProxy = false
+  let generation = 0
+  let starting = false
   /** 歌词请求序号，用于丢弃「切歌之后才回来的」过期结果 */
   let lyricToken = 0
 
@@ -256,7 +258,7 @@ export const usePlayerStore = defineStore('player', () => {
     })
 
     audio.addEventListener('error', () => {
-      if (isDemo) return
+      if (isDemo || starting) return
       const code = audio.error?.code ?? 0
       // 1 = ABORTED：切歌或拖动引起的中断，不是真错误
       if (code === 1) return
@@ -304,24 +306,19 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   /** 把一条已解析的地址塞进 `<audio>` 并起播。 */
-  async function attach(source: PlayUrl, target: Variant): Promise<boolean> {
-    if (!audio) return false
-    audio.src = source.url
-    audio.volume = volume.value
-    try {
-      await audio.play()
-      playing.value = true
-      clearError()
-      return true
-    } catch (err) {
-      // 源被 WebView 拒绝时，换补了 Referer 的代理地址再试一次
-      const detail = err instanceof Error ? err.message : String(err)
-      if (!triedProxy && source.proxyUrl && source.proxyUrl !== source.url) {
-        triedProxy = true
-        return attach({ ...source, url: source.proxyUrl }, target)
+  async function attach(source: PlayUrl, attempt: number) {
+    if (!audio) throw new Error('Audio unavailable')
+    for (const url of new Set([source.url, source.proxyUrl].filter((url): url is string => !!url))) {
+      if (attempt !== generation) return
+      audio.src = url
+      audio.volume = volume.value
+      try {
+        await audio.play()
+        return
+      } catch (err) {
+        if (attempt !== generation) return
+        if (url === source.proxyUrl || !source.proxyUrl) throw err
       }
-      showError(mediaError('linkRejected', detail, target.source))
-      return false
     }
   }
 
@@ -329,6 +326,9 @@ export const usePlayerStore = defineStore('player', () => {
     if (track.fingerprint.startsWith('local:')) {
       return playLocal(track, transport.localUrl(track.fingerprint.slice(6)))
     }
+    const attempt = ++generation
+    starting = false
+    audio?.pause()
     const target = chosen ?? bestVariant(track)
     current.value = track
     pushRecent(track)
@@ -337,34 +337,61 @@ export const usePlayerStore = defineStore('player', () => {
     position.value = 0
     clearError()
     loading.value = true
-    triedProxy = false
+
     syncNowPlaying()
-    void loadLyric(target)
+    lyricToken++
+    lyricLines.value = []
 
     if (isDemo) {
       loading.value = false
       playing.value = true
       setPlaybackState('playing')
+      void loadLyric(target)
       startTicker()
       return
     }
     if (!audio) return
+    const candidates = [target, ...track.variants.filter(v => v.source !== target.source)]
+    let firstFailure: PlayerError | undefined
+    starting = true
     try {
-      // 试听只要够快：固定取「极高音质」这一档，不跟随下载用的无损设置，
-      // 否则每次点播放都要等一个几十兆的 FLAC 起播。
-      // 取不到时内核抛结构化原因，界面直接照抄给用户看。
-      const resolved = await transport.resolve(target, 'exquisite')
-      await attach(resolved, target)
-    } catch (err) {
-      showError(toPlayerError(err, target.source))
+      for (const candidate of candidates) {
+        for (const quality of ['exquisite', 'standard'] as const) {
+          if (attempt !== generation) return
+          try {
+            const resolved = await transport.resolve(candidate, quality)
+            if (attempt !== generation) return
+            await attach(resolved, attempt)
+            if (attempt !== generation) return
+            variant.value = candidate
+            playing.value = true
+            syncNowPlaying()
+            void loadLyric(candidate)
+            clearError()
+            if (candidate.source !== target.source) {
+              const reason = firstFailure?.reason === 'vipOnly' ? 'player.switchVip' : 'player.switchSource'
+              useTasksStore().pushNotice('info', t(reason, { from: sourceName(target.source), to: sourceName(candidate.source) }))
+            }
+            return
+          } catch (err) {
+            if (attempt !== generation) return
+            const failure = toPlayerError(err, candidate.source)
+            firstFailure ??= failure
+            if (failure.reason !== 'qualityMissing' && failure.reason !== 'vipOnly') break
+          }
+        }
+      }
+      if (firstFailure) showError(firstFailure)
       playing.value = false
     } finally {
-      loading.value = false
+      if (attempt === generation) { starting = false; loading.value = false }
     }
   }
 
   /** 播放本地已下载文件（桌面端走 asset 协议）。 */
   async function playLocal(track: Track, src: string) {
+    generation++
+    starting = false
     current.value = track
     pushRecent(track)
     variant.value = track.variants[0] ?? null
@@ -581,6 +608,9 @@ export const usePlayerStore = defineStore('player', () => {
 
   /** 系统媒体控制用：暂停（不切换当前曲目） */
   function pause() {
+    generation++
+    starting = false
+    loading.value = false
     if (isDemo) {
       playing.value = false
       setPlaybackState('paused')
