@@ -551,3 +551,6 @@ html[data-kb='1'] .player {
 @media(max-width:860px){.btn,.icon-btn{transition:transform .18s ease,background .18s ease}.btn:active,.icon-btn:active{transform:scale(.95)}.view,.catalog{animation:mobile-page-in .24s ease both}}
 @keyframes mobile-page-in{from{opacity:.45;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+:root { --song-columns: 24px 44px minmax(0, 1fr) 200px 76px 48px 92px; }
+@media (min-width:861px) and (max-width:1100px) { :root { --song-columns: 24px 44px minmax(0, 1fr) 100px 70px 44px 92px; } }

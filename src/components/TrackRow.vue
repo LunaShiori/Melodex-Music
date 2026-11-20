@@ -159,7 +159,7 @@ function onPlay() {
         >{{ t(originKey) }}</span>
         <span class="title-text">{{ track.title }}</span><span v-if="recorded" class="origin-tag">{{ t('downloadReview.recorded') }}</span>
       </p>
-      <p class="sub"><button v-if="!selectMode" class="favorite" :aria-pressed="favorites.ids.has(track.fingerprint)" :aria-label="t(favorites.ids.has(track.fingerprint) ? 'fav.remove' : 'fav.add')" @click.stop="toggleFavorite">{{ favorites.ids.has(track.fingerprint) ? '♥' : '♡' }}</button>
+      <p class="sub">
         <button
           v-for="artist in track.artists"
           :key="artist"
@@ -196,6 +196,7 @@ function onPlay() {
     <span class="dur mono">{{ formatDuration(track.durationMs) }}</span>
 
     <div class="actions">
+      <button v-if="!selectMode" class="icon-btn favorite" type="button" @dblclick.stop :title="t(favorites.ids.has(track.fingerprint) ? 'fav.remove' : 'fav.add')" :aria-pressed="favorites.ids.has(track.fingerprint)" :aria-label="t(favorites.ids.has(track.fingerprint) ? 'fav.remove' : 'fav.add')" @click.stop="toggleFavorite"><Icon name="heart" :size="17" :filled="favorites.ids.has(track.fingerprint)" /></button>
       <button class="icon-btn" type="button" :title="t('player.play')" @click.stop="emit('play', track)">
         <Icon name="play" :size="15" />
       </button>
@@ -204,6 +205,7 @@ function onPlay() {
       </button>
     </div>
 
+    <button v-if="!selectMode" class="m-fav favorite" type="button" @dblclick.stop :title="t(favorites.ids.has(track.fingerprint) ? 'fav.remove' : 'fav.add')" :aria-pressed="favorites.ids.has(track.fingerprint)" :aria-label="t(favorites.ids.has(track.fingerprint) ? 'fav.remove' : 'fav.add')" @click.stop="toggleFavorite"><Icon name="heart" :size="17" :filled="favorites.ids.has(track.fingerprint)" /></button>
     <!-- 手机端没有 hover，下载入口必须常驻可见 -->
     <button class="m-dl" type="button" :title="t('common.download')" @click.stop="emit('download', track)">
       <Icon name="download" :size="17" />
@@ -216,7 +218,7 @@ function onPlay() {
 .row {
   display: grid;
   /* 可用源这一列要装得下四个音源的胶囊，加宽到 200px */
-  grid-template-columns: 24px 44px minmax(0, 1fr) 200px 76px 48px 72px;
+  grid-template-columns: var(--song-columns);
   align-items: center;
   gap: 12px;
   height: 60px;
@@ -464,6 +466,8 @@ function onPlay() {
   opacity: 0;
   transition: opacity var(--dur) var(--ease);
 }
+.row:focus-within .actions,
+.row:has(.favorite[aria-pressed=true]) .actions,
 .row:hover .actions,
 .row.active .actions {
   opacity: 1;
@@ -477,7 +481,7 @@ function onPlay() {
   background: var(--active);
 }
 
-.m-dl {
+.m-fav, .m-dl {
   display: none;
 }
 
@@ -532,7 +536,7 @@ function onPlay() {
   .sub {
     font-size: 11px;
   }
-  .m-dl {
+  .m-fav, .m-dl {
     display: grid;
     place-items: center;
     width: 36px;

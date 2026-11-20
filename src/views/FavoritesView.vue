@@ -41,11 +41,24 @@ function save(items: Track[]) {
     message.value = t('lists.saved')
   } catch { message.value = t('fav.error') }
 }
+async function copyTrackList() {
+  const lines = visible.value.map(track => [track.title, ...track.artists].join(' '))
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'))
+    tasks.pushNotice('info', t('lists.copied'))
+  } catch {
+    input.value = lines.join('\n')
+    matches.value = []
+    editor.value!.open = true
+    tasks.pushNotice('info', t('lists.copyManual'))
+  }
+}
+const editor = ref<HTMLDetailsElement | null>(null)
 const confirmed = computed(() => matches.value.flatMap(row => row.choices[row.pick] ? [row.choices[row.pick]!] : []))
 </script>
 <template><main class="favorites"><MusicHubTabs/><h1>{{ t('fav.title') }}</h1>
 <div class="list-tools"><select v-model="selected" :aria-label="t('nav.playlists')"><option value="">{{ t('fav.title') }}</option><option v-for="list in favorites.lists" :key="list.name">{{ list.name }}</option></select>
-<details><summary>{{ t('lists.manage') }}</summary><label>{{ t('lists.name') }} <input v-model="name" maxlength="80" /></label>
+<button class="btn" v-if="visible.length" @click="copyTrackList">{{ t('lists.copy') }}</button><details ref="editor"><summary>{{ t('lists.manage') }}</summary><label>{{ t('lists.name') }} <input v-model="name" maxlength="80" /></label>
 <button class="btn" :disabled="!name.trim() || !favorites.tracks.length" @click="save(favorites.tracks)">{{ t('lists.fromFavorites') }}</button>
 <label>{{ t('lists.paste') }}<textarea v-model="input" :disabled="busy" @input="matches=[]" rows="4" /></label>
 <button class="btn" :disabled="busy || !input.trim()" @click="match">{{ t(busy ? 'common.loading' : 'lists.match') }}</button>

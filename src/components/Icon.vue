@@ -7,6 +7,7 @@ const props = withDefaults(
 
 const PATHS: Record<string, string[]> = {
   search: ['M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z', 'M16.5 16.5 21 21'],
+  heart: ['M20.3 4.9a5.2 5.2 0 0 0-7.4 0l-.9.9-.9-.9a5.2 5.2 0 0 0-7.4 7.3L12 20.5l8.3-8.3a5.2 5.2 0 0 0 0-7.3Z'],
   download: ['M12 3v11', 'M7.5 10 12 14.5 16.5 10', 'M4 20h16'],
   library: ['M4 6h10', 'M4 12h10', 'M4 18h6', 'M18 6v12', 'M15 15l3 3 3-3'],
   settings: ['M4 7h10', 'M18 7h2', 'M4 17h4', 'M12 17h8', 'M16 4v6', 'M8 14v6'],

@@ -679,7 +679,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .list-head {
   display: grid;
-  grid-template-columns: 24px 44px minmax(0, 1fr) 172px 76px 48px 72px;
+  grid-template-columns: var(--song-columns);
   gap: 12px;
   align-items: center;
   padding: 0 12px 8px;
@@ -689,6 +689,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   border-bottom: 1px solid var(--line);
   margin-bottom: 4px;
 }
+.list-head > :first-child { text-align: center; }
 .list-head .ta-r {
   text-align: right;
 }
