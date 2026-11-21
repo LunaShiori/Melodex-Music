@@ -19,6 +19,27 @@ import {
 const props = defineProps<{ query?: string; embedded?: boolean }>()
 const { t } = useI18n()
 
+type Discovery = { url: string; title: string; by: string; platform: string }
+const shelfKey = 'melodex.discovery.v1'
+function readShelf(): Discovery[] {
+  try {
+    const rows = JSON.parse(localStorage.getItem(shelfKey) || '[]')
+    return Array.isArray(rows) ? rows.filter(row => typeof row?.url === 'string' && /^https:\/\//i.test(row.url) && typeof row.title === 'string' && typeof row.by === 'string') : []
+  } catch { return [] }
+}
+const shelf = ref(readShelf())
+const filter = ref('')
+const filteredShelf = computed(() => shelf.value.filter(row => [row.title,row.by,row.platform].join(' ').toLowerCase().includes(filter.value.trim().toLowerCase())))
+const savedUrls = computed(() => new Set(shelf.value.map(row => row.url)))
+const shelfError = ref(false)
+function toggleSaved(row: Discovery) {
+  const updated = savedUrls.value.has(row.url) ? shelf.value.filter(item => item.url !== row.url) : [row, ...shelf.value]
+  try {
+    localStorage.setItem(shelfKey, JSON.stringify(updated))
+    shelf.value = updated
+    shelfError.value = false
+  } catch { shelfError.value = true }
+}
 const keyword = ref('')
 const store = ref<AppleStore>('us')
 const results = ref<AppleTrack[]>([])
@@ -177,6 +198,18 @@ onUnmounted(() => {
       </div>
     </header>
 
+    <details class="card discovery" v-if="shelf.length || shelfError">
+      <summary>{{ t('discovery.title') }} · {{ shelf.length }}</summary>
+      <input type="search" v-model="filter" :placeholder="t('discovery.filter')" :aria-label="t('discovery.filter')" />
+      <p v-if="!filteredShelf.length">{{ t('discovery.empty') }}</p>
+      <article v-for="row in filteredShelf" :key="row.url">
+        <div class="meta"><strong>{{ row.title }}</strong><p class="sub">{{ row.platform }} · {{ row.by }}</p></div>
+        <button class="btn btn-sm" @click="openExternal(row.url)">{{ t('platforms.openIn') }}</button>
+        <RouterLink class="btn btn-sm" :to="{path:'/search',query:{q:row.platform === 'Apple Music' ? row.title+' '+row.by : row.title}}">{{ t('discovery.match') }}</RouterLink>
+        <button class="btn btn-sm" @click="toggleSaved(row)">{{ t('discovery.remove') }}</button>
+      </article>
+    </details>
+    <p v-if="shelfError" role="alert">{{ t('discovery.error') }}</p>
     <form class="unified searchbar" @submit.prevent="searchAll">
       <input v-model="keyword" type="search" :aria-label="t('platforms.unified')" :placeholder="t('platforms.unified')" />
       <button class="btn btn-primary btn-sm" :disabled="!keyword.trim()">{{ t('platforms.searchAll') }}</button>
@@ -228,6 +261,7 @@ onUnmounted(() => {
           <div class="meta">
             <p class="title">{{ track.title }}</p>
             <p class="sub">{{ track.artist }}<template v-if="track.album"> · {{ track.album }}</template></p>
+            <button class="chip chip-btn" :aria-pressed="savedUrls.has(track.url)" @click="toggleSaved({ url:track.url, title:track.title, by:track.artist, platform:'Apple Music' })">{{ t(savedUrls.has(track.url) ? 'discovery.saved' : 'discovery.save') }}</button>
           </div>
           <span class="mono dur">{{ formatDuration(track.durationMs) }}</span>
           <button
@@ -286,6 +320,7 @@ onUnmounted(() => {
           <div class="meta">
             <p class="title">{{ video.title }}</p>
             <p class="sub">{{ video.author }} · {{ t('platforms.bilibili.plays', { n: countOf(video.plays) }) }}</p>
+            <button class="chip chip-btn" :aria-pressed="savedUrls.has(video.url)" @click="toggleSaved({ url:video.url, title:video.title, by:video.author, platform:'Bilibili' })">{{ t(savedUrls.has(video.url) ? 'discovery.saved' : 'discovery.save') }}</button>
           </div>
           <span class="mono dur">{{ formatDuration(video.durationSecs * 1000) }}</span>
           <a class="icon-btn" :href="video.url" @click.prevent="openExternal(video.url)" target="_blank" rel="noreferrer" :title="t('platforms.openIn')">
@@ -328,6 +363,8 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.discovery summary{cursor:pointer;font-weight:650}.discovery input{margin:12px 0;padding:8px;max-width:100%}.discovery article{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0;border-top:1px solid var(--line)}.discovery article .meta{flex:1 1 180px;overflow-wrap:anywhere}
+
 .view { padding: var(--view-pad); max-width: 1160px; margin: auto; min-width: 0; }
 .view.embedded { padding: 0; margin-top: 24px; }
 .unified { margin-bottom: 12px; }
