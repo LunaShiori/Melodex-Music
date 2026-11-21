@@ -18,10 +18,13 @@ const tasks = useTasksStore()
 const router = useRouter()
 const retrying = ref(false)
 const failedTasks = computed(() => tasks.tasks.filter(task => task.state === 'failed'))
+const selectedBatch=ref('')
+const batchIds=computed(()=>tasks.batches.find(b=>b.id===selectedBatch.value)?.ids)
+const scopedTasks=computed(()=>tasks.visible.filter(t=>!batchIds.value||batchIds.value.includes(t.id)))
 async function retryFailed() {
   if (retrying.value) return
   retrying.value = true
-  const results = await Promise.allSettled(failedTasks.value.map(task => tasks.resume(task.id)))
+  const results = await Promise.allSettled(failedTasks.value.filter(t=>!batchIds.value||batchIds.value.includes(t.id)).map(task => tasks.resume(task.id)))
   for (const result of results) if (result.status === 'rejected') tasks.pushNotice('error', String(result.reason))
   retrying.value = false
 }
@@ -90,7 +93,7 @@ function goLogin() {
           <span class="lab">{{ t('downloads.totalSpeed') }}</span>
         </div>
       </div>
-    </header>
+    </header><label v-if="tasks.batches.length">下载批次 <select v-model="selectedBatch"><option value="">全部任务</option><option v-for="b in tasks.batches" :key="b.id" :value="b.id">{{b.title}} · {{b.ids.length}} / {{b.requested}}</option></select></label>
 
     <div class="toolbar">
       <div class="tabs">
@@ -114,7 +117,7 @@ function goLogin() {
     </div>
 
     <section v-if="tasks.visible.length" class="list">
-      <article v-for="task in tasks.visible" :key="task.id" class="task" :class="task.state">
+      <article v-for="task in scopedTasks" :key="task.id" class="task" :class="task.state">
         <div class="cover">
           <img :src="coverOf(task.cover, task.id)" alt="" loading="lazy" @error="onCoverError($event, task.id)" />
         </div>

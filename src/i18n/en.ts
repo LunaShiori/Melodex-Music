@@ -72,6 +72,7 @@ export const en: Record<string, string> = {
   "discovery.error": "Could not save to device storage",
   "discovery.saved": "Saved to shelf",
   "discovery.save": "Save to shelf",
+  "nav.home": "Home",
   "mix.title": "Playlist studio",
   "mix.find": "Search titles, albums or artists",
   "mix.artists": "All artists",

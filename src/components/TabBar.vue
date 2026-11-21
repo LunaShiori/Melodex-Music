@@ -11,10 +11,9 @@ const tasks = useTasksStore()
 const { t } = useI18n()
 
 const items = computed(() => [
+  { name:'home', path:'/', label:t('nav.home'), icon:'play', badge:0 },
   { name: 'search', path: '/search', label: t('nav.search'), icon: 'search' },
   { name: 'library', path: '/library', label: t('nav.musicHub'), icon: 'library' },
-  { name: 'downloads', path: '/downloads', label: t('nav.downloads'), icon: 'download' },
-  { name: 'settings', path: '/settings', label: t('nav.mine'), icon: 'settings' },
 ])
 
 /** 选中项的下标，用来把高亮胶囊滑过去 */

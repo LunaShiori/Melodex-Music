@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 import { useTasksStore } from './tasks'
 import { sourceName, t } from '@/lib/i18n'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { pushRecent } from '@/lib/history'
 import { activeLineIndex, mergeTranslation, parseLrc, type LrcLine } from '@/lib/lrc'
@@ -687,6 +687,21 @@ export const usePlayerStore = defineStore('player', () => {
     if (audio) audio.volume = volume.value
   }
 
+  const sessionKey = 'melodex.resume.v1'
+  function snapshot() {
+    if (!current.value?.variants.length) return
+    const list = queue.value[index.value]?.fingerprint === current.value.fingerprint ? queue.value : [current.value]
+    try { localStorage.setItem(sessionKey, JSON.stringify({queue:list,index:list === queue.value ? index.value : 0,position:position.value})) } catch {}
+  }
+  watch([() => Math.floor(position.value / 5000), current, index, playing, () => queue.value.map(t => t.fingerprint).join('|')], snapshot)
+  window.addEventListener('pagehide', snapshot)
+  async function restoreSession() {
+    let saved
+    try { saved = JSON.parse(localStorage.getItem(sessionKey) || 'null') } catch { return }
+    if (!Array.isArray(saved?.queue) || !saved.queue[saved.index]?.variants?.length) return
+    await playList(saved.queue,saved.index)
+    if (current.value?.fingerprint === saved.queue[saved.index].fingerprint && Number.isFinite(saved.position)) seek(saved.position)
+  }
   function isCurrent(track: Track) {
     return current.value?.fingerprint === track.fingerprint
   }
@@ -728,6 +743,6 @@ export const usePlayerStore = defineStore('player', () => {
     toggle,
     seek,
     setVolume,
-    isCurrent,
+    isCurrent, restoreSession,
   }
 })

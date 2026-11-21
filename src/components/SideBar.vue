@@ -18,6 +18,7 @@ const search = useSearchStore()
 const settings = useSettingsStore()
 
 const navs = computed(() => [
+  { name:'home', path:'/', label:t('nav.home'), icon:'play', badge:0 },
   { name: 'search', path: '/search', label: t('nav.search'), icon: 'search', badge: 0 },
   { name: 'recent', path: '/recent', label: t('nav.recent'), icon: 'history', badge: 0 },
   { name: 'downloads', path: '/downloads', label: t('nav.downloads'), icon: 'download', badge: tasks.counts.active },

@@ -28,6 +28,11 @@ function readShelf(): Discovery[] {
   } catch { return [] }
 }
 const shelf = ref(readShelf())
+const picked=ref<string[]>([])
+function matchPicked(){
+  const terms=shelf.value.filter(r=>picked.value.includes(r.url)).map(r=>r.platform==='Apple Music'?r.title+' '+r.by:r.title)
+  sessionStorage.setItem('melodex.matchDraft',terms.join('\n'))
+}
 const filter = ref('')
 const filteredShelf = computed(() => shelf.value.filter(row => [row.title,row.by,row.platform].join(' ').toLowerCase().includes(filter.value.trim().toLowerCase())))
 const savedUrls = computed(() => new Set(shelf.value.map(row => row.url)))
@@ -202,8 +207,9 @@ onUnmounted(() => {
       <summary>{{ t('discovery.title') }} · {{ shelf.length }}</summary>
       <input type="search" v-model="filter" :placeholder="t('discovery.filter')" :aria-label="t('discovery.filter')" />
       <p v-if="!filteredShelf.length">{{ t('discovery.empty') }}</p>
+      <RouterLink v-if="picked.length" class="btn" to="/favorites?match=1" @click="matchPicked">批量匹配到歌单 · {{picked.length}}</RouterLink>
       <article v-for="row in filteredShelf" :key="row.url">
-        <div class="meta"><strong>{{ row.title }}</strong><p class="sub">{{ row.platform }} · {{ row.by }}</p></div>
+        <input type="checkbox" v-model="picked" :value="row.url" :aria-label="row.title"/><div class="meta"><strong>{{ row.title }}</strong><p class="sub">{{ row.platform }} · {{ row.by }}</p></div>
         <button class="btn btn-sm" @click="openExternal(row.url)">{{ t('platforms.openIn') }}</button>
         <RouterLink class="btn btn-sm" :to="{path:'/search',query:{q:row.platform === 'Apple Music' ? row.title+' '+row.by : row.title}}">{{ t('discovery.match') }}</RouterLink>
         <button class="btn btn-sm" @click="toggleSaved(row)">{{ t('discovery.remove') }}</button>

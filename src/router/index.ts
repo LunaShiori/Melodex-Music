@@ -6,7 +6,7 @@ const router = createRouter({
   routes: [
     { path: '/favorites', name: 'favorites', component: () => import('@/views/FavoritesView.vue') },
     { path: '/catalog/:kind', name: 'catalog', component: () => import('@/views/CatalogView.vue') },
-    { path: '/', redirect: '/search' },
+    { path: '/', name: 'home', component: () => import('@/views/HomeView.vue') },
     {
       path: '/search',
       name: 'search',

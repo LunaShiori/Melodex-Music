@@ -15,13 +15,15 @@ export const useTasksStore = defineStore('tasks', () => {
   const filter = ref<TaskFilter>('all')
   const notices = ref<Array<{ id: number; level: string; message: string }>>([])
   const duplicateReview = ref<Array<{ title: string; format: string; bitrate: number }>>([])
+  const batchReview = ref<{count:number;quality:string;duplicates:number}|null>(null)
   let resolveDuplicates: ((choice: 'skip' | 'all' | 'cancel') => void) | null = null
-  function decideDuplicates(choice: 'skip' | 'all' | 'cancel') { resolveDuplicates?.(choice); resolveDuplicates = null; duplicateReview.value = [] }
+  function decideDuplicates(choice: 'skip' | 'all' | 'cancel') { resolveDuplicates?.(choice); resolveDuplicates = null; duplicateReview.value = []; batchReview.value = null }
   async function enqueueReviewed(inputs: EnqueueInput[]) {
     if (resolveDuplicates) { pushNotice('info', t('downloadReview.pending')); return [] }
     const library = useLibraryStore()
     const existing = inputs.map(input => library.findEntry(input.source, input.sourceId) ?? tasks.value.find(task => task.source === input.source && task.sourceId === input.sourceId && task.state === 'completed' && task.path))
-    if (existing.some(Boolean)) {
+    if (existing.some(Boolean) || inputs.length > 1) {
+      if(inputs.length > 1) batchReview.value={count:inputs.length,quality:inputs[0]?.quality || '按平台设置',duplicates:existing.filter(Boolean).length}
       duplicateReview.value = existing.filter((e): e is NonNullable<typeof e> => !!e).map(e=>({title:e.title,format:e.format,bitrate:e.bitrate}))
       const choice = await new Promise<'skip' | 'all' | 'cancel'>(resolve => { resolveDuplicates = resolve })
       if (choice === 'cancel') return []
@@ -105,6 +107,9 @@ export const useTasksStore = defineStore('tasks', () => {
    * 批量入队。`quality` 用于歌单等批量场景：调用方在界面上选好音质后，
    * 每一首都按这一档提交；不传则沿用设置里的默认档。
    */
+  type Batch={id:string;title:string;ids:string[];requested:number}
+  function readBatches():Batch[]{try{const data=JSON.parse(localStorage.getItem('melodex.batches')||'[]');return Array.isArray(data)?data.filter(b=>Array.isArray(b?.ids)):[]}catch{return []}}
+  const batches=ref<Batch[]>(readBatches())
   async function enqueue(tracks: Track[], quality?: QualityLevel) {
     if (!tracks.length) return []
     const inputs: EnqueueInput[] = []
@@ -129,6 +134,10 @@ export const useTasksStore = defineStore('tasks', () => {
       }
     }
     const ids = await enqueueReviewed(inputs)
+    if(ids.length && tracks.length>1){
+      batches.value=[{id:crypto.randomUUID(),title:tracks.every(t=>t.album===tracks[0]?.album)&&tracks[0]?.album?tracks[0].album:tracks[0]!.title+' 等',ids:[...new Set(ids)],requested:tracks.length},...batches.value].slice(0,100)
+      try{localStorage.setItem('melodex.batches',JSON.stringify(batches.value))}catch{}
+    }
     if (ids.length) {
       pushNotice('info', t('tasks.enqueuedMany', { n: new Set(ids).size }))
     }
@@ -193,8 +202,8 @@ export const useTasksStore = defineStore('tasks', () => {
   const completed = computed(() => tasks.value.filter((task) => task.state === 'completed'))
 
   return {
-    tasks,
-    duplicateReview,
+    tasks, batches,
+    duplicateReview, batchReview,
     decideDuplicates,
     filter,
     notices,

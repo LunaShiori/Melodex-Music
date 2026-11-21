@@ -76,6 +76,7 @@ export const zh: Record<string, string> = {
   "discovery.error": "保存失败，请检查本机存储空间",
   "discovery.saved": "已存入发现夹",
   "discovery.save": "存入发现夹",
+  "nav.home": "首页",
   "mix.title": "歌单工作台",
   "mix.find": "搜索歌名、专辑或歌手",
   "mix.artists": "全部歌手",

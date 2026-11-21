@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { computed, ref, onMounted } from 'vue'
 import type { Track } from '@/lib/types'
 import { transport } from '@/lib/transport'
 import { useSettingsStore } from '@/stores/settings'
@@ -71,16 +72,54 @@ async function copyTrackList() {
     tasks.pushNotice('info', t('lists.copyManual'))
   }
 }
+const backupText = ref('')
+const backupFile = ref<HTMLInputElement|null>(null)
+type BackupList = {name:string; tracks:Track[]}
+const pendingBackup = ref<{tracks:Track[]; lists:BackupList[]}|null>(null)
+function exportBackup(){
+  const blob=new Blob([JSON.stringify({format:'melodex-library-1',tracks:favorites.tracks,lists:favorites.lists})],{type:'application/json'})
+  const url=URL.createObjectURL(blob), link=document.createElement('a')
+  link.href=url;link.download='melodex-library.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)
+}
+function validTrack(t:any): t is Track {
+  return typeof t?.fingerprint==='string' && typeof t.title==='string' && Array.isArray(t.artists) && t.artists.every((a:unknown)=>typeof a==='string') && Array.isArray(t.variants) && t.variants.length>0 && t.variants.every((v:any)=>v && ALL_SOURCES.includes(v.source) && typeof v.id==='string' && Array.isArray(v.artists) && typeof v.title==='string')
+}
+async function previewBackup(file?:File){
+  pendingBackup.value=null
+  if(!file)return
+  try{
+    if(file.size>20*1024*1024)throw Error()
+    const data=JSON.parse(await file.text())
+    if(data.format!=='melodex-library-1'||!Array.isArray(data.tracks)||!Array.isArray(data.lists))throw Error()
+    let skipped=0
+    const clean=(items:unknown[])=>items.filter((item):item is Track=>{if(validTrack(item))return true;skipped++;return false})
+    const tracks=clean(data.tracks), lists:BackupList[]=[]
+    for(const list of data.lists){if(typeof list?.name==='string' && list.name.trim() && Array.isArray(list.tracks))lists.push({name:list.name,tracks:clean(list.tracks)});else skipped++}
+    const fresh=new Set(tracks.filter(t=>!favorites.ids.has(t.fingerprint)).map(t=>t.fingerprint)).size
+    backupText.value='新增收藏 '+fresh+' · 重复 '+(tracks.length-fresh)+' · 歌单 '+lists.length+' · 无法识别 '+skipped
+    pendingBackup.value={tracks,lists}
+  }catch{backupText.value='无法读取这个备份文件'}
+  if(backupFile.value)backupFile.value.value=''
+}
+function mergeBackup(){
+  const data=pendingBackup.value;if(!data)return
+  try{for(const track of [...data.tracks].reverse())if(!favorites.ids.has(track.fingerprint))favorites.toggle(track)
+    for(const list of data.lists)favorites.saveList(list.name,list.tracks)
+    pendingBackup.value=null;backupText.value='已合并到音乐库'
+  }catch{backupText.value='存储空间不足，可重试合并'}
+}
 const editor = ref<HTMLDetailsElement | null>(null)
+const route=useRoute()
+onMounted(()=>{if(route.query.match==='1'){input.value=sessionStorage.getItem('melodex.matchDraft')||'';if(editor.value)editor.value.open=true;if(input.value)void match()}})
 const confirmed = computed(() => matches.value.flatMap(row => row.choices[row.pick] ? [row.choices[row.pick]!] : []))
 </script>
 <template><main class="favorites"><MusicHubTabs/><h1>{{ t('fav.title') }}</h1>
-<div class="list-tools"><select v-model="selected" @change="artist='';query=''" :aria-label="t('nav.playlists')"><option value="">{{ t('fav.title') }}</option><option v-for="list in favorites.lists" :key="list.name">{{ list.name }}</option></select>
+<details class="list-tools"><summary>歌单搬家与备份</summary><button class="btn" @click="exportBackup">导出收藏和全部歌单</button><label>选择备份预览<input ref="backupFile" type="file" accept=".json" @change="previewBackup(($event.target as HTMLInputElement).files?.[0])"/></label><p role="status">{{backupText}}</p><button v-if="pendingBackup" class="btn" @click="mergeBackup">确认合并</button></details><div class="list-tools"><select v-model="selected" @change="artist='';query=''" :aria-label="t('nav.playlists')"><option value="">{{ t('fav.title') }}</option><option v-for="list in favorites.lists" :key="list.name">{{ list.name }}</option></select>
 <button class="btn" v-if="visible.length" @click="copyTrackList">{{ t('lists.copy') }}</button><details ref="editor"><summary>{{ t('lists.manage') }}</summary><label>{{ t('lists.name') }} <input v-model="name" maxlength="80" /></label>
 <button class="btn" :disabled="!name.trim() || !favorites.tracks.length" @click="save(favorites.tracks)">{{ t('lists.fromFavorites') }}</button>
 <label>{{ t('lists.paste') }}<textarea v-model="input" :disabled="busy" @input="matches=[]" rows="4" /></label>
 <button class="btn" :disabled="busy || !input.trim()" @click="match">{{ t(busy ? 'common.loading' : 'lists.match') }}</button>
-<label v-for="row in matches" :key="row.query">{{ row.query }}<select v-model.number="row.pick"><option :value="-1">{{ t(row.choices.length ? 'lists.skip' : 'lists.noMatch') }}</option><option v-for="(item,i) in row.choices" :value="i" :key="item.fingerprint">{{ item.title }} · {{ item.artists.join(' / ') }} · {{ item.album }}</option></select></label>
+<label v-for="row in matches" :key="row.query">{{ row.query }}<select v-model.number="row.pick"><option :value="-1">{{ t(row.choices.length ? 'lists.skip' : 'lists.noMatch') }}</option><option v-for="(item,i) in row.choices" :value="i" :key="item.fingerprint">{{ item.title }} · {{ item.artists.join(' / ') }} · {{ item.album }}</option></select><button v-if="row.choices[row.pick]" class="btn" @click="player.playTrack(row.choices[row.pick]!)">试听所选版本</button></label>
 <button v-if="matches.length" class="btn" :disabled="busy || !confirmed.length || !name.trim()" @click="save(confirmed)">{{ t('lists.save') }} ({{ confirmed.length }})</button><p role="status">{{ message }}</p></details></div>
 <section v-if="collection.length" class="mix"><h2>{{ t('mix.title') }}</h2>
 <div><input type="search" v-model="query" :placeholder="t('mix.find')" :aria-label="t('mix.find')"/>

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount } from 'vue'
 
 import { useLibraryStore } from '@/stores/library'
+import { usePlayerStore } from '@/stores/player'
 import { useFavorites } from '@/stores/favorites'
 import { useTasksStore } from '@/stores/tasks'
 import Icon from './Icon.vue'
@@ -32,6 +33,7 @@ const emit = defineEmits<{
   (e: 'toggle', track: Track): void
 }>()
 
+const player = usePlayerStore()
 const favorites = useFavorites()
 const tasks = useTasksStore()
 function toggleFavorite() {
@@ -211,9 +213,12 @@ function onPlay() {
       <Icon name="download" :size="17" />
     </button>
   </article>
+  <details v-if="track.variants.length > 1 && !selectMode" class="compare"><summary>版本对比 · {{track.variants.length}}</summary><div v-for="v in track.variants" :key="v.source+v.id"><b>{{sourceShort(v.source)}}</b> {{v.title}} <small v-if="v.origin">{{v.origin === 'cover' ? '翻唱' : '原唱'}}</small> · {{v.album}} · {{formatDuration(v.durationMs)}} · {{v.format}} {{v.bitrate ? formatBitrate(v.bitrate) : ''}} <button class="btn" @click="player.playTrack(track,v)">试听</button></div></details>
 </template>
 
 <style scoped>
+.compare{margin:0 12px 4px;padding-left:12px;color:var(--text-2);font-size:12px}.compare summary{cursor:pointer}.compare div{padding:6px 0;border-bottom:1px solid var(--line)}
+
 .favorite { flex:none; font-size:17px; color:var(--text-2); padding:0 4px; } .favorite[aria-pressed=true]{ color:var(--accent); }
 .row {
   display: grid;
