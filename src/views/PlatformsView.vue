@@ -222,6 +222,7 @@ onUnmounted(() => {
     </form>
     <p class="muted beta-note">{{ t('platforms.betaNote') }}</p>
     <!-- Apple Music：能搜、能试听 30 秒、不能放全曲 -->
+    <div class="platform-pair">
     <section class="card">
       <div class="card-head">
         <div>
@@ -340,6 +341,7 @@ onUnmounted(() => {
       <button v-if="biliMore" class="btn btn-sm" :disabled="biliLoading" @click="submitBili(true)">{{ t(biliLoading ? 'common.loading' : 'platforms.moreResults') }}</button>
     </section>
 
+    </div>
     <!-- 其余平台：只说明边界，不给假按钮 -->
     <section class="card">
       <div class="card-head">

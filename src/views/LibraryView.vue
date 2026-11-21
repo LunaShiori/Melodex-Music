@@ -172,8 +172,8 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
 </script>
 
 <template>
-  <div class="view">
-    <MusicHubTabs />
+  <div class="view library-room">
+
     <header class="head">
       <div>
         <h1>{{ t('library.title') }}</h1>
@@ -186,6 +186,7 @@ const sortOptions: Array<{ value: SortKey; label: string }> = [
         <input v-model="keyword" type="search" :placeholder="t('library.searchPlaceholder')" />
       </div>
     </header>
+    <MusicHubTabs />
 
     <div class="toolbar">
       <div class="segmented">

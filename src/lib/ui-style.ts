@@ -71,7 +71,7 @@ export function readUiStyle(): UiStyleId {
   } catch {
     /* 老 WebView 没有 matchMedia */
   }
-  return 'classic'
+  return 'glass'
 }
 
 export function writeUiStyle(id: UiStyleId): void {

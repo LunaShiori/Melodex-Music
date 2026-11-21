@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import WindowBar from '@/components/WindowBar.vue'
+import VersionSheet from '@/components/VersionSheet.vue'
 import { onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 
@@ -34,7 +36,8 @@ const player = usePlayerStore()
 function syncKeyboard(): void {
   const viewport = window.visualViewport
   if (!viewport) return
-  const covered = window.innerHeight - viewport.height
+  const covered = window.innerHeight - viewport.height - viewport.offsetTop
+  document.documentElement.style.setProperty('--visible-height', viewport.height + 'px')
   document.documentElement.dataset.kb = covered > 140 ? '1' : '0'
 }
 
@@ -51,6 +54,7 @@ onMounted(async () => {
     if (paths.length) player.playLocalFile(paths[0])
   })
 
+  syncKeyboard()
   window.visualViewport?.addEventListener('resize', syncKeyboard)
   window.visualViewport?.addEventListener('scroll', syncKeyboard)
 
@@ -66,14 +70,16 @@ onUnmounted(() => {
 
 <template>
   <div class="shell">
+    <WindowBar />
+    <UpdateNotice />
+    <VersionSheet />
     <div class="workspace">
       <SideBar />
       <main class="content">
-        <UpdateNotice />
         <ToastStack />
         <RouterView v-slot="{ Component }">
-          <Transition name="fade" mode="out-in">
-            <component :is="Component" />
+          <Transition name="page-shift" mode="out-in">
+            <component :is="Component" :key="$route.path" />
           </Transition>
         </RouterView>
       </main>

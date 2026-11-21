@@ -180,8 +180,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
   <div class="view">
-    <label class="beta-switch"><input v-model="betaEnabled" type="checkbox" /> {{ t('platforms.includeBeta') }}</label>
-    <header class="head">
+    <section class="search-desk"><header class="head">
       <div class="head-text">
         <h1>{{ t('search.title') }}</h1>
         <p class="muted">{{ t('search.subtitle') }}</p>
@@ -191,7 +190,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </div>
     </header>
 
-    <div class="searchbar" :class="{ filled: !!search.keyword }">
+    <form class="searchbar" role="search" :class="{ filled: !!search.keyword }" @submit.prevent="submit">
       <Icon name="search" :size="18" />
       <input
         ref="inputEl"
@@ -200,7 +199,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         :placeholder="t('search.placeholder')"
         autocomplete="off"
         spellcheck="false"
-        @keydown.enter="submit"
+        enterkeyhint="search"
+        :aria-label="t('search.placeholder')"
         @focus="openHistory"
         @blur="closeHistory"
       />
@@ -223,16 +223,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           </button>
         </div>
       </Transition>
-      <button v-if="search.keyword" class="clear" type="button" @click="search.reset()">
+      <button v-if="search.keyword" class="clear" type="button" :aria-label="t('common.clear')" @click="search.reset(); inputEl?.focus()">
         <Icon name="close" :size="15" />
       </button>
-      <kbd class="hint mono">Ctrl K</kbd>
-      <button class="submit" type="button" :disabled="!search.keyword.trim() || search.loading" @click="submit">
+      <kbd v-if="!search.keyword" class="hint mono">Ctrl K</kbd>
+      <button class="submit" type="submit" :disabled="!search.keyword.trim() || search.loading">
         {{ search.loading ? t('common.searching') : t('common.search') }}
       </button>
-    </div>
+    </form>
 
+    </section>
     <div class="filters">
+
       <div class="chips">
         <button
           v-for="source in ALL_SOURCES"
@@ -244,6 +246,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         >
           <i class="dot" :style="{ background: SOURCE_META[source].color }" />
           {{ sourceName(source) }}
+        </button>
+        <button type="button" class="chip chip-btn beta-source" :class="{ 'is-on': betaEnabled }"
+          :aria-pressed="betaEnabled" :aria-label="t('platforms.includeBeta')" :title="t('platforms.includeBeta')"
+          @click="betaEnabled = !betaEnabled">
+          <Icon v-if="betaEnabled" name="check" :size="13" />Apple Music / {{ t('platforms.biliShort') }} <span class="beta-tag">BETA</span>
         </button>
       </div>
 
@@ -321,10 +328,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </div>
     </section>
 
-    <section v-else-if="search.tracks.length" class="list">
+    <section v-else-if="search.tracks.length" class="list results-surface">
       <p v-if="!list.length">{{ t('ver.empty') }}</p>
       <div class="list-head">
-        <span>#</span>
+        <span aria-hidden="true" />
         <span />
         <span>{{ t('search.colSong') }}</span>
         <span>{{ t('search.colSources') }}</span>
@@ -431,7 +438,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </template>
 
 <style scoped>
-.version-tabs{flex:0 1 auto;max-width:100%;overflow-x:auto}.version-tabs button{white-space:nowrap}.toolbar{flex-wrap:wrap} @media(min-width:1024px){.list-head{position:sticky;top:0;z-index:2;background:var(--surface)} .view{max-width:1400px;margin-inline:auto}}
+.version-tabs{flex:0 1 auto;max-width:100%;overflow-x:auto}.version-tabs button{white-space:nowrap}.toolbar{flex-wrap:wrap} @media(min-width:1024px){.list-head{position:sticky;top:0;z-index:2} .view{max-width:1400px;margin-inline:auto}}
 .beta-switch { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 12px; color: var(--text-2); }
 .view {
   padding: var(--view-pad);
@@ -682,12 +689,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   grid-template-columns: var(--song-columns);
   gap: 12px;
   align-items: center;
-  padding: 0 12px 8px;
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 4px;
+  padding: 10px 12px 8px;
+  font: 550 12px/1.4 var(--font-sans);
+  color: var(--text-2);
+  background: var(--bg);
+  border-radius: 16px 16px 0 0;
 }
 .list-head > :first-child { text-align: center; }
 .list-head .ta-r {
@@ -985,4 +991,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     margin-left: auto;
   }
 }
+.search-desk{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin-bottom:12px}
+.search-desk .head,.search-desk .searchbar{margin:0}
+.search-desk .head h1{color:var(--text);font:650 clamp(25px,3.4vw,44px)/1.16 var(--font-sans);letter-spacing:-.035em}
+.beta-source small{font-size:9px;line-height:1.3;letter-spacing:.035em;border:1px solid currentColor;border-radius:4px;padding:0 3px}
+.beta-source{white-space:nowrap}
 </style>

@@ -1,0 +1,19 @@
+{
+  "identifier": "windows-titlebar",
+  "description": "Main window title bar controls on Windows",
+  "platforms": [
+    "windows"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:window:allow-set-decorations",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-is-maximized"
+  ]
+}

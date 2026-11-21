@@ -153,7 +153,7 @@ function openDetail() {
           <Icon name="prev" :size="18" />
         </button>
         <button
-          class="play"
+          class="play" :aria-label="t(player.playing ? 'player.pause' : 'player.play')"
           :class="{ busy: player.loading }"
           :disabled="!player.current"
           @click="player.toggle()"
@@ -233,10 +233,10 @@ function openDetail() {
 
     <!-- 手机端的常驻控制：与控制台三键同一套逻辑，只是位置不同 -->
     <div class="mobile-controls">
-      <button class="m-btn" :disabled="!player.current" @click="player.prev()">
+      <button class="m-btn" :aria-label="t('player.prev')" :disabled="!player.current" @click="player.prev()">
         <Icon name="prev" :size="20" />
       </button>
-      <button class="m-play" :disabled="!player.current" @click="player.toggle()">
+      <button class="m-play" :aria-label="t(player.playing ? 'player.pause' : 'player.play')" :disabled="!player.current" @click="player.toggle()">
         <span v-if="player.loading" class="spinner dark" />
         <Icon
           v-else
@@ -245,7 +245,7 @@ function openDetail() {
           :filled="!player.playing"
         />
       </button>
-      <button class="m-btn" :disabled="!player.current" @click="player.next()">
+      <button class="m-btn" :aria-label="t('player.next')" :disabled="!player.current" @click="player.next()">
         <Icon name="next" :size="20" />
       </button>
       <button

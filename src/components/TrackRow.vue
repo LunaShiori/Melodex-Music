@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount } from 'vue'
 
 import { useLibraryStore } from '@/stores/library'
+import { comparisonTrack } from '@/lib/version-sheet'
 import { usePlayerStore } from '@/stores/player'
 import { useFavorites } from '@/stores/favorites'
 import { useTasksStore } from '@/stores/tasks'
@@ -159,6 +160,7 @@ function onPlay() {
           class="origin-tag"
           :class="originKind === 'original' ? 'tag-orig' : 'tag-cover'"
         >{{ t(originKey) }}</span>
+        <button v-if="track.variants.length>1 && !selectMode" class="mobile-versions" :aria-label="t('versions.compare')" @click.stop="comparisonTrack=track">{{t('versions.count',{n:track.variants.length})}}</button>
         <span class="title-text">{{ track.title }}</span><span v-if="recorded" class="origin-tag">{{ t('downloadReview.recorded') }}</span>
       </p>
       <p class="sub">
@@ -557,4 +559,5 @@ function onPlay() {
     color: var(--accent);
   }
 }
+.mobile-versions{display:none}@media(max-width:860px){.compare{display:none}.mobile-versions{display:inline-flex;align-items:center;order:2;flex:none;border-radius:999px;padding:3px 8px;border:1px solid var(--rim,var(--line));background:var(--accent-wash);color:var(--text-2);font-size:11px}}
 </style>

@@ -45,8 +45,8 @@ function clearAll() {
 </script>
 
 <template>
-  <div class="view">
-    <MusicHubTabs />
+  <div class="view recent-room">
+
     <header class="head">
       <div>
         <h1>{{ t('recent.title') }}</h1>
@@ -60,24 +60,9 @@ function clearAll() {
         {{ t('recent.clearAll') }}
       </button>
     </header>
+    <MusicHubTabs />
 
-    <section v-if="keywords.length" class="block">
-      <div class="block-head">
-        <p class="title">{{ t('recent.keywords') }}</p>
-        <button class="link-btn" type="button" @click="clearKeywords()">{{ t('common.clear') }}</button>
-      </div>
-      <div class="chips">
-        <button
-          v-for="word in keywords"
-          :key="word"
-          class="chip"
-          type="button"
-          @click="useKeyword(word)"
-        >
-          {{ word }}
-        </button>
-      </div>
-    </section>
+
 
     <section v-if="tracks.length" class="block">
       <div class="block-head">
@@ -106,6 +91,23 @@ function clearAll() {
         {{ t('recent.goSearch') }}
       </button>
     </div>
+    <section v-if="keywords.length" class="block">
+      <div class="block-head">
+        <p class="title">{{ t('recent.keywords') }}</p>
+        <button class="link-btn" type="button" @click="clearKeywords()">{{ t('common.clear') }}</button>
+      </div>
+      <div class="chips">
+        <button
+          v-for="word in keywords"
+          :key="word"
+          class="chip"
+          type="button"
+          @click="useKeyword(word)"
+        >
+          {{ word }}
+        </button>
+      </div>
+    </section>
   </div>
 </template>
 

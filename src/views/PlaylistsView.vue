@@ -360,8 +360,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="view">
-    <MusicHubTabs />
+  <div class="view playlist-room">
+
     <header class="head">
       <div>
         <h1>{{ opened ? opened.name : t('playlists.mine') }}</h1>
@@ -464,6 +464,7 @@ onMounted(async () => {
         </template>
       </div>
     </header>
+    <MusicHubTabs />
 
     <p v-if="error" class="alert">
       <Icon name="alert" :size="14" />

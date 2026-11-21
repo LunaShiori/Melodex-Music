@@ -34,7 +34,7 @@ const activeSources = computed(() => settings.settings?.sources ?? ALL_SOURCES)
 <template>
   <aside class="sidebar">
     <header class="brand">
-      <span class="mark"><BrandMark :size="22" /></span>
+      <span class="mark"><BrandMark :size="30" /></span>
       <span class="brand-text">
         <strong>Melodex<i class="music-tag">MUSIC</i></strong>
         <small>多源音乐聚合 · 播放与歌词</small>

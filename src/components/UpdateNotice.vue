@@ -137,10 +137,10 @@ async function openUrl(url: string) {
   <Teleport to="body">
     <Transition name="fade">
       <div v-if="open && info" class="mask" @click.self="!update.busy && (open = false)">
-        <div class="dialog" role="dialog" aria-modal="true">
+        <div class="dialog release-sheet" role="dialog" aria-modal="true" aria-labelledby="release-heading">
           <header class="d-head">
             <div>
-              <h3>Melodex Music {{ info.latest }}</h3>
+              <h3 id="release-heading">Melodex Music {{ info.latest }}</h3>
               <p class="muted">
                 {{ t('update.currentVersion', { version: info.current }) }}
                 <span v-if="info.publishedAt">{{ t('update.publishedAt', { date: info.publishedAt.slice(0, 10) }) }}</span>

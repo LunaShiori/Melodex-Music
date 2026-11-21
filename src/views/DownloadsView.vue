@@ -95,7 +95,7 @@ function goLogin() {
       </div>
     </header><label v-if="tasks.batches.length">下载批次 <select v-model="selectedBatch"><option value="">全部任务</option><option v-for="b in tasks.batches" :key="b.id" :value="b.id">{{b.title}} · {{b.ids.length}} / {{b.requested}}</option></select></label>
 
-    <div class="toolbar">
+    <div class="download-desk"><aside class="toolbar">
       <div class="tabs">
         <button
           v-for="tab in tabs"
@@ -114,7 +114,7 @@ function goLogin() {
         <Icon name="trash" :size="14" />
         {{ t('downloads.clearDone') }}
       </button>
-    </div>
+    </aside><div class="download-content">
 
     <section v-if="tasks.visible.length" class="list">
       <article v-for="task in scopedTasks" :key="task.id" class="task" :class="task.state">
@@ -236,7 +236,7 @@ function goLogin() {
       <p class="muted">{{ t('downloads.emptyDesc') }}</p>
       <RouterLink to="/search" class="btn btn-primary" style="margin-top: 16px">{{ t('downloads.goSearch') }}</RouterLink>
     </section>
-  </div>
+  </div></div></div>
 </template>
 
 <style scoped>
@@ -517,4 +517,5 @@ function goLogin() {
     padding-right: 64px;
   }
 }
+.download-content{min-width:0}.download-desk{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}.head h1{font-family:Georgia,serif}@media(min-width:1080px){.download-desk{grid-template-columns:178px minmax(0,1fr);align-items:start}.download-desk .toolbar,.download-desk .tabs{display:flex;flex-direction:column;align-items:stretch}.download-desk .toolbar{position:sticky;top:16px;margin:0;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px}.download-desk .tab{display:flex;justify-content:space-between}}
 </style>

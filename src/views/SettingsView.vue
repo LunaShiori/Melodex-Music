@@ -237,6 +237,7 @@ onMounted(async () => {
   defaultDir.value = await transport.defaultDownloadDir()
   qualities.value = await transport.platformQualities().catch(() => [])
 })
+function jumpPref(index:number){document.getElementById('pref-'+index)?.scrollIntoView({block:'start'})}
 </script>
 
 <template>
@@ -251,7 +252,7 @@ onMounted(async () => {
     </header>
 
     <template v-if="settings">
-      <AccountPanel />
+      <nav class="pref-index" :aria-label="t('settings.a1')"><button @click="jumpPref(0)">{{t('settings.language.title')}}</button><button @click="jumpPref(1)">{{t('settings.a4')}}</button><button @click="jumpPref(2)">{{t('settings.a9')}}</button><button @click="jumpPref(3)">{{t('settings.a20')}}</button><button @click="jumpPref(4)">{{t('settings.a30')}}</button><button @click="jumpPref(5)">{{t('settings.a41')}}</button><button @click="jumpPref(6)">{{t('settings.a48')}}</button><button @click="jumpPref(7)">{{t('settings.a61')}}</button><button @click="jumpPref(8)">{{t('settings.a62')}}</button></nav><AccountPanel />
 
       <!-- 手机上没有侧边栏，这里给个入口进「更多平台」 -->
       <RouterLink class="card link-card" to="/platforms">
@@ -262,7 +263,7 @@ onMounted(async () => {
         <Icon name="external" :size="16" />
       </RouterLink>
 
-      <section class="card">
+      <section id="pref-0" class="card">
         <h2>{{ t('settings.language.title') }}</h2>
 
         <div class="row">
@@ -290,7 +291,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="card">
+      <section id="pref-1" class="card">
         <h2>{{ t('settings.a4') }}</h2>
 
         <div class="row">
@@ -367,7 +368,7 @@ onMounted(async () => {
         <p v-if="proxyHint" class="proxy-hint">{{ proxyHint }}</p>
       </section>
 
-      <section class="card">
+      <section id="pref-2" class="card">
         <h2>{{ t('settings.a9') }}</h2>
 
         <div class="row">
@@ -463,7 +464,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="card">
+      <section id="pref-3" class="card">
         <h2>{{ t('settings.a20') }}</h2>
 
         <div class="row">
@@ -557,7 +558,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="card">
+      <section id="pref-4" class="card">
         <h2>{{ t('settings.a30') }}</h2>
 
         <div class="row">
@@ -642,7 +643,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="card">
+      <section id="pref-5" class="card">
         <h2>{{ t('settings.a41') }}</h2>
         <div class="row">
           <div class="label">
@@ -714,7 +715,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="card">
+      <section id="pref-6" class="card">
         <h2>{{ t('settings.a48') }}</h2>
 
         <div class="row">
@@ -833,7 +834,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="card">
+      <section id="pref-7" class="card">
         <h2>{{ t('settings.a61') }}</h2>
         <div v-for="source in ALL_SOURCES" :key="source" class="row">
           <div class="label">
@@ -851,7 +852,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="card">
+      <section id="pref-8" class="card">
         <h2>{{ t('settings.a62') }}</h2>
         <div class="row">
           <div class="label">
