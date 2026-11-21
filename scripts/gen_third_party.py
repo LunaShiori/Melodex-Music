@@ -42,6 +42,7 @@ RUST_LICENSES = {
 }
 
 NODE_LICENSES = {
+    "@fontsource-variable/noto-sans-sc": ("OFL-1.1", "https://fontsource.org/fonts/noto-sans-sc"),
     "vue": ("MIT", "https://vuejs.org"),
     "pinia": ("MIT", "https://pinia.vuejs.org"),
     "vue-router": ("MIT", "https://router.vuejs.org"),
@@ -156,7 +157,7 @@ def render() -> str:
     add("the whole product.")
     add("")
     add("Melodex itself is licensed under Apache-2.0; see LICENSE and NOTICE.")
-    return "\n".join(lines) + "\n"
+    return "\n".join(line.rstrip() for line in lines) + "\n"
 
 
 def main() -> int:

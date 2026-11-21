@@ -25,11 +25,18 @@ md-5                    0.10.6      MIT OR Apache-2.0       https://github.com/R
 serde                   1           MIT OR Apache-2.0       https://serde.rs
 serde_json              1           MIT OR Apache-2.0       https://serde.rs
 thiserror               1           MIT OR Apache-2.0       https://github.com/dtolnay/thiserror
+aes-gcm                 0.10        see crates.io
+argon2                  0.5         see crates.io
+getrandom               0.2         see crates.io
+qrcode                  0.14        see crates.io
 tokio                   1           MIT                     https://tokio.rs
 reqwest                 0.12        MIT OR Apache-2.0       https://github.com/seanmonstar/reqwest
 async-trait             0.1         MIT OR Apache-2.0       https://github.com/dtolnay/async-trait
 futures-util            0.3         MIT OR Apache-2.0       https://github.com/rust-lang/futures-rs
 percent-encoding        2           MIT OR Apache-2.0       https://github.com/servo/rust-url
+tokio-tungstenite       0.24        see crates.io
+umc_qmc                 ../vendor/umc_qmcsee crates.io
+base64                  0.22        see crates.io
 
 -- melodex (Tauri shell) (src-tauri/Cargo.toml)
 
@@ -37,10 +44,12 @@ component               version     license                 homepage
 ------------------------------------------------------------------------------
 tauri-build             2           MIT OR Apache-2.0       https://tauri.app
 tauri                   2           MIT OR Apache-2.0       https://tauri.app
+tauri-plugin-opener     2           see crates.io
+tauri-plugin-dialog     2           see crates.io
 serde                   1           MIT OR Apache-2.0       https://serde.rs
 serde_json              1           MIT OR Apache-2.0       https://serde.rs
 tokio                   1           MIT                     https://tokio.rs
-melodex-core            ../crates/melodex-coresee crates.io           
+melodex-core            ../crates/melodex-coresee crates.io
 
 ==============================================================================
 NPM PACKAGES
@@ -48,6 +57,7 @@ NPM PACKAGES
 
 component                 version         scope     license             homepage
 ------------------------------------------------------------------------------
+@fontsource-variable/noto-sans-sc^5.3.1          runtime   OFL-1.1             https://fontsource.org/fonts/noto-sans-sc
 pinia                     ^2.2.6          runtime   MIT                 https://pinia.vuejs.org
 vue                       ^3.5.13         runtime   MIT                 https://vuejs.org
 vue-router                ^4.4.5          runtime   MIT                 https://router.vuejs.org
