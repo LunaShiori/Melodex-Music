@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import WindowBar from '@/components/WindowBar.vue'
 import VersionSheet from '@/components/VersionSheet.vue'
-import { onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterView } from 'vue-router'
 
 import DuplicateReview from '@/components/DuplicateReview.vue'
@@ -41,6 +41,18 @@ function syncKeyboard(): void {
   document.documentElement.dataset.kb = covered > 140 ? '1' : '0'
 }
 
+const dock = ref<HTMLElement | null>(null)
+const dockHeight = ref(0)
+let dockObserver: ResizeObserver | undefined
+onMounted(() => {
+  if (!dock.value) return
+  dockObserver = new ResizeObserver(() => {
+    dockHeight.value = dock.value?.offsetHeight ?? 0
+  })
+  dockObserver.observe(dock.value)
+})
+onUnmounted(() => dockObserver?.disconnect())
+
 onMounted(async () => {
   loadHistory()
   await Promise.all([settings.load(), tasks.init()])
@@ -69,7 +81,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="shell">
+  <div class="shell" :style="{ '--dock-height': dockHeight + 'px' }">
     <WindowBar />
     <UpdateNotice />
     <VersionSheet />
@@ -84,10 +96,12 @@ onUnmounted(() => {
         </RouterView>
       </main>
     </div>
-    <Transition name="mini-player"><PlayerBar v-if="player.current" /></Transition>
+    <div ref="dock" class="playback-dock">
+      <Transition name="mini-player"><PlayerBar v-if="player.current" /></Transition>
+      <TabBar />
+    </div>
     <QueuePanel />
     <TrackMenu />
-    <TabBar />
     <LyricView />
     <OnboardingDialog />
     <DuplicateReview />
@@ -121,6 +135,22 @@ onUnmounted(() => {
 @media (max-width: 860px) {
   .content {
     padding-bottom: 8px;
+  }
+}
+.playback-dock { display: contents }
+@media (max-width:860px) {
+  .shell .playback-dock {
+    position:absolute;
+    inset:auto 0 0;
+    z-index:30;
+    display:flex;
+    flex-direction:column;
+    pointer-events:none;
+  }
+  .playback-dock :deep(.glass), .playback-dock :deep(.player) { pointer-events:auto }
+  .shell .workspace .content {
+    padding-bottom:calc(var(--dock-height) + 8px);
+    scroll-padding-bottom:calc(var(--dock-height) + 8px);
   }
 }
 </style>

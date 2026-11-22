@@ -24,6 +24,10 @@ const MODE_KEY: Record<string, string> = {
   'repeat-one': 'player.mode.repeatOne',
   shuffle: 'player.mode.shuffle',
 }
+function chooseMode(event:Event){
+  const mode=(event.target as HTMLSelectElement).value
+  if(mode==='order'||mode==='repeat-one'||mode==='shuffle') player.setMode(mode)
+}
 const modeTitle = computed(() =>
   t('player.modeHint', { mode: t(MODE_KEY[player.mode] ?? 'player.mode.order') }),
 )
@@ -169,14 +173,11 @@ function openDetail() {
         <button class="icon-btn" :title="t('player.next')" :disabled="!player.current" @click="player.next()">
           <Icon name="next" :size="18" />
         </button>
-        <button
-          class="icon-btn mode-btn"
-          :class="{ 'is-active': player.mode !== 'order' }"
-          :title="modeTitle"
-          @click="player.cycleMode()"
-        >
-          <Icon :name="player.mode === 'repeat-one' ? 'repeat' : player.mode === 'shuffle' ? 'shuffle' : 'order'" :size="17" />
-        </button>
+        <select class="mode-select" :aria-label="modeTitle" :value="player.mode" @change="chooseMode">
+          <option value="order">{{t('player.mode.order')}}</option>
+          <option value="repeat-one">{{t('player.mode.repeatOne')}}</option>
+          <option value="shuffle">{{t('player.mode.shuffle')}}</option>
+        </select>
       </div>
       <div class="timeline">
         <span class="t mono">{{ formatDuration(player.position) }}</span>

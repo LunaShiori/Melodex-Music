@@ -723,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "melodex-core"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "aes-gcm",
  "argon2",

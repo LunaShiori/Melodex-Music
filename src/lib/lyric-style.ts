@@ -35,7 +35,7 @@ export const LYRIC_MODES: LyricModeDef[] = [
   },
 ]
 
-export type LyricThemeId = 'aurora' | 'glass' | 'vinyl' | 'ink'
+export type LyricThemeId = 'aurora' | 'glass' | 'vinyl' | 'ink' | 'midnight' | 'linen'
 
 export interface LyricThemeDef {
   id: LyricThemeId
@@ -48,6 +48,8 @@ export interface LyricThemeDef {
 }
 
 export const LYRIC_THEMES: LyricThemeDef[] = [
+  {id:'midnight',label:'lyric.theme.midnight.label',desc:'lyric.theme.midnight.desc',preview:['#122838','#86e4d4']},
+  {id:'linen',label:'lyric.theme.linen.label',desc:'lyric.theme.linen.desc',preview:['#f2e8d8','#815632']},
   {
     id: 'aurora',
     label: 'lyric.theme.aurora.label',

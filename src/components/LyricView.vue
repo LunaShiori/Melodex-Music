@@ -29,6 +29,16 @@ const rows = ref<HTMLElement[]>([])
 const scrubbing = ref(false)
 const preview = ref<number | null>(null)
 const panelOpen = ref(false)
+const idle = ref(false)
+let hideTimer: ReturnType<typeof setTimeout> | undefined
+function wakeControls(){
+  idle.value=false
+  clearTimeout(hideTimer)
+  if(player.detailOpen && player.playing && !panelOpen.value && !scrubbing.value && matchMedia('(hover:hover) and (pointer:fine)').matches)
+    hideTimer=setTimeout(()=>{idle.value=true},3200)
+}
+watch(()=>[player.detailOpen,player.playing,panelOpen.value,scrubbing.value],wakeControls)
+onUnmounted(()=>clearTimeout(hideTimer))
 
 const track = computed(() => player.current)
 const cover = computed(() => (track.value ? coverOf(track.value.cover, track.value.fingerprint) : ''))
@@ -112,7 +122,7 @@ function startScrub(event: PointerEvent) {
   <Transition name="lv-sheet">
     <section
       v-if="player.detailOpen"
-      class="lv"
+      class="lv" :class="{ idle }" @pointermove="wakeControls" @pointerdown="wakeControls" @focusin="wakeControls" @keydown="wakeControls"
       :data-theme="lyric.theme"
       :data-mode="lyric.mode"
       :style="{ '--lv-size': `${lyric.fontSize}px` }"
