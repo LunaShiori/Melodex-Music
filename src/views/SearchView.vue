@@ -59,6 +59,7 @@ function closeHistory() {
 }
 
 function submit() {
+  closeHistory()
   const word = search.keyword.trim()
   if (word) pushKeywordSafe(word)
   void search.run(1, false)
@@ -240,17 +241,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           v-for="source in ALL_SOURCES"
           :key="source"
           class="chip chip-btn"
-          :class="{ 'is-on': search.sources.includes(source) }"
+          :class="{ 'is-on': search.sources.includes(source) }" :aria-pressed="search.sources.includes(source)"
           type="button"
           @click="search.toggleSource(source)"
         >
-          <i class="dot" :style="{ background: SOURCE_META[source].color }" />
-          {{ sourceName(source) }}
+          <span class="dot" :style="{ background: SOURCE_META[source].color }" aria-hidden="true"></span> {{ sourceName(source) }} <span v-if="!search.sources.includes(source)" class="source-mark" aria-hidden="true"></span>
         </button>
         <button type="button" class="chip chip-btn beta-source" :class="{ 'is-on': betaEnabled }"
           :aria-pressed="betaEnabled" :aria-label="t('platforms.includeBeta')" :title="t('platforms.includeBeta')"
           @click="betaEnabled = !betaEnabled">
-          <Icon v-if="betaEnabled" name="check" :size="13" />Apple Music / {{ t('platforms.biliShort') }} <span class="beta-tag">BETA</span>
+          <span class="source-mark" aria-hidden="true"></span>Apple Music / {{ t('platforms.biliShort') }} <span class="beta-tag">BETA</span>
         </button>
       </div>
 
