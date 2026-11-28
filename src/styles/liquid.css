@@ -205,3 +205,9 @@
  .shell .filters .reports{flex-basis:100%;flex-wrap:wrap}
  .shell .filters .pick-btn{margin-left:0}
 }
+[data-style=glass] .shell .view:has(> .search-desk) { display:block;height:auto;min-height:0 }
+[data-style=glass] .shell .search-desk { position:static;height:auto;min-height:max-content;grid-auto-rows:max-content }
+[data-style=glass] .shell .search-desk .searchbar { position:static }
+.shell .search-desk .chip-btn.is-on { background:#344fa2;color:white;border-color:#344fa2 }
+.shell .search-desk .chip-btn.is-on::after { content:'✓';font-weight:700 }
+.shell button.switch[role=switch][aria-checked=true] { background:#344fa2;border:2px solid #344fa2 } .shell button.switch[role=switch][aria-checked=false] { background:var(--surface);border:2px solid var(--text-2) }

@@ -255,7 +255,7 @@ const DEFAULT_SETTINGS: Settings = {
   duplicatePolicy: 'keepBoth',
   theme: 'system',
   accent: 'violet',
-  sources: [...ALL_SOURCES],
+  sources: ['netease', 'qq'],
 }
 
 export function createDemoTransport(): Transport {

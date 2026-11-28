@@ -2,7 +2,7 @@
 import WindowBar from '@/components/WindowBar.vue'
 import VersionSheet from '@/components/VersionSheet.vue'
 import { ref, onMounted, onUnmounted } from 'vue'
-import { RouterView } from 'vue-router'
+import { RouterView, useRouter } from 'vue-router'
 
 import DuplicateReview from '@/components/DuplicateReview.vue'
 import PlayerBar from '@/components/PlayerBar.vue'
@@ -78,6 +78,16 @@ onUnmounted(() => {
   window.visualViewport?.removeEventListener('resize', syncKeyboard)
   window.visualViewport?.removeEventListener('scroll', syncKeyboard)
 })
+const scrollHost = ref<HTMLElement>()
+const router = useRouter()
+const offsets = new Map<string, number>()
+const unregister = router.beforeEach((_to, from) => {
+  offsets.set(from.fullPath, scrollHost.value?.scrollTop ?? 0)
+})
+onUnmounted(unregister)
+function restorePosition() {
+  if (scrollHost.value) scrollHost.value.scrollTop = offsets.get(router.currentRoute.value.fullPath) ?? 0
+}
 </script>
 
 <template>
@@ -87,11 +97,11 @@ onUnmounted(() => {
     <VersionSheet />
     <div class="workspace">
       <SideBar />
-      <main class="content">
+      <main ref="scrollHost" class="content">
         <ToastStack />
         <RouterView v-slot="{ Component }">
-          <Transition name="page-shift" mode="out-in">
-            <component :is="Component" :key="$route.path" />
+          <Transition name="page-shift" mode="out-in" @enter="restorePosition">
+            <KeepAlive :include="['CatalogView', 'SearchView']" :max="12"><component :is="Component" :key="$route.fullPath" /></KeepAlive>
           </Transition>
         </RouterView>
       </main>

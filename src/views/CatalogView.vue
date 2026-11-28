@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { transport } from '@/lib/transport'
 import { useI18n } from '@/lib/i18n'
@@ -13,6 +13,7 @@ import { useSettingsStore } from '@/stores/settings'
 interface Catalog { id: string; name: string; description: string; cover: string; tracks: Variant[]; complete: boolean }
 interface Album { id: string; name: string; cover: string }
 const route = useRoute(), { t } = useI18n(), player = usePlayerStore(), tasks = useTasksStore(), settings = useSettingsStore()
+const catalogRoute = { params: route.params, query: route.query }
 const data = ref<Catalog | null>(null)
 const error = ref(''), loading = ref(false), busy = ref(false), queued = ref(false)
 const albumError = ref(''), albums = ref<Album[]>([]), albumsBusy = ref(false), more = ref(false)
@@ -50,14 +51,14 @@ async function load() {
   data.value = null; error.value = ''; loading.value = true; selected.value = new Set(); queued.value = false
   albums.value = []; albumError.value = ''; albumsBusy.value = false; more.value = false; offset = 0
   try {
-    const result = await transport.catalogDetail({ songId: String(route.query.songId ?? ''), kind: String(route.params.kind), catalogId: typeof route.query.id === 'string' ? route.query.id : null, artist: typeof route.query.artist === 'string' ? route.query.artist : null })
+    const result = await transport.catalogDetail({ songId: String(catalogRoute.query.songId ?? ''), kind: String(catalogRoute.params.kind), catalogId: typeof catalogRoute.query.id === 'string' ? catalogRoute.query.id : null, artist: typeof catalogRoute.query.artist === 'string' ? catalogRoute.query.artist : null })
     if (current !== generation) return
     data.value = result
-    if (route.params.kind === 'artist') void loadAlbums(current)
+    if (catalogRoute.params.kind === 'artist') void loadAlbums(current)
   } catch (e) { if (current === generation) error.value = String(e) }
   finally { if (current === generation) loading.value = false }
 }
-watch(() => route.fullPath, load, { immediate: true })
+onMounted(load)
 onBeforeUnmount(() => { generation++ })
 function toggle(track: Track) {
   const next = new Set(selected.value)
@@ -78,11 +79,11 @@ async function download(items: Track[], whole = false) {
 <template>
   <div class="catalog">
     <p v-if="transport.mode === 'demo'" class="muted">{{ t('catalog.demo') }}</p>
-    <RouterLink to="/search">{{ t('nav.search') }}</RouterLink>
+    <button class="btn" type="button" @click="$router.options.history.state.back ? $router.back() : $router.replace('/search')">← {{ t('nav.search') === 'Search' ? 'Back' : '返回' }}</button>
     <p v-if="loading" role="status">{{ t('common.loading') }}</p>
     <div v-if="error" class="error" role="alert"><p>{{ error }}</p><button v-if="!data" class="btn" @click="load">{{ t('catalog.retry') }}</button> <RouterLink to="/settings">{{ t('catalog.login') }}</RouterLink></div>
     <template v-if="data">
-      <header><img v-if="data.cover" :src="data.cover" alt="" /><div><p class="muted">{{ t(route.params.kind === 'album' ? 'catalog.album' : 'catalog.artist') }} · {{ t('catalog.source') }}</p><h1>{{ data.name }}</h1><p>{{ tracks.length }} {{ t('catalog.songs') }}</p></div></header>
+      <header><img v-if="data.cover" :src="data.cover" alt="" /><div><p class="muted">{{ t(catalogRoute.params.kind === 'album' ? 'catalog.album' : 'catalog.artist') }} · {{ t('catalog.source') }}</p><h1>{{ data.name }}</h1><p>{{ tracks.length }} {{ t('catalog.songs') }}</p></div></header>
       <details v-if="data.description"><summary>{{ t('catalog.about') }}</summary><p>{{ data.description }}</p></details>
       <p v-if="!data.complete" class="muted">{{ t('catalog.partial') }}</p>
       <div class="actions">
@@ -103,7 +104,7 @@ async function download(items: Track[], whole = false) {
         <input type="checkbox" :aria-label="t('catalog.selectTrack', { title: track.title })" :checked="selected.has(track.fingerprint)" @change="toggle(track)" />
         <TrackRow :track="track" :index="index" :active="player.isCurrent(track)" :playing="player.playing" @play="play" @download="download([$event])" />
       </div>
-      <section v-if="route.params.kind === 'artist'">
+      <section v-if="catalogRoute.params.kind === 'artist'">
         <h2>{{ t('catalog.albums') }}</h2>
         <div class="albums"><RouterLink v-for="album in albums" :key="album.id" class="album-card" :to="{ name: 'catalog', params: { kind: 'album' }, query: { id: album.id } }"><img v-if="album.cover" :src="album.cover" alt="" loading="lazy" /><span>{{ album.name }}</span></RouterLink></div>
         <p v-if="albumError" role="alert">{{ albumError }}</p>

@@ -166,7 +166,7 @@ impl Default for Settings {
             duplicate_policy: DuplicatePolicy::KeepBoth,
             theme: ThemeMode::System,
             accent: Accent::Violet,
-            sources: Source::ALL.to_vec(),
+            sources: vec![Source::Netease, Source::Qq],
         }
     }
 }

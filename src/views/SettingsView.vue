@@ -845,7 +845,7 @@ function jumpPref(index:number){document.getElementById('pref-'+index)?.scrollIn
             <button
               class="switch"
               type="button"
-              :class="{ on: settings.sources.includes(source) }"
+              role="switch" :aria-label="sourceName(source)" :aria-checked="settings.sources.includes(source)" :class="{ on: settings.sources.includes(source) }"
               @click="toggleSource(source)"
             />
           </div>
